@@ -170,8 +170,8 @@ if __name__ == '__main__':
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
-    parser.add_argument('-b', '--batch-size', type=int, default=256)
-    parser.add_argument('-j', '--workers', type=int, default=4)
+    parser.add_argument('-b', '--batch-size', type=int, default=32)
+    parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int,
                         help="input height, default: 256 for resnet*, "
@@ -212,7 +212,8 @@ if __name__ == '__main__':
     parser.add_argument('--dist-metric', type=str, default='euclidean',
                         choices=['euclidean', 'kissme'])
     # misc
-    working_dir = osp.dirname(osp.abspath(__file__))
+    # working_dir = osp.dirname(osp.abspath(__file__))
+    working_dir = osp.expanduser('~') + '/.torch/'
     parser.add_argument('--data-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'data'))
     parser.add_argument('--logs-dir', type=str, metavar='PATH',

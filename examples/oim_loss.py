@@ -217,7 +217,8 @@ if __name__ == '__main__':
     parser.add_argument('--dist-metric', type=str, default='euclidean',
                         choices=['euclidean', 'kissme'])
     # misc
-    working_dir = osp.dirname(osp.abspath(__file__))
+    # working_dir = osp.dirname(osp.abspath(__file__))
+    working_dir = osp.expanduser('~') + '/.torch/'
     parser.add_argument('--data-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'data'))
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
