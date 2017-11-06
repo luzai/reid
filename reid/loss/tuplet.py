@@ -32,9 +32,9 @@ class TupletLoss(nn.Module):
             np.ones((n,)),
             np.zeros((n,))
         )))
-        y = y.type_as(pairs)
-        y.resize_as_(pairs)
+        y = y.type_as(pairs.data)
+        y.resize_as_(pairs.data)
         y = Variable(y)
-        loss = self.bce_with_logit(inputs=pairs, targets=y)
-        prec = ((pairs.data > 0.5) == y).sum() * 1. / y.size(0)
+        loss = self.bce_with_logit(input=pairs, target=y)
+        prec = ( (pairs.data > 0.5).type_as(y.data) == y.data).sum() * 1. / y.size(0)
         return loss, prec

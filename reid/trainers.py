@@ -5,7 +5,7 @@ import torch
 from torch.autograd import Variable
 
 from .evaluation_metrics import accuracy
-from .loss import OIMLoss, TripletLoss
+from .loss import OIMLoss, TripletLoss,TupletLoss
 from .utils.meters import AverageMeter
 
 
@@ -77,6 +77,8 @@ class Trainer(BaseTrainer):
             prec, = accuracy(outputs.data, targets.data)
             prec = prec[0]
         elif isinstance(self.criterion, TripletLoss):
+            loss, prec = self.criterion(outputs, targets)
+        elif isinstance(self.criterion, TupletLoss):
             loss, prec = self.criterion(outputs, targets)
         else:
             raise ValueError("Unsupported loss:", self.criterion)
