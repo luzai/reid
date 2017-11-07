@@ -7,7 +7,7 @@ class TestCUHK03(TestCase):
         from reid.datasets.cuhk03 import CUHK03
         from reid.utils.serialization import read_json
 
-        root, split_id, num_val = '/tmp/open-reid/cuhk03', 0, 100
+        root, split_id, num_val = '/home/xinglu/.torch/data/cuhk03', 0, 100
         dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True)
 
         self.assertTrue(osp.isfile(osp.join(root, 'meta.json')))
@@ -19,3 +19,12 @@ class TestCUHK03(TestCase):
 
         self.assertDictEqual(meta, dataset.meta)
         self.assertDictEqual(splits[split_id], dataset.split)
+
+if __name__ == '__main__':
+
+    import os.path as osp
+    from reid.datasets.cuhk03 import CUHK03
+    from reid.utils.serialization import read_json
+
+    root, split_id, num_val = '/home/xinglu/.torch/data/cuhk03', 0, 100
+    dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True)

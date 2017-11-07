@@ -53,8 +53,8 @@ class BaseTrainer(object):
                                      losses.val, losses.avg,
                                      precisions.val, precisions.avg))
         return collections.OrderedDict({
-            'time': batch_time.avg,
-            'data': data_time.avg,
+            'ttl-time': batch_time.avg,
+            'data-time': data_time.avg,
             'loss': losses.avg,
             'prec': precisions.avg
         })
