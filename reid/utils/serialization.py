@@ -21,11 +21,11 @@ def write_json(obj, fpath):
         json.dump(obj, f, indent=4, separators=(',', ': '))
 
 
-def save_checkpoint(state, is_best, fpath='checkpoint.pth.tar'):
+def save_checkpoint(state, is_best, fpath='checkpoint.pth'):
     mkdir_if_missing(osp.dirname(fpath))
     torch.save(state, fpath)
     if is_best:
-        shutil.copy(fpath, osp.join(osp.dirname(fpath), 'model_best.pth.tar'))
+        shutil.copy(fpath, osp.join(osp.dirname(fpath), 'model_best.pth'))
 
 
 def load_checkpoint(fpath):

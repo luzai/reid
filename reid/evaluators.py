@@ -68,7 +68,8 @@ def pairwise_distance(features, query=None, gallery=None, metric=None):
 def evaluate_all(distmat, query=None, gallery=None,
                  query_ids=None, gallery_ids=None,
                  query_cams=None, gallery_cams=None,
-                 cmc_topk=(1, 5, 10)):
+                 cmc_topk=(1, 5, 10),
+                 return_all=False):
     if query is not None and gallery is not None:
         query_ids = [pid for _, pid, _ in query]
         gallery_ids = [pid for _, pid, _ in gallery]
@@ -106,7 +107,12 @@ def evaluate_all(distmat, query=None, gallery=None,
                       cmc_scores['market1501'][k - 1]))
 
     # Use the allshots cmc top-1 score for validation criterion
-    return cmc_scores['allshots'][0]
+    if return_all:
+        return cmc_scores
+    else:
+        # return cmc_scores['allshots'][0]
+        return cmc_scores['cuhk03'][0]
+
 
 
 class Evaluator(object):
@@ -114,7 +120,7 @@ class Evaluator(object):
         super(Evaluator, self).__init__()
         self.model = model
 
-    def evaluate(self, data_loader, query, gallery, metric=None):
+    def evaluate(self, data_loader, query, gallery, metric=None, return_all=False ):
         features, _ = extract_features(self.model, data_loader)
         distmat = pairwise_distance(features, query, gallery, metric=metric)
-        return evaluate_all(distmat, query=query, gallery=gallery)
+        return evaluate_all(distmat, query=query, gallery=gallery,return_all =return_all)

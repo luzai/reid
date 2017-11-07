@@ -1,12 +1,13 @@
 from __future__ import print_function, absolute_import
-import time
+import time, collections
 
 import torch
 from torch.autograd import Variable
 
 from .evaluation_metrics import accuracy
-from .loss import OIMLoss, TripletLoss,TupletLoss
+from .loss import OIMLoss, TripletLoss, TupletLoss
 from .utils.meters import AverageMeter
+from .lz import logging
 
 
 class BaseTrainer(object):
@@ -41,16 +42,22 @@ class BaseTrainer(object):
             end = time.time()
 
             if (i + 1) % print_freq == 0:
-                print('Epoch: [{}][{}/{}]\t'
-                      'Time {:.3f} ({:.3f})\t'
-                      'Data {:.3f} ({:.3f})\t'
-                      'Loss {:.3f} ({:.3f})\t'
-                      'Prec {:.2%} ({:.2%})\t'
-                      .format(epoch, i + 1, len(data_loader),
-                              batch_time.val, batch_time.avg,
-                              data_time.val, data_time.avg,
-                              losses.val, losses.avg,
-                              precisions.val, precisions.avg))
+                logging.info('Epoch: [{}][{}/{}]\t'
+                             'Time {:.3f} ({:.3f})\t'
+                             'Data {:.3f} ({:.3f})\t'
+                             'Loss {:.3f} ({:.3f})\t'
+                             'Prec {:.2%} ({:.2%})\t'
+                             .format(epoch, i + 1, len(data_loader),
+                                     batch_time.val, batch_time.avg,
+                                     data_time.val, data_time.avg,
+                                     losses.val, losses.avg,
+                                     precisions.val, precisions.avg))
+        return collections.OrderedDict({
+            'time': batch_time.avg,
+            'data': data_time.avg,
+            'loss': losses.avg,
+            'prec': precisions.avg
+        })
 
     def _parse_data(self, inputs):
         raise NotImplementedError

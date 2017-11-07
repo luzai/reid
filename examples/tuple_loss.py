@@ -85,7 +85,7 @@ def main(args):
         'num_instances should divide batch_size'
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
-                                  (256, 128)
+            (256, 128)
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
@@ -144,7 +144,14 @@ def main(args):
         trainer.train(epoch, train_loader, optimizer)
         if epoch < args.start_save:
             continue
-        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
+        if epoch < args.epochs // 2 and epoch % 10 != 0:
+            continue
+        elif epoch < args.epochs - 20 and epoch % 5 != 0:
+            continue
+        if args.combine_trainval:
+            top1 = evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
+        else:
+            top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
@@ -152,25 +159,28 @@ def main(args):
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
             'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
+        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
     print('Test with best model:')
-    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
+    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
     model.module.load_state_dict(checkpoint['state_dict'])
     metric.train(model, train_loader)
     evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
 
 
 if __name__ == '__main__':
+    import lz
+
+    lz.init_dev((3,))
     parser = argparse.ArgumentParser(description="Triplet loss classification")
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
-    parser.add_argument('-b', '--batch-size', type=int, default=4)
+    parser.add_argument('-b', '--batch-size', type=int, default=160)
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int,
@@ -181,7 +191,7 @@ if __name__ == '__main__':
                              "56 for inception")
     parser.add_argument('--combine-trainval', action='store_true',
                         help="train and val sets together for training, "
-                             "val set alone for validation")
+                             "val set alone for validation", default=True)
     parser.add_argument('--num-instances', type=int, default=4,
                         help="each minibatch consist of "
                              "(batch_size // num_instances) identities, and "
@@ -217,5 +227,12 @@ if __name__ == '__main__':
     parser.add_argument('--data-dir', type=str, metavar='PATH',
                         default=osp.join(home_dir, 'data'))
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
-    main(parser.parse_args())
+                        default=osp.join(working_dir, 'logs.tu'))
+    args = parser.parse_args()
+    dbg = False
+    if dbg:
+        args.epochs = 2
+        args.batch_size = 8
+        args.logs_dir = args.logs_dir + '.dbg'
+    lz.mkdir_p(args.logs_dir, delete=True)
+    main(args)

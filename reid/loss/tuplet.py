@@ -10,7 +10,7 @@ class TupletLoss(nn.Module):
     def __init__(self, margin=0):
         super(TupletLoss, self).__init__()
         self.margin = margin
-        self.bce_with_logit = nn.BCEWithLogitsLoss()
+        self.bce_with_logit = nn.BCELoss()
 
     def forward(self, inputs, targets):
         n = inputs.size(0)
@@ -26,7 +26,7 @@ class TupletLoss(nn.Module):
             dist_ap.append(dist[i][mask[i]].max())
             dist_an.append(dist[i][mask[i] == 0].min())
         pairs = torch.cat(dist_ap + dist_an)
-
+        pairs = torch.exp(-pairs)
         # Compute bce loss
         y = torch.from_numpy(np.concatenate((
             np.ones((n,)),
@@ -36,5 +36,5 @@ class TupletLoss(nn.Module):
         y.resize_as_(pairs.data)
         y = Variable(y)
         loss = self.bce_with_logit(input=pairs, target=y)
-        prec = ( (pairs.data > 0.5).type_as(y.data) == y.data).sum() * 1. / y.size(0)
+        prec = ( (pairs.data > 0.5).type_as(y.data)  == y.data).sum() * 1. / y.size(0)
         return loss, prec

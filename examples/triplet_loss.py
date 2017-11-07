@@ -21,6 +21,10 @@ from reid.utils.data.sampler import RandomIdentitySampler
 from reid.utils.logging import Logger
 from reid.utils.serialization import load_checkpoint, save_checkpoint
 
+import torch
+import torchvision
+from tensorboardX import SummaryWriter
+
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
              workers, combine_trainval):
@@ -71,9 +75,10 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
 
 
 def main(args):
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    # np.random.seed(args.seed)
+    # torch.manual_seed(args.seed)
     cudnn.benchmark = True
+    writer = SummaryWriter(args.logs_dir)
 
     # Redirect print to both console and log file
     if not args.evaluate:
@@ -85,12 +90,12 @@ def main(args):
         'num_instances should divide batch_size'
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
-                                  (256, 128)
+            (256, 128)
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
                  args.combine_trainval)
-
+    # todo draw model
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
@@ -141,10 +146,33 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        trainer.train(epoch, train_loader, optimizer)
+        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
+        for k, v in hist.iteritems():
+            writer.add_scalar('train/' + k, v, epoch)
         if epoch < args.start_save:
             continue
-        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
+        if epoch < args.epochs // 2 and epoch % 10 != 0:
+            continue
+        elif epoch < args.epochs - 20 and epoch % 5 != 0:
+            continue
+
+        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=True)
+        hist = {'top-1': top1['cuhk03'][0],
+                'top-5': top1['cuhk03'][4],
+                'top-10': top1['cuhk03'][9]
+                }
+        writer.add_scalars('train', hist, epoch)
+
+        if args.combine_trainval:
+            top1 = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=True)
+        else:
+            top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=True)
+        hist = {'top-1': top1['cuhk03'][0],
+                'top-5': top1['cuhk03'][4],
+                'top-10': top1['cuhk03'][9]
+                }
+        writer.add_scalars('test', hist, epoch)
+        top1 = top1['cuhk03'][0]
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
@@ -152,7 +180,7 @@ def main(args):
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
             'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
+        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth.tar'.format(epoch)))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
@@ -166,11 +194,14 @@ def main(args):
 
 
 if __name__ == '__main__':
+    import lz
+
+    lz.init_dev((3,))
     parser = argparse.ArgumentParser(description="Triplet loss classification")
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
-    parser.add_argument('-b', '--batch-size', type=int, default=400)
+    parser.add_argument('-b', '--batch-size', type=int, default=160)
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int,
@@ -181,7 +212,8 @@ if __name__ == '__main__':
                              "56 for inception")
     parser.add_argument('--combine-trainval', action='store_true',
                         help="train and val sets together for training, "
-                             "val set alone for validation")
+                             "val set alone for validation",
+                        default=True)
     parser.add_argument('--num-instances', type=int, default=4,
                         help="each minibatch consist of "
                              "(batch_size // num_instances) identities, and "
@@ -207,7 +239,7 @@ if __name__ == '__main__':
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('--seed', type=int, default=1)
-    parser.add_argument('--print-freq', type=int, default=1)
+    parser.add_argument('--print-freq', type=int, default=5)
     # metric learning
     parser.add_argument('--dist-metric', type=str, default='euclidean',
                         choices=['euclidean', 'kissme'])
@@ -217,5 +249,15 @@ if __name__ == '__main__':
     parser.add_argument('--data-dir', type=str, metavar='PATH',
                         default=osp.join(home_dir, 'data'))
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
-    main(parser.parse_args())
+                        default=osp.join(working_dir, 'logs.tri.bs160'))
+
+    args = parser.parse_args()
+    dbg = False
+    if dbg:
+        lz.init_dev((3,))
+        args.epochs = 2
+        args.batch_size = 24
+        args.logs_dir = args.logs_dir + '.dbg'
+    lz.mkdir_p(args.logs_dir, delete=True)
+    lz.cp('triplet_loss.py',args.logs_dir)
+    main(args)
