@@ -24,6 +24,7 @@ from reid.utils.serialization import load_checkpoint, save_checkpoint
 import torch
 import torchvision
 from tensorboardX import SummaryWriter
+import lz, multiprocessing as mp
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=None,
@@ -81,14 +82,12 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
 
 
 def main(args):
+    for k, v in vars(args).iteritems():
+        print('{}: {}'.format(k, v))
+
     # np.random.seed(args.seed)
     # torch.manual_seed(args.seed)
     cudnn.benchmark = True
-    writer = SummaryWriter(args.logs_dir)
-
-    # Redirect print to both console and log file
-    if not args.evaluate:
-        sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
     # Create data loaders
     if args.num_instances is not None:
@@ -105,23 +104,23 @@ def main(args):
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
-    if args.loss !='softmax':
+    if args.loss != 'softmax':
         model = models.create(args.arch, num_features=1024,
-                          dropout=args.dropout, num_classes=args.features)
+                              dropout=args.dropout, num_classes=args.features)
     else:
         model = models.create(args.arch,
                               num_features=args.features,
                               dropout=args.dropout, num_classes=num_classes)
 
     # Load from checkpoint
-    start_epoch = best_top1 = 0
-    if args.resume:
-        checkpoint = load_checkpoint(args.resume)
-        model.load_state_dict(checkpoint['state_dict'])
-        start_epoch = checkpoint['epoch']
-        best_top1 = checkpoint['best_top1']
-        print("=> Start epoch {}  best top1 {:.1%}"
-              .format(start_epoch, best_top1))
+
+    checkpoint = load_checkpoint(args.model_dir)
+    model.load_state_dict(checkpoint['state_dict'])
+    start_epoch = checkpoint['epoch']
+    best_top1 = checkpoint['best_top1']
+    print("=> Start epoch {}  best top1 {:.1%}"
+          .format(start_epoch, best_top1))
+
     model = nn.DataParallel(model).cuda()
 
     # Distance metric
@@ -129,122 +128,33 @@ def main(args):
 
     # Evaluator
     evaluator = Evaluator(model)
-    if args.evaluate:
-        metric.train(model, train_loader)
-        print("Validation:")
-        evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-        print("Test:")
-        evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        return
 
-    # Criterion # Optimizer
-    if args.loss == 'triplet':
-        criterion = TripletLoss(margin=args.margin).cuda()
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
-                                     weight_decay=args.weight_decay)
-
-        # Schedule learning rate
-        def adjust_lr(epoch):
-            lr = args.lr if epoch <= 100 else \
-                args.lr * (0.001 ** ((epoch - 100) / 50.0))
-            for g in optimizer.param_groups:
-                g['lr'] = lr * g.get('lr_mult', 1)
-    elif args.loss == 'tuple':
-        criterion = TupletLoss(margin=args.margin).cuda()
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
-                                     weight_decay=args.weight_decay)
-
-        # Schedule learning rate
-        def adjust_lr(epoch):
-            lr = args.lr if epoch <= 100 else \
-                args.lr * (0.001 ** ((epoch - 100) / 50.0))
-            for g in optimizer.param_groups:
-                g['lr'] = lr * g.get('lr_mult', 1)
-    elif args.loss == 'softmax':
-        criterion = nn.CrossEntropyLoss().cuda()
-        if hasattr(model.module, 'base'):
-            base_param_ids = set(map(id, model.module.base.parameters()))
-            new_params = [p for p in model.parameters() if
-                          id(p) not in base_param_ids]
-            param_groups = [
-                {'params': model.module.base.parameters(), 'lr_mult': 0.1},
-                {'params': new_params, 'lr_mult': 1.0}]
-        else:
-            param_groups = model.parameters()
-        optimizer = torch.optim.SGD(param_groups, lr=args.lr,
-                                    momentum=args.momentum,
-                                    weight_decay=args.weight_decay,
-                                    nesterov=True)
-        def adjust_lr(epoch):
-            step_size = 60 if args.arch == 'inception' else 40
-            lr = args.lr * (0.1 ** (epoch // step_size))
-            for g in optimizer.param_groups:
-                g['lr'] = lr * g.get('lr_mult', 1)
-
-
-    # Trainer
-    trainer = Trainer(model, criterion)
-
-
-    # Start training
-    for epoch in range(start_epoch, args.epochs):
-        adjust_lr(epoch)
-        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
-        for k, v in hist.iteritems():
-            writer.add_scalar('train/' + k, v, epoch)
-        if epoch < args.start_save:
-            continue
-        if epoch < args.epochs // 2 and epoch % 10 != 0:
-            continue
-        elif epoch < args.epochs - 20 and epoch % 5 != 0:
-            continue
-
-        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=True)
-        acc = {'top-1': acc['cuhk03'][0],
-                'top-5': acc['cuhk03'][4],
-                'top-10': acc['cuhk03'][9]
-                }
-        writer.add_scalars('train', acc, epoch)
-
-        # if args.combine_trainval:
-        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=True)
-        # else:
-        #     top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=True)
-        acc = {'top-1': acc['cuhk03'][0],
-                'top-5': acc['cuhk03'][4],
-                'top-10': acc['cuhk03'][9]
-                }
-        writer.add_scalars('test', acc, epoch)
-
-        top1 = acc['top-1']
-
-        is_best = top1 > best_top1
-        best_top1 = max(top1, best_top1)
-        save_checkpoint({
-            'state_dict': model.module.state_dict(),
-            'epoch': epoch + 1,
-            'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
-
-        print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
-              format(epoch, top1, best_top1, ' *' if is_best else ''))
-
-    # Final test
-    print('Test with best model:')
-    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
-    model.module.load_state_dict(checkpoint['state_dict'])
     metric.train(model, train_loader)
-    evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    print("Validation:")
+    train_acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+    print("Test:")
+    test_acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+
+    lz.logging.debug('epoch {} train {} test {}'.format(start_epoch, train_acc, test_acc) )
+
+    return start_epoch, train_acc, test_acc
+
 
 
 if __name__ == '__main__':
-    import lz
 
     # lz.init_dev((0,1,2,3,))
-    lz.init_dev((3,))
+    lz.init_dev((1,))
     parser = argparse.ArgumentParser(description="many kind loss classification")
     # tuning
     parser.add_argument('-b', '--batch-size', type=int, default=160)
+    working_dir = osp.dirname(osp.abspath(__file__))
+
+    parser.add_argument('--model-dir', type=str, metavar='PATH',
+                        default=osp.join(working_dir, 'logs.tri/model_best.pth.tar'))
+
+    parser.add_argument('--loss', type=str, default='triplet',
+                        choices=['triplet', 'tuple', 'softmax'])
 
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
@@ -270,18 +180,16 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
     parser.add_argument('--features', type=int, default=128)
-    parser.add_argument('--dropout', type=float, default=0) # 0.5
+    parser.add_argument('--dropout', type=float, default=0)  # 0.5
     # loss
     parser.add_argument('--margin', type=float, default=0.5,
                         help="margin of the triplet loss, default: 0.5")
     # optimizer
     parser.add_argument('--lr', type=float, default=0.0002,
-                        help="learning rate of all parameters") # 0.1
+                        help="learning rate of all parameters")  # 0.1
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
-    parser.add_argument('--evaluate', action='store_true',
-                        help="evaluation only")
     parser.add_argument('--epochs', type=int, default=150)
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
@@ -290,28 +198,22 @@ if __name__ == '__main__':
     # metric learning
     parser.add_argument('--dist-metric', type=str, default='euclidean',
                         choices=['euclidean', 'kissme'])
-    parser.add_argument('--loss', type=str, default='triplet',
-                        choices=['triplet', 'tuple', 'softmax'])
     # misc
-    working_dir = osp.dirname(osp.abspath(__file__))
     home_dir = osp.expanduser('~') + '/.torch/'
     parser.add_argument('--data-dir', type=str, metavar='PATH',
                         default=osp.join(home_dir, 'data'))
-    parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs.bs64'))
 
     args = parser.parse_args()
-    args.logs_dir += ('.'+args.loss)
-    dbg = False
-    if dbg:
-        lz.init_dev((3,))
-        args.epochs = 2
-        args.batch_size = 8
-        args.logs_dir = args.logs_dir + '.dbg'
-    lz.mkdir_p(args.logs_dir, delete=True)
-    lz.write_json(vars(args ), args.logs_dir+'/conf.json')
-    for k,v in vars(args):
-        lz.logging.info('{}: {}'.format(k,v))
-    if args.loss=='softmax':
-        args.num_instances=None
-    main(args)
+
+    if args.loss == 'softmax':
+        args.num_instances = None
+    # main(args)
+
+    for model_dir in lz.glob.glob('logs.tri/*.pth*'):
+        # lz.logging.info('start {}'.format(model_dir))
+        args.model_dir = model_dir
+        proc = mp.Process(target=main, args=(args,))
+        proc.start()
+        proc.join()
+        # lz.logging.info('finish {}'.format(model_dir))
+        # break
