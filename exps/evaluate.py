@@ -81,7 +81,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
     return dataset, num_classes, train_loader, val_loader, test_loader
 
 
-def main(args):
+def main(args, queue=None):
     for k, v in vars(args).iteritems():
         print('{}: {}'.format(k, v))
 
@@ -135,10 +135,10 @@ def main(args):
     print("Test:")
     test_acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
 
-    lz.logging.debug('epoch {} train {} test {}'.format(start_epoch, train_acc, test_acc) )
-
+    lz.logging.info('epoch {} train {} test {}'.format(start_epoch, train_acc, test_acc))
+    if queue is not None:
+        queue.put((start_epoch, train_acc, test_acc))
     return start_epoch, train_acc, test_acc
-
 
 
 if __name__ == '__main__':
@@ -208,12 +208,14 @@ if __name__ == '__main__':
     if args.loss == 'softmax':
         args.num_instances = None
     # main(args)
-
+    queue = mp.Queue()
+    res = []
     for model_dir in lz.glob.glob('logs.tri/*.pth*'):
-        # lz.logging.info('start {}'.format(model_dir))
+        lz.logging.info('start {}'.format(model_dir))
         args.model_dir = model_dir
-        proc = mp.Process(target=main, args=(args,))
+        proc = mp.Process(target=main, args=(args, queue))
         proc.start()
         proc.join()
-        # lz.logging.info('finish {}'.format(model_dir))
+        res.append(queue.get())
         # break
+    lz.pickle(res, 'res.pkl')

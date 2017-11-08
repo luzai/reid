@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-
+import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.nn import init
@@ -13,7 +13,8 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
     conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
                      stride=stride, padding=padding, bias=bias)
     init.kaiming_normal(conv.weight, mode='fan_out')
-    init.constant(conv.bias, 0)
+    if bias:
+        init.constant(conv.bias, 0)
     init.constant(conv.weight, 1)
 
     bn = nn.BatchNorm2d(out_planes)
@@ -35,18 +36,35 @@ def _make_fc(in_, out_, dp_=0):
 
 
 class Siamese(nn.Module):
-    def __init__(self, dropout=0, mode='cat'):
+    def __init__(self, dropout=0, mode='cat', height=256, width=128):
         super(Siamese, self).__init__()
         self.dropout = dropout
         self.mode = mode
 
         self.conv1 = _make_conv(4096, 2048)
-        self.avg1 = nn.AvgPool2d((4, 2))
+        self.avg1 = nn.AvgPool2d((height // 32, width // 32))
 
         self.fc1 = _make_fc(2048, 1024, dp_=self.dropout)
-        self.fc2 = _make_fc(1024, )
+        self.fc2 = _make_fc(1024, 128, dp_=self.dropout)
 
         self.reset_params()
+
+    def forward(self, x1, x2):
+        for name, module in self.base._modules.items():
+            if name == 'avgpool':
+                break
+            x1 = module(x1)
+            x2 = module(x2)
+
+        x = torch.cat([x1, x2], dim=1)
+
+        x = self.conv1(x)
+        x = self.avg1(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+
+        return x
 
     def reset_params(self):
         for m in self.modules():

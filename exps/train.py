@@ -139,14 +139,14 @@ def main(args):
 
     # Criterion # Optimizer
     if args.loss == 'triplet':
-        criterion = TripletLoss(margin=args.margin).cuda()
+        criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda()
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
                                      weight_decay=args.weight_decay)
 
         # Schedule learning rate
-        def adjust_lr(epoch):
-            lr = args.lr if epoch <= 100 else \
-                args.lr * (0.001 ** ((epoch - 100) / 50.0))
+        def adjust_lr(epoch, decay_epoch=100):
+            lr = args.lr if epoch <= decay_epoch else \
+                args.lr * (0.001 ** ((epoch - decay_epoch) / float(decay_epoch/2.)))
             for g in optimizer.param_groups:
                 g['lr'] = lr * g.get('lr_mult', 1)
     elif args.loss == 'tuple':
@@ -240,14 +240,23 @@ if __name__ == '__main__':
     import lz
 
     # lz.init_dev((0,1,2,3,))
-    lz.init_dev((3,))
+    lz.init_dev((0,))
     parser = argparse.ArgumentParser(description="many kind loss classification")
     # tuning
-    parser.add_argument('-b', '--batch-size', type=int, default=160)
+    parser.add_argument('-b', '--batch-size', type=int, default=100)
     working_dir = osp.dirname(osp.abspath(__file__))
+    parser.add_argument('--epochs', type=int, default=150)
 
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
+                        default=osp.join(working_dir, 'logs.attention'))
+
+    parser.add_argument('-a', '--arch', type=str, default='attention50',
+                        choices=models.names())
+    parser.add_argument('--loss', type=str, default='triplet',
+                        choices=['triplet', 'tuple', 'softmax'])
+    parser.add_argument('--mode', type=str, default='hard',
+                        choices=['rand', 'hard']
+                        )
 
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
@@ -270,8 +279,7 @@ if __name__ == '__main__':
                              "each identity has num_instances instances, "
                              "default: 4")
     # model
-    parser.add_argument('-a', '--arch', type=str, default='resnet50',
-                        choices=models.names())
+
     parser.add_argument('--features', type=int, default=128)
     parser.add_argument('--dropout', type=float, default=0)  # 0.5
     # loss
@@ -285,7 +293,6 @@ if __name__ == '__main__':
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
     parser.add_argument('--evaluate', action='store_true',
                         help="evaluation only")
-    parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('--seed', type=int, default=1)
@@ -293,8 +300,7 @@ if __name__ == '__main__':
     # metric learning
     parser.add_argument('--dist-metric', type=str, default='euclidean',
                         choices=['euclidean', 'kissme'])
-    parser.add_argument('--loss', type=str, default='triplet',
-                        choices=['triplet', 'tuple', 'softmax'])
+
     # misc
     home_dir = osp.expanduser('~') + '/.torch/'
     parser.add_argument('--data-dir', type=str, metavar='PATH',
@@ -304,8 +310,9 @@ if __name__ == '__main__':
     args.logs_dir += ('.' + args.loss)
     dbg = False
     if dbg:
-        lz.init_dev((3,))
+        lz.init_dev((0,))
         args.epochs = 2
+        args.workers = 4
         args.batch_size = 8
         args.logs_dir = args.logs_dir + '.dbg'
     lz.mkdir_p(args.logs_dir, delete=True)
