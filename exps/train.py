@@ -248,15 +248,14 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=150)
 
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs.attention'))
+                        default=osp.join(working_dir, 'logs.tuple.hinge'))
 
-    parser.add_argument('-a', '--arch', type=str, default='attention50',
+    parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
-    parser.add_argument('--loss', type=str, default='triplet',
+    parser.add_argument('--loss', type=str, default='tuple',
                         choices=['triplet', 'tuple', 'softmax'])
     parser.add_argument('--mode', type=str, default='hard',
-                        choices=['rand', 'hard']
-                        )
+                        choices=['rand', 'hard'])
 
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',

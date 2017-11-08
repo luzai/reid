@@ -19,15 +19,16 @@ class TestInception(TestCase):
         self.assertEquals(y.norm(2, 1).max(), 1)
         self.assertEquals(y.norm(2, 1).min(), 1)
 
+
 if __name__ == '__main__':
     import torch
     from torch.autograd import Variable
     from reid.models import Siamese
 
     model = Siamese()
-    x1 = Variable(torch.randn(10, 3, 256,128), requires_grad=False)
-    x2 = Variable(torch.randn(10, 3, 256,128), requires_grad=False)
+    x1 = Variable(torch.randn(4, 2048, 8, 4), requires_grad=False)
+    x2 = Variable(torch.randn(4, 2048, 8, 4), requires_grad=False)
 
-    y = model(x1,x2)
+    y = model(x1, x2)
 
     print y.size()

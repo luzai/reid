@@ -10,7 +10,7 @@ class TupletLoss(nn.Module):
     def __init__(self, margin=0):
         super(TupletLoss, self).__init__()
         self.margin = margin
-        self.bce_with_logit = nn.BCELoss()
+        self.loss_f = nn.HingeEmbeddingLoss(margin)
 
     def forward(self, inputs, targets):
         n = inputs.size(0)
@@ -30,11 +30,12 @@ class TupletLoss(nn.Module):
         # Compute bce loss
         y = torch.from_numpy(np.concatenate((
             np.ones((n,)),
-            np.zeros((n,))
+            np.ones((n,)) * -1
         )))
         y = y.type_as(pairs.data)
         y.resize_as_(pairs.data)
         y = Variable(y)
-        loss = self.bce_with_logit(input=pairs, target=y)
-        prec = ( (pairs.data > 0.5).type_as(y.data)  == y.data).sum() * 1. / y.size(0)
+        loss = self.loss_f(input=pairs, target=y)
+        prec = ((pairs.data < self.margin)
+                == (y.data > 0)).sum() * 1. / y.size(0)
         return loss, prec

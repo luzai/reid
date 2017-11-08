@@ -24,7 +24,7 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
     return nn.Sequential(conv, bn, relu)
 
 
-def _make_fc(in_, out_, dp_=0):
+def _make_fc(in_, out_, dp_=0.):
     fc = nn.Linear(in_, out_)
     init.normal(fc.weight, std=0.001)
     init.constant(fc.bias, 0)
@@ -36,25 +36,26 @@ def _make_fc(in_, out_, dp_=0):
 
 
 class Siamese(nn.Module):
-    def __init__(self, dropout=0, mode='cat', height=256, width=128):
+    def __init__(self, dropout=0.4, mode='cat', height=256, width=128, in_planes=2048):
         super(Siamese, self).__init__()
         self.dropout = dropout
         self.mode = mode
 
-        self.conv1 = _make_conv(4096, 2048)
+        self.conv1 = _make_conv(in_planes*2, in_planes)
         self.avg1 = nn.AvgPool2d((height // 32, width // 32))
 
-        self.fc1 = _make_fc(2048, 1024, dp_=self.dropout)
-        self.fc2 = _make_fc(1024, 128, dp_=self.dropout)
+        self.fc1 = _make_fc(in_planes, 1024, dp_=self.dropout)
+        self.fc2 = _make_fc(1024, 256, dp_=self.dropout)
+        self.fc3 = _make_fc(256, 2, dp_=self.dropout)
 
         self.reset_params()
 
     def forward(self, x1, x2):
-        for name, module in self.base._modules.items():
-            if name == 'avgpool':
-                break
-            x1 = module(x1)
-            x2 = module(x2)
+        # for name, module in self.base._modules.items():
+        #     if name == 'avgpool':
+        #         break
+        #     x1 = module(x1)
+        #     x2 = module(x2)
 
         x = torch.cat([x1, x2], dim=1)
 
@@ -63,6 +64,7 @@ class Siamese(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.fc1(x)
         x = self.fc2(x)
+        x = self.fc3(x)
 
         return x
 

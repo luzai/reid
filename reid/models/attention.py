@@ -25,7 +25,7 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
     return nn.Sequential(conv, bn, relu)
 
 
-def _make_fc(in_, out_, dp_=0):
+def _make_fc(in_, out_, dp_=0.):
     fc = nn.Linear(in_, out_)
     init.normal(fc.weight, std=0.001)
     init.constant(fc.bias, 0)
