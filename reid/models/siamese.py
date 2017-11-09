@@ -15,10 +15,10 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
     init.kaiming_normal(conv.weight, mode='fan_out')
     if bias:
         init.constant(conv.bias, 0)
-    init.constant(conv.weight, 1)
 
     bn = nn.BatchNorm2d(out_planes)
     init.constant(bn.bias, 0)
+    init.constant(bn.weight, 1)
 
     relu = nn.ReLU(inplace=True)
     return nn.Sequential(conv, bn, relu)
@@ -41,7 +41,7 @@ class Siamese(nn.Module):
         self.dropout = dropout
         self.mode = mode
 
-        self.conv1 = _make_conv(in_planes*2, in_planes)
+        self.conv1 = _make_conv(in_planes * 2, in_planes)
         self.avg1 = nn.AvgPool2d((height // 32, width // 32))
 
         self.fc1 = _make_fc(in_planes, 1024, dp_=self.dropout)

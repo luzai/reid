@@ -19,3 +19,9 @@ class TestVIPeR(TestCase):
 
         self.assertDictEqual(meta, dataset.meta)
         self.assertDictEqual(splits[split_id], dataset.split)
+
+if __name__ == '__main__':
+    import os.path as osp
+    from reid.datasets import VIPeR
+    from reid.utils.serialization import read_json
+    VIPeR('/home/xinglu/.torch/data/viper/')

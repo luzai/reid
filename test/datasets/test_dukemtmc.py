@@ -20,3 +20,11 @@ class TestDukeMTMC(TestCase):
 
         self.assertDictEqual(meta, dataset.meta)
         self.assertDictEqual(splits[split_id], dataset.split)
+
+
+
+if __name__ == '__main__':
+    import os.path as osp
+    from reid.datasets import DukeMTMC
+    from reid.utils.serialization import read_json
+    DukeMTMC('/home/xinglu/.torch/data/dukemtmc/')

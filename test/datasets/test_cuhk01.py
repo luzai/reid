@@ -19,3 +19,9 @@ class TestCUHK01(TestCase):
 
         self.assertDictEqual(meta, dataset.meta)
         self.assertDictEqual(splits[split_id], dataset.split)
+
+if __name__ == '__main__':
+    import os.path as osp
+    from reid.datasets import CUHK01
+    from reid.utils.serialization import read_json
+    CUHK01('/home/xinglu/.torch/data/cuhk01/')

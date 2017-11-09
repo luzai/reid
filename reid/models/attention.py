@@ -10,32 +10,37 @@ __all__ = ['Attention', 'attention50']
 
 
 def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
-               bias=False):
+               bias=False, with_relu=True):
     conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
                      stride=stride, padding=padding, bias=bias)
     init.kaiming_normal(conv.weight, mode='fan_out')
     if bias:
         init.constant(conv.bias, 0)
-    init.constant(conv.weight, 1)
 
     bn = nn.BatchNorm2d(out_planes)
     init.constant(bn.bias, 0)
+    init.constant(bn.weight,1 )
 
-    relu = nn.ReLU(inplace=True)
-    return nn.Sequential(conv, bn, relu)
+    if with_relu:
+        relu = nn.ReLU(inplace=True)
+        return nn.Sequential(conv, bn, relu)
+    else:
+        return nn.Sequential(conv, bn)
 
 
-def _make_fc(in_, out_, dp_=0.):
+def _make_fc(in_, out_, dp_=0.,with_relu=True):
     fc = nn.Linear(in_, out_)
     init.normal(fc.weight, std=0.001)
     init.constant(fc.bias, 0)
-
     relu = nn.ReLU(inplace=True)
+    dp = nn.Dropout(dp_)
+    res = [fc,]
     if dp_ != 0:
-        dp = nn.Dropout(dp_)
-        return nn.Sequential(fc, dp, relu)
-    else:
-        return nn.Sequential(fc, relu)
+        res.append(dp )
+    if with_relu:
+        res.append(relu)
+
+    return nn.Sequential(*res)
 
 
 class MaskBranch(nn.Module):
@@ -43,16 +48,17 @@ class MaskBranch(nn.Module):
         super(MaskBranch, self).__init__()
         self.height = height
         self.width = width
-
+        # self.branch_left[0][1].bias
         self.branch_left = nn.Sequential(
-            _make_conv(in_planes, 1),
+            _make_conv(in_planes, 1, with_relu=False),
             nn.Sigmoid()
         )
         self.pool = nn.AvgPool2d((self.height // 32, self.width // 32))
-        self.fc = _make_fc(in_planes, branch_dim)
+        self.fc = _make_fc(in_planes, branch_dim,with_relu=False)
 
     def forward(self, x):
         x_left = self.branch_left(x)
+        # x[0,0,0,0], x_left[0,0,0,0] ,x_merge[0,0,0,0]
         x_merge = x * x_left
         x_merge = self.pool(x_merge)
         x_merge = x_merge.view(x_merge.size(0), -1)
@@ -70,6 +76,7 @@ class Mask(nn.Module):
     def forward(self, x):
         x = torch.cat([b(x) for b in self.branch_l], 1)
         x = F.normalize(x)
+
         return x
 
 
@@ -99,7 +106,7 @@ class Attention(nn.Module):
             raise KeyError("Unsupported depth:", depth)
         self.base = Attention.__factory[depth](pretrained=pretrained)
 
-        self.conv1 = _make_conv(2048, num_features)
+        self.conv1 = _make_conv(2048, num_features,with_relu=False)  # ,with_relu=False
 
         self.mask = Mask(num_features, branchs, branch_dim, height, width)
 

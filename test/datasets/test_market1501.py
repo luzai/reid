@@ -20,3 +20,9 @@ class TestMarket1501(TestCase):
 
         self.assertDictEqual(meta, dataset.meta)
         self.assertDictEqual(splits[split_id], dataset.split)
+
+if __name__ == '__main__':
+    import os.path as osp
+    from reid.datasets import Market1501
+    from reid.utils.serialization import read_json
+    Market1501('/home/xinglu/.torch/data/market1501/')

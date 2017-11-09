@@ -21,9 +21,9 @@ from reid.utils.data.sampler import RandomIdentitySampler
 from reid.utils.logging import Logger
 from reid.utils.serialization import load_checkpoint, save_checkpoint
 
-import torch
 import torchvision
 from tensorboardX import SummaryWriter
+import lz
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=None,
@@ -81,14 +81,12 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
 
 
 def main(args):
-    # np.random.seed(args.seed)
-    # torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
     cudnn.benchmark = True
     writer = SummaryWriter(args.logs_dir)
 
     # Redirect print to both console and log file
-    if not args.evaluate:
-        sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
     # Create data loaders
     if args.num_instances is not None:
@@ -129,13 +127,13 @@ def main(args):
 
     # Evaluator
     evaluator = Evaluator(model)
-    if args.evaluate:
-        metric.train(model, train_loader)
-        print("Validation:")
-        evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-        print("Test:")
-        evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        return
+    # if args.evaluate:
+    #     metric.train(model, train_loader)
+    #     print("Validation:")
+    #     evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+    #     print("Test:")
+    #     evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    #     return
 
     # Criterion # Optimizer
     if args.loss == 'triplet':
@@ -237,28 +235,26 @@ def main(args):
 
 
 if __name__ == '__main__':
-    import lz
 
-    # lz.init_dev((0,1,2,3,))
-    lz.init_dev((0,))
     parser = argparse.ArgumentParser(description="many kind loss classification")
     # tuning
-    parser.add_argument('-b', '--batch-size', type=int, default=100)
+    parser.add_argument('-b', '--batch-size', type=int, default=160)
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--epochs', type=int, default=150)
 
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs.tuple.hinge'))
+                        default=osp.join(working_dir, 'logs'))
 
     parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
-    parser.add_argument('--loss', type=str, default='tuple',
+    parser.add_argument('--loss', type=str, default='triplet',
                         choices=['triplet', 'tuple', 'softmax'])
     parser.add_argument('--mode', type=str, default='hard',
                         choices=['rand', 'hard'])
+    lz.init_dev((0,))
 
     # data
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+    parser.add_argument('-d', '--dataset', type=str, default='viper',
                         choices=datasets.names())
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
@@ -290,8 +286,6 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
-    parser.add_argument('--evaluate', action='store_true',
-                        help="evaluation only")
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('--seed', type=int, default=1)
@@ -306,7 +300,7 @@ if __name__ == '__main__':
                         default=osp.join(home_dir, 'data'))
 
     args = parser.parse_args()
-    args.logs_dir += ('.' + args.loss)
+    args.logs_dir += ('.' + args.loss + '.' + args.dataset)
     dbg = False
     if dbg:
         lz.init_dev((0,))

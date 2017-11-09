@@ -88,3 +88,4 @@ class CUHK01(Dataset):
                      'gallery': test_pids}
             splits.append(split)
         write_json(splits, osp.join(self.root, 'splits.json'))
+

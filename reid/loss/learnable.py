@@ -4,23 +4,17 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import numpy as np
-from tensorboardX import SummaryWriter
-import subprocess
 
 
-class TripletLoss(nn.Module):
-    def __init__(self, margin=0, mode='hard'):
-        super(TripletLoss, self).__init__()
+class LearnableLoss(nn.Module):
+    def __init__(self, margin=0, mode='hard', metric_net = None):
+        super(LearnableLoss, self).__init__()
         self.margin = margin
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
         self.mode = mode
-        # subprocess.call(('rm -rf exps/dbg').split())
-        # self.writer = SummaryWriter('./exps/dbg')
-        # self.iter = 0
 
     def forward(self, inputs, targets):
         n = inputs.size(0)
-
         # Compute pairwise distance, replace by the official when merged
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.t()
@@ -49,13 +43,4 @@ class TripletLoss(nn.Module):
         y = Variable(y)
         loss = self.ranking_loss(dist_an, dist_ap, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
-
-        # if self.iter % 10 == 0:
-        #     self.writer.add_histogram('features', inputs, self.iter)
-        #     self.writer.add_histogram('dist', dist, self.iter)
-        #     self.writer.add_histogram('ap', dist_ap, self.iter)
-        #     self.writer.add_histogram('an', dist_an, self.iter)
-        #
-        # self.iter += 1
-
         return loss, prec
