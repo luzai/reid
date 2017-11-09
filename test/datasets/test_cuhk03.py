@@ -20,11 +20,14 @@ class TestCUHK03(TestCase):
         self.assertDictEqual(meta, dataset.meta)
         self.assertDictEqual(splits[split_id], dataset.split)
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     import os.path as osp
     from reid.datasets.cuhk03 import CUHK03
     from reid.utils.serialization import read_json
 
     root, split_id, num_val = '/home/xinglu/.torch/data/cuhk03', 0, 100
-    dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True)
+    dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True, mode='label')
+    dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True, mode='detect')
+    dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True, mode='combine')
+    dataset = CUHK03(root+'/label', split_id=split_id, num_val=num_val, download=True, mode='')

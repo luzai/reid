@@ -1,7 +1,6 @@
 from __future__ import print_function, absolute_import
 import argparse
-import os.path as osp
-
+import os.path as osp, yaml
 import numpy as np
 import sys
 import torch
@@ -81,8 +80,11 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
 
 
 def main(args):
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    for k, v in vars(args).iteritems():
+        print('{}: {}'.format(k, v))
+    if args.seed is not None:
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
     cudnn.benchmark = True
     writer = SummaryWriter(args.logs_dir)
 
@@ -144,7 +146,7 @@ def main(args):
         # Schedule learning rate
         def adjust_lr(epoch, decay_epoch=100):
             lr = args.lr if epoch <= decay_epoch else \
-                args.lr * (0.001 ** ((epoch - decay_epoch) / float(decay_epoch/2.)))
+                args.lr * (0.001 ** ((epoch - decay_epoch) / float(decay_epoch / 2.)))
             for g in optimizer.param_groups:
                 g['lr'] = lr * g.get('lr_mult', 1)
     elif args.loss == 'tuple':
@@ -191,10 +193,10 @@ def main(args):
             writer.add_scalar('train/' + k, v, epoch)
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 10 != 0:
-            continue
-        elif epoch < args.epochs - 20 and epoch % 5 != 0:
-            continue
+        # if epoch < args.epochs // 2 and epoch % 10 != 0:
+        #     continue
+        # elif epoch < args.epochs - 20 and epoch % 5 != 0:
+        #     continue
 
         acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, return_all=True)
         acc = {'top-1': acc['cuhk03'][0],
@@ -237,25 +239,11 @@ def main(args):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="many kind loss classification")
-    # tuning
-    parser.add_argument('-b', '--batch-size', type=int, default=160)
-    working_dir = osp.dirname(osp.abspath(__file__))
-    parser.add_argument('--epochs', type=int, default=150)
-
-    parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
-
-    parser.add_argument('-a', '--arch', type=str, default='resnet50',
-                        choices=models.names())
-    parser.add_argument('--loss', type=str, default='triplet',
-                        choices=['triplet', 'tuple', 'softmax'])
-    parser.add_argument('--mode', type=str, default='hard',
-                        choices=['rand', 'hard'])
-    lz.init_dev((0,))
 
     # data
-    parser.add_argument('-d', '--dataset', type=str, default='viper',
-                        choices=datasets.names())
+    parser.add_argument('-d', '--dataset', type=str, default='cuhk03/combine',
+                        choices=datasets.names() + ['cuhk03/label', 'cuhk03/detect', 'cuhk03/combine']
+                        )
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int,
@@ -288,7 +276,7 @@ if __name__ == '__main__':
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
-    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--print-freq', type=int, default=5)
     # metric learning
     parser.add_argument('--dist-metric', type=str, default='euclidean',
@@ -299,19 +287,63 @@ if __name__ == '__main__':
     parser.add_argument('--data-dir', type=str, metavar='PATH',
                         default=osp.join(home_dir, 'data'))
 
+    # tuning
+
+
+    configs_str = '''
+    - dataset: cuhk03/label
+    - dataset: cuhk03/detect
+    - dataset: cuhk03/combine
+    - dataset: viper
+    - dataset: dukemtmc 
+    - dataset: cuhk01 
+    - dataset: market1501
+    - dataset: cuhk03/combine 
+      seed: 1 
+      log_dir: logs.seed1
+    - dataset: cuhk03/combine
+      logs_dir: logs.again
+    - dataset: cuhk03/label
+      arc: resnet101
+      batch_size: 100   
+      log_dir: logs.resnet101
+    '''
+
+    parser.add_argument('-b', '--batch-size', type=int, default=160)
+    working_dir = osp.dirname(osp.abspath(__file__))
+    parser.add_argument('--epochs', type=int, default=150)
+
+    parser.add_argument('--logs-dir', type=str, metavar='PATH',
+                        default=osp.join(working_dir, 'logs'))
+
+    parser.add_argument('-a', '--arch', type=str, default='resnet50',
+                        choices=models.names())
+    parser.add_argument('--loss', type=str, default='triplet',
+                        choices=['triplet', 'tuple', 'softmax'])
+    parser.add_argument('--mode', type=str, default='hard',
+                        choices=['rand', 'hard'])
+    lz.init_dev((3,))
+    dbg = True
+
     args = parser.parse_args()
-    args.logs_dir += ('.' + args.loss + '.' + args.dataset)
-    dbg = False
-    if dbg:
-        lz.init_dev((0,))
-        args.epochs = 2
-        args.workers = 4
-        args.batch_size = 8
-        args.logs_dir = args.logs_dir + '.dbg'
-    lz.mkdir_p(args.logs_dir, delete=True)
-    lz.write_json(vars(args), args.logs_dir + '/conf.json')
-    for k, v in vars(args).iteritems():
-        print('{}: {}'.format(k, v))
+
     if args.loss == 'softmax':
         args.num_instances = None
-    main(args)
+
+    for config in yaml.load(configs_str):
+        print(config)
+        for k, v in config.iteritems():
+            setattr(args, k, v)
+        args.logs_dir += ('.' + args.loss + '.' + args.dataset)
+        lz.mkdir_p(args.logs_dir, delete=True)
+        lz.write_json(vars(args), args.logs_dir + '/conf.json')
+        if dbg:
+            lz.init_dev((3,))
+            args.epochs = 1
+            args.workers = 32
+            args.batch_size = 8
+            args.logs_dir = args.logs_dir + '.dbg'
+            proc = lz.mp.Process(target=main, args=(args,))
+            proc.start()
+            proc.join()
+            # main(args )
