@@ -8,6 +8,8 @@ from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
+sys.path.insert(0, '/home/xinglu/prj/open-reid/')
+
 from reid import datasets
 from reid import models
 from reid.dist_metric import DistanceMetric
@@ -292,21 +294,28 @@ if __name__ == '__main__':
 
     configs_str = '''
     - dataset: cuhk03/label
+      logs_dir: logs.cuhk03.label
     - dataset: cuhk03/detect
+      logs_dir: logs.cuhk03.detect
     - dataset: cuhk03/combine
+      logs_dir: logs.cuhk03.combine 
     - dataset: viper
+      logs_dir: logs.viper
     - dataset: dukemtmc 
+      logs_dir: logs.dukemtmc 
     - dataset: cuhk01 
+      logs_dir: logs.cuhk01
     - dataset: market1501
+      logs_dir: logs.market1501 
     - dataset: cuhk03/combine 
       seed: 1 
-      log_dir: logs.seed1
+      logs_dir: logs.seed1
     - dataset: cuhk03/combine
       logs_dir: logs.again
     - dataset: cuhk03/label
       arc: resnet101
       batch_size: 100   
-      log_dir: logs.resnet101
+      logs_dir: logs.resnet101
     '''
 
     parser.add_argument('-b', '--batch-size', type=int, default=160)
@@ -333,17 +342,22 @@ if __name__ == '__main__':
     for config in yaml.load(configs_str):
         print(config)
         for k, v in config.iteritems():
+            if k not in vars(args):
+                raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
-        args.logs_dir += ('.' + args.loss + '.' + args.dataset)
-        lz.mkdir_p(args.logs_dir, delete=True)
-        lz.write_json(vars(args), args.logs_dir + '/conf.json')
+
         if dbg:
             lz.init_dev((3,))
             args.epochs = 1
             args.workers = 32
             args.batch_size = 8
-            args.logs_dir = args.logs_dir + '.dbg'
-            proc = lz.mp.Process(target=main, args=(args,))
-            proc.start()
-            proc.join()
-            # main(args )
+            args.logs_dir += '.dbg'
+
+        lz.mkdir_p(args.logs_dir, delete=True)
+        lz.write_json(vars(args), args.logs_dir + '/conf.json')
+
+        proc = lz.mp.Process(target=main, args=(args,))
+        proc.start()
+        proc.join()
+
+        # main(args )
