@@ -36,10 +36,31 @@ class TripletLoss(nn.Module):
             elif self.mode == 'rand':
                 posp = dist[i][mask[i]]
                 dist_ap.append(posp[np.random.randint(0, posp.size(0))])
+
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[np.random.randint(0, negp.size(0))])
-                # posp.size(0)
-                # negp.size(0)
+            # todo check
+            elif self.mode == 'lift':
+                negp = dist[i][mask[i] == 0]
+                posp = (dist[i][mask[i]].max()).expand(negp.size(0))
+
+                dist_ap.extend(posp)
+                dist_an.extend(negp)
+            elif self.mode == 'all':
+                posp = dist[i][mask[i]]
+                negp = dist[i][mask[i] == 0]
+                np, nn = posp.size(0), negp.size(0)
+                posp = posp.expand((nn, np)).t()
+                negp = negp.expand((np, nn))  # .contiguous().view(-1)
+                for posp_, negp_ in zip(posp, negp):
+                    dist_ap.extend(posp_)
+                    dist_an.extend(negp_)
+
+                    # posp.size()
+                    # len(dist_an)
+                    # negp.size()
+                    # posp.size(0)
+                    # negp.size(0)
         dist_ap = torch.cat(dist_ap)
         dist_an = torch.cat(dist_an)
         # Compute ranking hinge loss

@@ -32,6 +32,8 @@ class LearnableLoss(nn.Module):
                 dist_ap.append(posp[np.random.randint(0, posp.size(0))])
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[np.random.randint(0, negp.size(0))])
+            elif self.mode == 'all':
+                
                 # posp.size(0)
                 # negp.size(0)
         dist_ap = torch.cat(dist_ap)
