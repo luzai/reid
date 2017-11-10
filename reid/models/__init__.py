@@ -4,8 +4,9 @@ from .inception import *
 from .resnet import *
 from .siamese import *
 from .attention import *
-from .siamese import *
-
+from .siamese import Siamese
+from .transform import Transform
+from .combine import Combine
 __factory = {
     'inception': inception,
     'resnet18': resnet18,
@@ -14,7 +15,9 @@ __factory = {
     'resnet101': resnet101,
     'resnet152': resnet152,
     'attention50':attention50,
-    'siamese': Siamese
+    'siamese': Siamese,
+    'transform': Transform,
+    'combine': Combine
 }
 
 

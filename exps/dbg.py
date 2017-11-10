@@ -13,8 +13,8 @@ sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 from reid import datasets
 from reid import models
 from reid.dist_metric import DistanceMetric
-from reid.loss import TripletLoss, TupletLoss, Transform
-from reid.trainers import Trainer,VerfTrainer
+from reid.loss import TripletLoss, TupletLoss
+from reid.trainers import Trainer, VerfTrainer
 from reid.evaluators import Evaluator
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
@@ -111,14 +111,19 @@ def main(args):
     if args.loss != 'softmax' and not args.verf:
         model = models.create(args.arch, num_features=1024,
                               dropout=args.dropout, num_classes=args.features)
-    elif args.loss == 'triplet' or args.loss == 'tuplet' and not args.verf:
+    elif (args.loss == 'triplet' or args.loss == 'tuplet') and not args.verf:
         model = models.create(args.arch,
                               num_features=args.features,
                               dropout=args.dropout, num_classes=num_classes)
     elif args.verf:
-        model = models.create(args.arch, pretrained=True,
+        basemodel = models.create(args.arch, pretrained=True,
                               cut_at_pooling=True,
                               dropout=args.dropout)
+        transform = models.create('transform', mode=args.mode)
+        match = models.create('siamese', dropout=args.dropout, mode='cat',
+                              height=256, width=128, in_planes=2048)
+        model = models.create('combine', basemodel, transform , match )
+
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -134,7 +139,7 @@ def main(args):
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
 
-    # Evaluator
+    # Evaluator todo
     evaluator = Evaluator(model)
 
     # Criterion # Optimizer
@@ -182,18 +187,13 @@ def main(args):
             for g in optimizer.param_groups:
                 g['lr'] = lr * g.get('lr_mult', 1)
     elif args.verf:
-        transform = Transform(mode=args.mode)
-        match = models.create('siamese', dropout=args.dropout, mode='cat',
-                              height=256, width=128, in_planes=2048)
-        if hasattr(model.module, 'base'):
-            base_param_ids = set(map(id, model.module.base.parameters()))
-            new_params = [p for p in model.parameters() if
-                          id(p) not in base_param_ids]
-            param_groups = [
-                {'params': model.module.base.parameters(), 'lr_mult': 0.1},
-                {'params': new_params, 'lr_mult': 1.0}]
-        else:
-            param_groups = model.parameters()
+        criterion = nn.CrossEntropyLoss().cuda()
+        base_param_ids = set(map(id, model.module.model.base.parameters()))
+        new_params = [p for p in model.parameters() if
+                      id(p) not in base_param_ids]
+        param_groups = [
+            {'params': model.module.model.base.parameters(), 'lr_mult': 0.1},
+            {'params': new_params, 'lr_mult': 1.0}]
         optimizer = torch.optim.SGD(param_groups, lr=args.lr,
                                     momentum=0.9,
                                     weight_decay=args.weight_decay,
@@ -206,10 +206,7 @@ def main(args):
                 g['lr'] = lr * g.get('lr_mult', 1)
 
     # Trainer
-    if not args.verf:
-        trainer = VerfTrainer(model, criterion)
-    else:
-        trainer = VerfTrainer(model, transform, match )
+    trainer = VerfTrainer(model, criterion)
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
@@ -313,7 +310,7 @@ if __name__ == '__main__':
 
     # tuning
     parser.add_argument('--verf', action='store_true', default=True)
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+    parser.add_argument('-d', '--dataset', type=str, default='viper',
                         choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=160)
     working_dir = osp.dirname(osp.abspath(__file__))
@@ -337,7 +334,7 @@ if __name__ == '__main__':
         lz.init_dev((1,))
         args.epochs = 1
         args.workers = 4
-        args.batch_size = 8
+        args.batch_size = 12
         args.logs_dir += '.dbg'
 
     if args.loss == 'softmax':

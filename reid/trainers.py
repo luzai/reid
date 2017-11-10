@@ -69,12 +69,9 @@ class BaseTrainer(object):
 
 
 class VerfTrainer(BaseTrainer):
-    def __init__(self, model, transform, match):
+    def __init__(self, model ):
         super(BaseTrainer, self).__init__()
         self.model = model
-        self.tranform = transform
-        self.match = match
-
     def _parse_data(self, inputs):
         imgs, _, pids, _ = inputs
         inputs = [Variable(imgs)]
@@ -82,10 +79,7 @@ class VerfTrainer(BaseTrainer):
         return inputs, targets
 
     def _forward(self, inputs, targets):
-        outputs = self.model(*inputs)
-        pair1, pair2, y = self.tranform(outputs, targets)
-        pred = self.match(pair1, pair2)
-
+        pred, y = self.model(inputs[0], targets)
         return
 
 

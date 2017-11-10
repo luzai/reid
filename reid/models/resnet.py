@@ -9,6 +9,21 @@ import torchvision
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
 
+def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
+               bias=False):
+    conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
+                     stride=stride, padding=padding, bias=bias)
+    init.kaiming_normal(conv.weight, mode='fan_out')
+    if bias:
+        init.constant(conv.bias, 0)
+
+    bn = nn.BatchNorm2d(out_planes)
+    init.constant(bn.bias, 0)
+    init.constant(bn.weight, 1)
+
+    relu = nn.ReLU(inplace=True)
+    return nn.Sequential(conv, bn, relu)
+
 
 class ResNet(nn.Module):
     __factory = {
@@ -40,7 +55,8 @@ class ResNet(nn.Module):
             self.num_classes = num_classes
 
             out_planes = self.base.fc.in_features
-
+            if self.cut_at_pooling:
+                self.conv1 = _make_conv(2048, 512 )
             # Append new layers
             if self.has_embedding:
                 self.feat = nn.Linear(out_planes, self.num_features)
@@ -69,6 +85,7 @@ class ResNet(nn.Module):
             x = module(x)
 
         if self.cut_at_pooling:
+            x=self.conv1(x)
             return x
 
         x = F.avg_pool2d(x, x.size()[2:])

@@ -8,92 +8,16 @@ from tensorboardX import SummaryWriter
 import subprocess
 
 
-class Transform(nn.Module):
-    def __init__(self, mode='hard'):
-        super(Transform, self).__init__()
-        self.mode = mode
-        # subprocess.call(('rm -rf exps/dbg').split())
-        # self.writer = SummaryWriter('./exps/dbg')
-        # self.iter = 0
+class Combine(nn.Module):
+    def __init__(self, model, transform, match):
+        super(Combine, self).__init__()
+        self.model = model
+        self.tranform = transform
+        self.match = match
 
     def forward(self, inputs, targets):
-        n = inputs.size(0)
-        all_ind = Variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False).cuda()
-
-        mask = targets.expand(n, n).eq(targets.expand(n, n).t())
-
-        # # Compute pairwise distance, replace by the official when merged
-        # dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
-        # dist = dist + dist.t()
-        # dist.addmm_(1, -2, inputs, inputs.t())
-        # dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
-        # # For each anchor, find the hardest positive and negative
-        # dist_ap, dist_an = [], []
-        # for i in range(n):
-        #     if self.mode == 'hard':
-        #         dist_ap.append(dist[i][mask[i]].max())
-        #         dist_an.append(dist[i][mask[i] == 0].min())
-        #     elif self.mode == 'rand':
-        #         posp = dist[i][mask[i]]
-        #         dist_ap.append(posp[np.random.randint(0, posp.size(0))])
-        #
-        #         negp = dist[i][mask[i] == 0]
-        #         dist_an.append(negp[np.random.randint(0, negp.size(0))])
-        #     # todo hard + rand
-        #     elif self.mode == 'lift':
-        #         negp = dist[i][mask[i] == 0]
-        #         posp = (dist[i][mask[i]].max()).expand(negp.size(0))
-        #
-        #         dist_ap.extend(posp)
-        #         dist_an.extend(negp)
-        #     elif self.mode == 'all':
-        #         posp = dist[i][mask[i]]
-        #         negp = dist[i][mask[i] == 0]
-        #         np, nn = posp.size(0), negp.size(0)
-        #         posp = posp.expand((nn, np)).t()
-        #         negp = negp.expand((np, nn))  # .contiguous().view(-1)
-        #         for posp_, negp_ in zip(posp, negp):
-        #             dist_ap.extend(posp_)
-        #             dist_an.extend(negp_)
-        #
-        #
-        # pairs = torch.cat(dist_ap+dist_an)
-        # Compute ranking hinge loss
-
-
-        pair1, pair2 = [], []
-        # todo more mode
-        for i in range(n):
-            pair1.append(inputs[i,:])
-            posp_ind =  all_ind[mask[i]]
-            posp_ind = posp_ind[np.random.randint(0, posp_ind.size(0))]
-            posp = torch.index_select(inputs, 0, posp_ind  )
-            pair2.append(posp)
-        # pair1[0].size(),pair2[0].size()
-        for i in range(n):
-            pair1.append(inputs[i,:])
-            negp_ind = all_ind[mask[i] == 0]
-            negp_ind = negp_ind[np.random.randint(0, negp_ind.size(0)) ]
-            negp = torch.index_select(inputs, 0, negp_ind)
-            pair2.append(negp )
-
-        pair1, pair2 = torch.stack(pair1 )  , torch.cat(pair2)
-        pair1.size() ,pair2.size()
-        y = torch.from_numpy(np.concatenate((
-            np.ones((n,)),
-            np.zeros((n,))
-        )))
-
-        y = y.type_as(pair1.data)
-        # y.resize_as_()
-        y = Variable(y, requires_grad=False)
-
-        # if self.iter % 10 == 0:
-        #     self.writer.add_histogram('features', inputs, self.iter)
-        #     self.writer.add_histogram('dist', dist, self.iter)
-        #     self.writer.add_histogram('ap', dist_ap, self.iter)
-        #     self.writer.add_histogram('an', dist_an, self.iter)
-        #
-        # self.iter += 1
-        # y.size()
-        return pair1, pair2, y
+        outputs = self.model(inputs)
+        inputs[0].size(), outputs.size()
+        pair1, pair2, y = self.tranform(outputs, targets)
+        pred = self.match(pair1, pair2)
+        return pred, y
