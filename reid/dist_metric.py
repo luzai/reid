@@ -24,6 +24,7 @@ class DistanceMetric(object):
             X = X.numpy()
             X = self.metric.transform(X)
             X = torch.from_numpy(X)
+            # Y=self.metric.transform(X)
         else:
             X = self.metric.transform(X)
         return X

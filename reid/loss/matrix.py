@@ -6,14 +6,14 @@ from torch.autograd import Variable
 import numpy as np
 
 
-class LearnableLoss(nn.Module):
-    def __init__(self, margin=0, mode='hard', metric_net = None):
-        super(LearnableLoss, self).__init__()
+class MatrixLoss(nn.Module):
+    def __init__(self, margin=0, mode='hard'):
+        super(MatrixLoss, self).__init__()
         self.margin = margin
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
         self.mode = mode
 
-    def forward(self, inputs, targets):
+    def forward(self, dist, mask):
         n = inputs.size(0)
         # Compute pairwise distance, replace by the official when merged
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
@@ -32,8 +32,7 @@ class LearnableLoss(nn.Module):
                 dist_ap.append(posp[np.random.randint(0, posp.size(0))])
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[np.random.randint(0, negp.size(0))])
-            elif self.mode == 'all':
-                
+
                 # posp.size(0)
                 # negp.size(0)
         dist_ap = torch.cat(dist_ap)

@@ -158,17 +158,12 @@ class CUHK03(Dataset):
                     dump_(detected[i, :5], pid, 0, images[0])
                     dump_(labeled[i, 5:], pid, 1, images[1])
                     dump_(detected[i, 5:], pid, 1, images[1])
-                elif self.mode == 'label':
+                elif self.mode == 'label' or self.mode == '':
                     dump_(labeled[i, :5], pid, 0, images[0])
-
                     dump_(labeled[i, 5:], pid, 1, images[1])
-
                 elif self.mode == 'detect':
-
                     dump_(detected[i, :5], pid, 0, images[0])
-
                     dump_(detected[i, 5:], pid, 1, images[1])
-
                 identities.append(images)
 
         # Save meta information into a json file

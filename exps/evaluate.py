@@ -133,7 +133,7 @@ def main(args, queue=None):
     print("Validation:")
     train_acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
     print("Test:")
-    test_acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    test_acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
 
     lz.logging.info('epoch {} train {} test {}'.format(start_epoch, train_acc, test_acc))
     if queue is not None:
@@ -144,27 +144,27 @@ def main(args, queue=None):
 if __name__ == '__main__':
 
     # lz.init_dev((0,1,2,3,))
-    lz.init_dev((1,))
+    lz.init_dev((0,))
     parser = argparse.ArgumentParser(description="many kind loss classification")
     # tuning
-    parser.add_argument('-b', '--batch-size', type=int, default=160)
+    parser.add_argument('-b', '--batch-size', type=int, default=16)
     working_dir = osp.dirname(osp.abspath(__file__))
 
     parser.add_argument('--model-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs.tri/model_best.pth.tar'))
+                        default=osp.join(working_dir, 'logs.dukemtmc/model_best.pth'))
 
     parser.add_argument('--loss', type=str, default='triplet',
                         choices=['triplet', 'tuple', 'softmax'])
 
     # data
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+    parser.add_argument('-d', '--dataset', type=str, default='dukemtmc',
                         choices=datasets.names())
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
-    parser.add_argument('--height', type=int,
+    parser.add_argument('--height', type=int, default=256,
                         help="input height, default: 256 for resnet*, "
                              "144 for inception")
-    parser.add_argument('--width', type=int,
+    parser.add_argument('--width', type=int, default=128,
                         help="input width, default: 128 for resnet*, "
                              "56 for inception")
     parser.add_argument('--combine-trainval', action='store_true',
@@ -210,7 +210,7 @@ if __name__ == '__main__':
     # main(args)
     queue = mp.Queue()
     res = []
-    for model_dir in lz.glob.glob('logs.tri/*.pth*'):
+    for model_dir in lz.glob.glob('logs.dukemtmc/model_best.pth'):
         lz.logging.info('start {}'.format(model_dir))
         args.model_dir = model_dir
         proc = mp.Process(target=main, args=(args, queue))

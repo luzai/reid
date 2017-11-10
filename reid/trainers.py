@@ -7,7 +7,7 @@ from torch.autograd import Variable
 from .evaluation_metrics import accuracy
 from .loss import OIMLoss, TripletLoss, TupletLoss
 from .utils.meters import AverageMeter
-from .lz import logging
+# from .lz import logging
 
 
 class BaseTrainer(object):
@@ -42,7 +42,7 @@ class BaseTrainer(object):
             end = time.time()
 
             if (i + 1) % print_freq == 0:
-                logging.info('Epoch: [{}][{}/{}]\t'
+                print('Epoch: [{}][{}/{}]\t'
                              'Time {:.3f} ({:.3f})\t'
                              'Data {:.3f} ({:.3f})\t'
                              'Loss {:.3f} ({:.3f})\t'

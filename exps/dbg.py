@@ -290,39 +290,8 @@ if __name__ == '__main__':
 
     # tuning
 
-    configs_str = '''
-    - dataset: dukemtmc 
-      logs_dir: logs.dukemtmc 
-    
-    
-    - dataset: cuhk03/label
-      logs_dir: logs.cuhk03.label
-    
-    
-    
-    - dataset: cuhk03/detect
-      logs_dir: logs.cuhk03.detect
-    - dataset: cuhk03/combine
-      logs_dir: logs.cuhk03.combine 
-    - dataset: viper
-      logs_dir: logs.viper
-    - dataset: cuhk01 
-      logs_dir: logs.cuhk01
-    - dataset: market1501
-      logs_dir: logs.market1501 
-    - dataset: cuhk03/combine 
-      seed: 1 
-      logs_dir: logs.seed1
-    - dataset: cuhk03/combine
-      logs_dir: logs.again
-    - dataset: cuhk03/label
-      arc: resnet101
-      batch_size: 100   
-      logs_dir: logs.resnet101
-    '''
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03/combine',
-                        choices=datasets.names() + ['cuhk03/label', 'cuhk03/detect', 'cuhk03/combine']
-                        )
+    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+                        choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=160)
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--epochs', type=int, default=150)
@@ -334,42 +303,21 @@ if __name__ == '__main__':
                         choices=models.names())
     parser.add_argument('--loss', type=str, default='triplet',
                         choices=['triplet', 'tuple', 'softmax'])
-    parser.add_argument('--mode', type=str, default='hard',
-                        choices=['rand', 'hard'])
+    parser.add_argument('--mode', type=str, default='all',
+                        choices=['rand', 'hard','all','lift'])
     lz.init_dev((3,))
-    dbg=False
+    dbg = True
 
     args = parser.parse_args()
 
     if dbg:
-        lz.init_dev((0,))
+        lz.init_dev((1,))
         args.epochs = 1
-        args.workers = 32
+        args.workers = 4
         args.batch_size = 8
         args.logs_dir += '.dbg'
 
     if args.loss == 'softmax':
         args.num_instances = None
 
-    for config in yaml.load(configs_str):
-        print(config)
-        for k, v in config.iteritems():
-            if k not in vars(args):
-                raise ValueError('{} {}'.format(k, v))
-            setattr(args, k, v)
-
-        if dbg:
-            lz.init_dev((3,))
-            args.epochs = 1
-            args.workers = 32
-            args.batch_size = 160
-            args.logs_dir += '.dbg'
-
-        lz.mkdir_p(args.logs_dir, delete=True)
-        lz.write_json(vars(args), args.logs_dir + '/conf.json')
-
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
-        proc.join()
-
-    # main(args)
+    main(args)

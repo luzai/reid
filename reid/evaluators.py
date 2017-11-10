@@ -56,7 +56,7 @@ def pairwise_distance(features, query=None, gallery=None, metric=None):
     m, n = x.size(0), y.size(0)
     x = x.view(m, -1)
     y = y.view(n, -1)
-    if metric is not None:
+    if metric is not None and metric.algorithm != 'euclidean':
         x = metric.transform(x)
         y = metric.transform(y)
     dist = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(m, n) + \
@@ -113,14 +113,19 @@ def evaluate_all(distmat, query=None, gallery=None,
         # return cmc_scores['allshots'][0]
         return cmc_scores['cuhk03'][0]
 
-
+import numpy as np
 
 class Evaluator(object):
     def __init__(self, model):
         super(Evaluator, self).__init__()
         self.model = model
 
-    def evaluate(self, data_loader, query, gallery, metric=None, return_all=False ):
+    def evaluate(self, data_loader, query, gallery, metric=None, return_all=False, final=False):
         features, _ = extract_features(self.model, data_loader)
+        if not final and len(query) > 2000:
+            choice = np.random.choice(len(query), 2000)
+            query = np.array(query)[choice]
+            gallery = np.array(gallery)[choice]
+
         distmat = pairwise_distance(features, query, gallery, metric=metric)
-        return evaluate_all(distmat, query=query, gallery=gallery,return_all =return_all)
+        return evaluate_all(distmat, query=query, gallery=gallery, return_all=return_all)

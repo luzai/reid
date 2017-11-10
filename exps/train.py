@@ -82,8 +82,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
 
 
 def main(args):
-    for k, v in vars(args).iteritems():
-        print('{}: {}'.format(k, v))
+    lz.logging.info('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
@@ -91,6 +90,7 @@ def main(args):
     writer = SummaryWriter(args.logs_dir)
 
     # Redirect print to both console and log file
+    # sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
     # Create data loaders
     if args.num_instances is not None:
@@ -235,7 +235,8 @@ def main(args):
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
     model.module.load_state_dict(checkpoint['state_dict'])
     metric.train(model, train_loader)
-    evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+    lz.logging.info('final rank1 is {}'.format(acc))
 
 
 if __name__ == '__main__':
@@ -243,9 +244,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="many kind loss classification")
 
     # data
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03/combine',
-                        choices=datasets.names() + ['cuhk03/label', 'cuhk03/detect', 'cuhk03/combine']
-                        )
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int,
@@ -291,33 +289,46 @@ if __name__ == '__main__':
 
     # tuning
 
-
     configs_str = '''
-    - dataset: cuhk03/label
-      logs_dir: logs.cuhk03.label
-    - dataset: cuhk03/detect
-      logs_dir: logs.cuhk03.detect
-    - dataset: cuhk03/combine
-      logs_dir: logs.cuhk03.combine 
-    - dataset: viper
-      logs_dir: logs.viper
+    # - dataset: cuhk03 
+    #   mode: all 
+    #   logs_dir: logs.tri.all
+    
+    - dataset: cuhk03 
+      mode: lift
+      logs_dir: logs.tri.lift
+      
+    # - dataset: cuhk03/label
+    #   arch: resnet101
+    #   batch_size: 100 
+    #   logs_dir: logs.resnet101
+      
     - dataset: dukemtmc 
-      logs_dir: logs.dukemtmc 
-    - dataset: cuhk01 
-      logs_dir: logs.cuhk01
+      logs_dir: logs.dukemtmc.randeval
+            
+    # - dataset: cuhk03/label
+    #   logs_dir: logs.cuhk03.label
+    # - dataset: cuhk03/detect
+    #   logs_dir: logs.cuhk03.detect
+    # - dataset: cuhk03/combine
+    #   logs_dir: logs.cuhk03.combine 
+    # - dataset: viper
+    #   logs_dir: logs.viper
+    # - dataset: cuhk01 
+    #   logs_dir: logs.cuhk01
+    
     - dataset: market1501
-      logs_dir: logs.market1501 
-    - dataset: cuhk03/combine 
-      seed: 1 
-      logs_dir: logs.seed1
-    - dataset: cuhk03/combine
-      logs_dir: logs.again
-    - dataset: cuhk03/label
-      arc: resnet101
-      batch_size: 100   
-      logs_dir: logs.resnet101
+      logs_dir: logs.market1501.randeval
+      
+    # - dataset: cuhk03/combine  
+    #   seed: 1 
+    #   logs_dir: logs.seed1
+    # - dataset: cuhk03/combine
+    #   logs_dir: logs.again
+    
     '''
-
+    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+                        choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=160)
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--epochs', type=int, default=150)
@@ -330,17 +341,24 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str, default='triplet',
                         choices=['triplet', 'tuple', 'softmax'])
     parser.add_argument('--mode', type=str, default='hard',
-                        choices=['rand', 'hard'])
-    lz.init_dev((3,))
-    dbg = True
+                        choices=['rand', 'hard', 'all', 'lift' ])
+    lz.init_dev((0,))
+    dbg = False
 
     args = parser.parse_args()
+
+    if dbg:
+        lz.init_dev((0,))
+        args.epochs = 1
+        args.workers = 32
+        args.batch_size = 8
+        args.logs_dir += '.dbg'
 
     if args.loss == 'softmax':
         args.num_instances = None
 
     for config in yaml.load(configs_str):
-        print(config)
+        lz.logging.info('training {}'.format(config))
         for k, v in config.iteritems():
             if k not in vars(args):
                 raise ValueError('{} {}'.format(k, v))
@@ -350,7 +368,7 @@ if __name__ == '__main__':
             lz.init_dev((3,))
             args.epochs = 1
             args.workers = 32
-            args.batch_size = 8
+            args.batch_size = 160
             args.logs_dir += '.dbg'
 
         lz.mkdir_p(args.logs_dir, delete=True)
@@ -360,4 +378,4 @@ if __name__ == '__main__':
         proc.start()
         proc.join()
 
-        # main(args )
+        # main(args)
