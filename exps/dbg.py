@@ -13,8 +13,8 @@ sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 from reid import datasets
 from reid import models
 from reid.dist_metric import DistanceMetric
-from reid.loss import TripletLoss, TupletLoss
-from reid.trainers import Trainer
+from reid.loss import TripletLoss, TupletLoss, Transform
+from reid.trainers import Trainer,VerfTrainer
 from reid.evaluators import Evaluator
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
@@ -104,17 +104,21 @@ def main(args):
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
                  args.combine_trainval)
-    # todo draw model
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
-    if args.loss != 'softmax':
+
+    if args.loss != 'softmax' and not args.verf:
         model = models.create(args.arch, num_features=1024,
                               dropout=args.dropout, num_classes=args.features)
-    else:
+    elif args.loss == 'triplet' or args.loss == 'tuplet' and not args.verf:
         model = models.create(args.arch,
                               num_features=args.features,
                               dropout=args.dropout, num_classes=num_classes)
+    elif args.verf:
+        model = models.create(args.arch, pretrained=True,
+                              cut_at_pooling=True,
+                              dropout=args.dropout)
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -132,16 +136,9 @@ def main(args):
 
     # Evaluator
     evaluator = Evaluator(model)
-    # if args.evaluate:
-    #     metric.train(model, train_loader)
-    #     print("Validation:")
-    #     evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-    #     print("Test:")
-    #     evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-    #     return
 
     # Criterion # Optimizer
-    if args.loss == 'triplet':
+    if args.loss == 'triplet' and not args.verf:
         criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda()
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
                                      weight_decay=args.weight_decay)
@@ -152,7 +149,7 @@ def main(args):
                 args.lr * (0.001 ** ((epoch - decay_epoch) / float(decay_epoch / 2.)))
             for g in optimizer.param_groups:
                 g['lr'] = lr * g.get('lr_mult', 1)
-    elif args.loss == 'tuple':
+    elif args.loss == 'tuple' and not args.verf:
         criterion = TupletLoss(margin=args.margin).cuda()
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
                                      weight_decay=args.weight_decay)
@@ -163,7 +160,7 @@ def main(args):
                 args.lr * (0.001 ** ((epoch - 100) / 50.0))
             for g in optimizer.param_groups:
                 g['lr'] = lr * g.get('lr_mult', 1)
-    elif args.loss == 'softmax':
+    elif args.loss == 'softmax' and not args.verf:
         criterion = nn.CrossEntropyLoss().cuda()
         if hasattr(model.module, 'base'):
             base_param_ids = set(map(id, model.module.base.parameters()))
@@ -175,7 +172,7 @@ def main(args):
         else:
             param_groups = model.parameters()
         optimizer = torch.optim.SGD(param_groups, lr=args.lr,
-                                    momentum=args.momentum,
+                                    momentum=0.9,
                                     weight_decay=args.weight_decay,
                                     nesterov=True)
 
@@ -184,9 +181,35 @@ def main(args):
             lr = args.lr * (0.1 ** (epoch // step_size))
             for g in optimizer.param_groups:
                 g['lr'] = lr * g.get('lr_mult', 1)
+    elif args.verf:
+        transform = Transform(mode=args.mode)
+        match = models.create('siamese', dropout=args.dropout, mode='cat',
+                              height=256, width=128, in_planes=2048)
+        if hasattr(model.module, 'base'):
+            base_param_ids = set(map(id, model.module.base.parameters()))
+            new_params = [p for p in model.parameters() if
+                          id(p) not in base_param_ids]
+            param_groups = [
+                {'params': model.module.base.parameters(), 'lr_mult': 0.1},
+                {'params': new_params, 'lr_mult': 1.0}]
+        else:
+            param_groups = model.parameters()
+        optimizer = torch.optim.SGD(param_groups, lr=args.lr,
+                                    momentum=0.9,
+                                    weight_decay=args.weight_decay,
+                                    nesterov=True)
+
+        def adjust_lr(epoch):
+            lr = args.lr if epoch <= 100 else \
+                args.lr * (0.001 ** ((epoch - 100) / 50.0))
+            for g in optimizer.param_groups:
+                g['lr'] = lr * g.get('lr_mult', 1)
 
     # Trainer
-    trainer = Trainer(model, criterion)
+    if not args.verf:
+        trainer = VerfTrainer(model, criterion)
+    else:
+        trainer = VerfTrainer(model, transform, match )
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
@@ -265,7 +288,7 @@ if __name__ == '__main__':
     # model
 
     parser.add_argument('--features', type=int, default=128)
-    parser.add_argument('--dropout', type=float, default=0)  # 0.5
+    parser.add_argument('--dropout', type=float, default=0.4)  # 0.5
     # loss
     parser.add_argument('--margin', type=float, default=0.5,
                         help="margin of the triplet loss, default: 0.5")
@@ -289,7 +312,7 @@ if __name__ == '__main__':
                         default=osp.join(home_dir, 'data'))
 
     # tuning
-
+    parser.add_argument('--verf', action='store_true', default=True)
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=160)
@@ -304,7 +327,7 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str, default='triplet',
                         choices=['triplet', 'tuple', 'softmax'])
     parser.add_argument('--mode', type=str, default='all',
-                        choices=['rand', 'hard','all','lift'])
+                        choices=['rand', 'hard', 'all', 'lift'])
     lz.init_dev((3,))
     dbg = True
 

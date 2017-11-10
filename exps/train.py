@@ -274,8 +274,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
-    parser.add_argument('--start_save', type=int, default=0,
-                        help="start saving checkpoints after specific epoch")
+
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--print-freq', type=int, default=5)
     # metric learning
@@ -294,9 +293,9 @@ if __name__ == '__main__':
     #   mode: all 
     #   logs_dir: logs.tri.all
     
-    - dataset: cuhk03 
-      mode: lift
-      logs_dir: logs.tri.lift
+    # - dataset: cuhk03 
+    #   mode: lift
+    #   logs_dir: logs.tri.lift
       
     # - dataset: cuhk03/label
     #   arch: resnet101
@@ -327,6 +326,8 @@ if __name__ == '__main__':
     #   logs_dir: logs.again
     
     '''
+    parser.add_argument('--start_save', type=int, default=0,
+                        help="start saving checkpoints after specific epoch")
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=160)
@@ -342,7 +343,7 @@ if __name__ == '__main__':
                         choices=['triplet', 'tuple', 'softmax'])
     parser.add_argument('--mode', type=str, default='hard',
                         choices=['rand', 'hard', 'all', 'lift' ])
-    lz.init_dev((0,))
+    lz.init_dev((3,))
     dbg = False
 
     args = parser.parse_args()

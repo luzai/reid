@@ -7,6 +7,8 @@ from torch.autograd import Variable
 from .evaluation_metrics import accuracy
 from .loss import OIMLoss, TripletLoss, TupletLoss
 from .utils.meters import AverageMeter
+
+
 # from .lz import logging
 
 
@@ -43,15 +45,15 @@ class BaseTrainer(object):
 
             if (i + 1) % print_freq == 0:
                 print('Epoch: [{}][{}/{}]\t'
-                             'Time {:.3f} ({:.3f})\t'
-                             'Data {:.3f} ({:.3f})\t'
-                             'Loss {:.3f} ({:.3f})\t'
-                             'Prec {:.2%} ({:.2%})\t'
-                             .format(epoch, i + 1, len(data_loader),
-                                     batch_time.val, batch_time.avg,
-                                     data_time.val, data_time.avg,
-                                     losses.val, losses.avg,
-                                     precisions.val, precisions.avg))
+                      'Time {:.3f} ({:.3f})\t'
+                      'Data {:.3f} ({:.3f})\t'
+                      'Loss {:.3f} ({:.3f})\t'
+                      'Prec {:.2%} ({:.2%})\t'
+                      .format(epoch, i + 1, len(data_loader),
+                              batch_time.val, batch_time.avg,
+                              data_time.val, data_time.avg,
+                              losses.val, losses.avg,
+                              precisions.val, precisions.avg))
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,
             'data-time': data_time.avg,
@@ -64,6 +66,27 @@ class BaseTrainer(object):
 
     def _forward(self, inputs, targets):
         raise NotImplementedError
+
+
+class VerfTrainer(BaseTrainer):
+    def __init__(self, model, transform, match):
+        super(BaseTrainer, self).__init__()
+        self.model = model
+        self.tranform = transform
+        self.match = match
+
+    def _parse_data(self, inputs):
+        imgs, _, pids, _ = inputs
+        inputs = [Variable(imgs)]
+        targets = Variable(pids.cuda())
+        return inputs, targets
+
+    def _forward(self, inputs, targets):
+        outputs = self.model(*inputs)
+        pair1, pair2, y = self.tranform(outputs, targets)
+        pred = self.match(pair1, pair2)
+
+        return
 
 
 class Trainer(BaseTrainer):

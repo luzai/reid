@@ -1,41 +1,41 @@
-from lz  import *
-import  lz
+from lz import *
+import lz
 
-working_dir =osp.dirname( osp.abspath(__file__) )
+working_dir = osp.dirname(osp.abspath(__file__))
 home_dir = ''
 args_factory = {
-    'gpus' : (0,1,2,3),
-    'batch_size' : 160,
+    'gpus': (0, 1, 2, 3),
+    'batch_size': 160,
 
-    'dataset': 'cuhk03' ,
+    'dataset': 'cuhk03',
     'workers': 32,
-    'split':0 ,
-    'height':256 ,
-    'width':128,
-    'combine_trainval':True ,
-    'num_instances':4 ,
-    'arch':'resnet50' ,
-    'features':128,
-    'dropout':0 ,
+    'split': 0,
+    'height': 256,
+    'width': 128,
+    'combine_trainval': True,
+    'num_instances': 4,
+    'arch': 'resnet50',
+    'features': 128,
+    'dropout': 0,
     'margin': 0.5,
-    'lr':0.0002 ,
-    'weight_decay':5e-4 ,
+    'lr': 0.0002,
+    'weight_decay': 5e-4,
     'resume': '',
-    'start_save':0 ,
-    'seed':1 ,
-    'print-freq':5 ,
-    'dist_metric':'euclidean',
+    'start_save': 0,
+    'seed': 1,
+    'print-freq': 5,
+    'dist_metric': 'euclidean',
     'loss': 'triplet',
 }
 args = args_factory
 
+
 def dict2obj():
     pass
 
-for k,v in args_factory.iteritems():
+
+for k, v in args_factory.iteritems():
     pass
-
-
 
 args.logs_dir += ('.' + args.loss)
 dbg = False
