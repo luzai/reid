@@ -8,6 +8,7 @@ import torch
 from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
+sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 
 from reid import datasets
 from reid import models
@@ -25,6 +26,7 @@ import torch
 import torchvision
 from tensorboardX import SummaryWriter
 import lz, multiprocessing as mp
+
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=None,
@@ -147,7 +149,7 @@ if __name__ == '__main__':
     lz.init_dev((0,))
     parser = argparse.ArgumentParser(description="many kind loss classification")
     # tuning
-    parser.add_argument('-b', '--batch-size', type=int, default=16)
+    parser.add_argument('-b', '--batch-size', type=int, default=160)
     working_dir = osp.dirname(osp.abspath(__file__))
 
     parser.add_argument('--model-dir', type=str, metavar='PATH',
@@ -210,12 +212,23 @@ if __name__ == '__main__':
     # main(args)
     queue = mp.Queue()
     res = []
-    for model_dir in lz.glob.glob('logs.dukemtmc/model_best.pth'):
-        lz.logging.info('start {}'.format(model_dir))
-        args.model_dir = model_dir
-        proc = mp.Process(target=main, args=(args, queue))
-        proc.start()
-        proc.join()
-        res.append(queue.get())
-        # break
+
+    model_dir = lz.glob.glob('../work/logs.dukemtmc.randeval/model_best.pth')[0]
+    lz.logging.info('start {}'.format(model_dir))
+    args.model_dir = model_dir
+    args.dataset = 'dukemtmc'
+    proc = mp.Process(target=main, args=(args, queue))
+    proc.start()
+    proc.join()
+    res.append(queue.get())
+
+    model_dir = lz.glob.glob('../work/logs.market1501.randeval/model_best.pth')[0]
+    lz.logging.info('start {}'.format(model_dir))
+    args.model_dir = model_dir
+    args.dataset = 'market1501'
+    proc = mp.Process(target=main, args=(args, queue))
+    proc.start()
+    proc.join()
+    res.append(queue.get())
+
     lz.pickle(res, 'res.pkl')

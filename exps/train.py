@@ -107,13 +107,18 @@ def main(args):
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
-    if args.loss != 'softmax':
+    if args.loss != 'softmax' and 'attention' not in args.arch:
         model = models.create(args.arch, num_features=1024,
                               dropout=args.dropout, num_classes=args.features)
-    else:
+    elif 'attention' not in args.arch:
         model = models.create(args.arch,
                               num_features=args.features,
                               dropout=args.dropout, num_classes=num_classes)
+    elif 'attention' in args.arch:
+        model = models.create(args.arch,
+                              num_features=args.features,
+                              dropout=args.dropout,
+                              branchs=args.branchs, branch_dim=args.branch_dim)
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -131,13 +136,6 @@ def main(args):
 
     # Evaluator
     evaluator = Evaluator(model)
-    # if args.evaluate:
-    #     metric.train(model, train_loader)
-    #     print("Validation:")
-    #     evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-    #     print("Test:")
-    #     evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-    #     return
 
     # Criterion # Optimizer
     if args.loss == 'triplet':
@@ -195,10 +193,10 @@ def main(args):
             writer.add_scalar('train/' + k, v, epoch)
         if epoch < args.start_save:
             continue
-        # if epoch < args.epochs // 2 and epoch % 10 != 0:
-        #     continue
-        # elif epoch < args.epochs - 20 and epoch % 5 != 0:
-        #     continue
+        if epoch < args.epochs // 2 and epoch % 10 != 0:
+            continue
+        elif epoch < args.epochs - 20 and epoch % 5 != 0:
+            continue
 
         acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, return_all=True)
         acc = {'top-1': acc['cuhk03'][0],
@@ -246,10 +244,10 @@ if __name__ == '__main__':
     # data
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
-    parser.add_argument('--height', type=int,
+    parser.add_argument('--height', type=int, default=256,
                         help="input height, default: 256 for resnet*, "
                              "144 for inception")
-    parser.add_argument('--width', type=int,
+    parser.add_argument('--width', type=int, default=128,
                         help="input width, default: 128 for resnet*, "
                              "56 for inception")
     parser.add_argument('--combine-trainval', action='store_true',
@@ -264,7 +262,6 @@ if __name__ == '__main__':
     # model
 
     parser.add_argument('--features', type=int, default=128)
-    parser.add_argument('--dropout', type=float, default=0)  # 0.5
     # loss
     parser.add_argument('--margin', type=float, default=0.5,
                         help="margin of the triplet loss, default: 0.5")
@@ -275,7 +272,7 @@ if __name__ == '__main__':
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
 
-    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--print-freq', type=int, default=5)
     # metric learning
     parser.add_argument('--dist-metric', type=str, default='euclidean',
@@ -289,67 +286,72 @@ if __name__ == '__main__':
     # tuning
 
     configs_str = '''
-    # - dataset: cuhk03 
-    #   mode: all 
-    #   logs_dir: logs.tri.all
+        
+    # - dataset: cuhk03
+    #  logs_dir: logs.resnet152
+    #  batch_size: 300
+    #  gpu: [2,3]
+    # 
+    # - dataset: cuhk03
+    #  logs_dir: logs.bs320
+    #  batch_size: 320
+    #  gpu: [2,3]        
+
+    - arch: attention50 
+      branchs: 16
+      branch_dim: 64
+      dropout: 0.8
+      logs_dir: logs.at.16.64.0.8
+
+    - arch: attention50 
+      branchs: 8
+      branch_dim: 128
+      dropout: 0.8
+      logs_dir: logs.at.8.128.0.8
+    
+    - dataset: cuhk03
+      arch: attention50
+      logs_dir: logs.at.dp.0.3
+    
+    - arch: attention50
+      branchs: 8
+      branch_dim: 64
+      dropout: 0.8
+      logs_dir: logs.at.0.8
     
     # - dataset: cuhk03 
     #   mode: lift
     #   logs_dir: logs.tri.lift
-      
-    # - dataset: cuhk03/label
-    #   arch: resnet101
-    #   batch_size: 100 
-    #   logs_dir: logs.resnet101
-      
-    - dataset: dukemtmc 
-      logs_dir: logs.dukemtmc.randeval
-            
-    # - dataset: cuhk03/label
-    #   logs_dir: logs.cuhk03.label
-    # - dataset: cuhk03/detect
-    #   logs_dir: logs.cuhk03.detect
-    # - dataset: cuhk03/combine
-    #   logs_dir: logs.cuhk03.combine 
-    # - dataset: viper
-    #   logs_dir: logs.viper
-    # - dataset: cuhk01 
-    #   logs_dir: logs.cuhk01
-    
-    - dataset: market1501
-      logs_dir: logs.market1501.randeval
-      
-    # - dataset: cuhk03/combine  
-    #   seed: 1 
-    #   logs_dir: logs.seed1
-    # - dataset: cuhk03/combine
-    #   logs_dir: logs.again
     
     '''
-    parser.add_argument('--start_save', type=int, default=0,
+    parser.add_argument('--branchs', type=int, default=8)
+    parser.add_argument('--branch_dim', type=int, default=64)
+    parser.add_argument('--dropout', type=float, default=0.3)
+    parser.add_argument('--start_save', type=int, default=120,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=160)
     working_dir = osp.dirname(osp.abspath(__file__))
-    parser.add_argument('--epochs', type=int, default=150)
+    parser.add_argument('--epochs', type=int, default=130)
 
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
+                        default=osp.join(working_dir, '../works/logs'))
 
     parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
     parser.add_argument('--loss', type=str, default='triplet',
                         choices=['triplet', 'tuple', 'softmax'])
     parser.add_argument('--mode', type=str, default='hard',
-                        choices=['rand', 'hard', 'all', 'lift' ])
-    lz.init_dev((3,))
-    dbg = False
+                        choices=['rand', 'hard', 'all', 'lift'])
+    parser.add_argument('--gpu', type=list, default=[0, ])
+    dbg = True
 
     args = parser.parse_args()
+    lz.init_dev(args.gpu)
 
     if dbg:
-        lz.init_dev((0,))
+        lz.init_dev((1,))
         args.epochs = 1
         args.workers = 32
         args.batch_size = 8
@@ -364,12 +366,12 @@ if __name__ == '__main__':
             if k not in vars(args):
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
-
+        args.logs_dir = '../work/' + args.logs_dir
         if dbg:
-            lz.init_dev((3,))
+            # lz.init_dev((3,))
             args.epochs = 1
             args.workers = 32
-            args.batch_size = 160
+            # args.batch_size = 160
             args.logs_dir += '.dbg'
 
         lz.mkdir_p(args.logs_dir, delete=True)

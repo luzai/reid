@@ -19,7 +19,7 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
 
     bn = nn.BatchNorm2d(out_planes)
     init.constant(bn.bias, 0)
-    init.constant(bn.weight,1 )
+    init.constant(bn.weight, 1)
 
     if with_relu:
         relu = nn.ReLU(inplace=True)
@@ -28,15 +28,15 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
         return nn.Sequential(conv, bn)
 
 
-def _make_fc(in_, out_, dp_=0.,with_relu=True):
+def _make_fc(in_, out_, dp_=0., with_relu=True):
     fc = nn.Linear(in_, out_)
     init.normal(fc.weight, std=0.001)
     init.constant(fc.bias, 0)
     relu = nn.ReLU(inplace=True)
     dp = nn.Dropout(dp_)
-    res = [fc,]
+    res = [fc, ]
     if dp_ != 0:
-        res.append(dp )
+        res.append(dp)
     if with_relu:
         res.append(relu)
 
@@ -44,7 +44,7 @@ def _make_fc(in_, out_, dp_=0.,with_relu=True):
 
 
 class MaskBranch(nn.Module):
-    def __init__(self, in_planes, branch_dim, height, width):
+    def __init__(self, in_planes, branch_dim, height, width, dopout=0.3):
         super(MaskBranch, self).__init__()
         self.height = height
         self.width = width
@@ -54,7 +54,7 @@ class MaskBranch(nn.Module):
             nn.Sigmoid()
         )
         self.pool = nn.AvgPool2d((self.height // 32, self.width // 32))
-        self.fc = _make_fc(in_planes, branch_dim,with_relu=False)
+        self.fc = _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
 
     def forward(self, x):
         x_left = self.branch_left(x)
@@ -67,16 +67,22 @@ class MaskBranch(nn.Module):
 
 
 class Mask(nn.Module):
-    def __init__(self, in_planes, branchs, branch_dim, height, width):
+    def __init__(self, in_planes, branchs, branch_dim, height, width, normalize=True, dopout=0.3, use_global=False):
         super(Mask, self).__init__()
         self.branch_l = nn.ModuleList()
         for ind in range(branchs):
-            self.branch_l.append(MaskBranch(in_planes, branch_dim, height, width))
+            self.branch_l.append(MaskBranch(in_planes, branch_dim, height, width, dopout=dopout))
+        if use_global:
+            self.branch_l.append(nn.Sequential(
+                nn.AvgPool2d((self.height // 32, self.width // 32)),
+                # _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
+            ))
+        self.normalize = normalize
 
     def forward(self, x):
         x = torch.cat([b(x) for b in self.branch_l], 1)
-        x = F.normalize(x)
-
+        if self.normalize:
+            x = F.normalize(x)
         return x
 
 
@@ -89,14 +95,14 @@ class Attention(nn.Module):
         152: torchvision.models.resnet152,
     }
 
-    def __init__(self, depth=50, pretrained=True, cut_at_pooling=True,
-                 num_features=512, norm=True, dropout=0.3, branchs=8, branch_dim=64, num_classes=None, height=256,
-                 width=128):
+    def __init__(self, depth=50, pretrained=True,
+                 dropout=0.3, branchs=8,
+                 branch_dim=64, height=256,
+                 width=128, normalize=True, use_global=False ,**kwargs ):
         super(Attention, self).__init__()
 
         self.depth = depth
         self.pretrained = pretrained
-        # self.cut_at_pooling = cut_at_pooling
 
         self.branchs = branchs
         self.branch_dim = branch_dim
@@ -106,9 +112,9 @@ class Attention(nn.Module):
             raise KeyError("Unsupported depth:", depth)
         self.base = Attention.__factory[depth](pretrained=pretrained)
 
-        self.conv1 = _make_conv(2048, num_features,with_relu=False)  # ,with_relu=False
+        self.conv1 = _make_conv(2048, branchs * branch_dim, with_relu=False)  # ,with_relu=False
 
-        self.mask = Mask(num_features, branchs, branch_dim, height, width)
+        self.mask = Mask(branchs * branch_dim, branchs, branch_dim, height, width, dopout=dropout, normalize=normalize, use_global=use_global)
 
         if not self.pretrained:
             self.reset_params()

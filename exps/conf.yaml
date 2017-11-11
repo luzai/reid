@@ -1,0 +1,33 @@
+- dataset: cuhk03
+ mode: all
+ logs_dir: logs.tri.all
+
+
+- dataset: cuhk03/combine
+ logs_dir: logs.again
+
+- dataset: cuhk03/label
+ arch: resnet101
+ batch_size: 100
+ logs_dir: logs.resnet101
+
+- dataset: dukemtmc
+ logs_dir: logs.dukemtmc.randeval
+
+- dataset: cuhk03/label
+ logs_dir: logs.cuhk03.label
+- dataset: cuhk03/detect
+ logs_dir: logs.cuhk03.detect
+- dataset: cuhk03/combine
+ logs_dir: logs.cuhk03.combine
+- dataset: viper
+ logs_dir: logs.viper
+- dataset: cuhk01
+ logs_dir: logs.cuhk01
+
+- dataset: market1501
+ logs_dir: logs.market1501.randeval
+
+- dataset: cuhk03/combine
+ seed: 1
+ logs_dir: logs.seed1
