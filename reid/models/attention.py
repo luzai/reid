@@ -75,7 +75,7 @@ class Mask(nn.Module):
         if use_global:
             self.branch_l.append(nn.Sequential(
                 nn.AvgPool2d((self.height // 32, self.width // 32)),
-                # _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
+                _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
             ))
         self.normalize = normalize
 
@@ -83,6 +83,8 @@ class Mask(nn.Module):
         x = torch.cat([b(x) for b in self.branch_l], 1)
         if self.normalize:
             x = F.normalize(x)
+        else:
+            x = F.relu(x)
         return x
 
 
@@ -98,7 +100,7 @@ class Attention(nn.Module):
     def __init__(self, depth=50, pretrained=True,
                  dropout=0.3, branchs=8,
                  branch_dim=64, height=256,
-                 width=128, normalize=True, use_global=False ,**kwargs ):
+                 width=128, normalize=True, use_global=False, **kwargs):
         super(Attention, self).__init__()
 
         self.depth = depth
@@ -112,9 +114,10 @@ class Attention(nn.Module):
             raise KeyError("Unsupported depth:", depth)
         self.base = Attention.__factory[depth](pretrained=pretrained)
 
-        self.conv1 = _make_conv(2048, branchs * branch_dim, with_relu=False)  # ,with_relu=False
+        self.conv1 = _make_conv(2048, branchs * branch_dim, with_relu=not normalize)
 
-        self.mask = Mask(branchs * branch_dim, branchs, branch_dim, height, width, dopout=dropout, normalize=normalize, use_global=use_global)
+        self.mask = Mask(branchs * branch_dim, branchs, branch_dim, height, width, dopout=dropout, normalize=normalize,
+                         use_global=use_global)
 
         if not self.pretrained:
             self.reset_params()

@@ -9,7 +9,7 @@ import subprocess
 
 
 class Combine(nn.Module):
-    def __init__(self, model, transform, match):
+    def __init__(self, model, transform, match, **kwargs):
         super(Combine, self).__init__()
         self.model = model
         self.tranform = transform

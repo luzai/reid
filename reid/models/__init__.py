@@ -7,6 +7,9 @@ from .attention import *
 from .siamese import Siamese
 from .transform import Transform
 from .combine import Combine
+from .multi_branch import *
+from .embedding import *
+
 __factory = {
     'inception': inception,
     'resnet18': resnet18,
@@ -14,10 +17,7 @@ __factory = {
     'resnet50': resnet50,
     'resnet101': resnet101,
     'resnet152': resnet152,
-    'attention50':attention50,
-    'siamese': Siamese,
-    'transform': Transform,
-    'combine': Combine
+    'attention50':attention50
 }
 
 

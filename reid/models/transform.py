@@ -9,7 +9,7 @@ import subprocess
 
 
 class Transform(nn.Module):
-    def __init__(self, mode='hard'):
+    def __init__(self, mode='hard',**kwargs):
         super(Transform, self).__init__()
         self.mode = mode
         # subprocess.call(('rm -rf exps/dbg').split())

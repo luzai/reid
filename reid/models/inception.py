@@ -49,7 +49,7 @@ class Block(nn.Module):
 
 class InceptionNet(nn.Module):
     def __init__(self, cut_at_pooling=False, num_features=256, norm=False,
-                 dropout=0, num_classes=0):
+                 dropout=0, num_classes=0, **kwargs):
         super(InceptionNet, self).__init__()
         self.cut_at_pooling = cut_at_pooling
 

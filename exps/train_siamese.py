@@ -1,24 +1,28 @@
 from __future__ import print_function, absolute_import
+
 import argparse
 import os.path as osp, yaml
 import numpy as np
 import sys
+
+sys.path.insert(0, '/home/xinglu/prj/open-reid/')
+
+
 import torch
 from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
-sys.path.insert(0, '/home/xinglu/prj/open-reid/')
-
 from reid import datasets
 from reid import models
+from reid.models import  *
 from reid.dist_metric import DistanceMetric
 from reid.loss import TripletLoss, TupletLoss
-from reid.trainers import Trainer
-from reid.evaluators import Evaluator
+from reid.trainers import *
+from reid.evaluators import *
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
-from reid.utils.data.sampler import RandomIdentitySampler
+from reid.utils.data.sampler import RandomIdentitySampler, RandomPairSampler
 from reid.utils.logging import Logger
 from reid.utils.serialization import load_checkpoint, save_checkpoint
 
@@ -52,19 +56,13 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
         T.ToTensor(),
         normalizer,
     ])
-    if num_instances is not None:
-        train_loader = DataLoader(
-            Preprocessor(train_set, root=dataset.images_dir,
-                         transform=train_transformer),
-            batch_size=batch_size, num_workers=workers,
-            sampler=RandomIdentitySampler(train_set, num_instances),
-            pin_memory=True, drop_last=True)
-    else:
-        train_loader = DataLoader(
-            Preprocessor(train_set, root=dataset.images_dir,
-                         transform=train_transformer),
-            batch_size=batch_size, num_workers=workers,
-            shuffle=True, pin_memory=True, drop_last=True)
+
+    train_loader = DataLoader(
+        Preprocessor(train_set, root=dataset.images_dir,
+                     transform=train_transformer),
+        batch_size=batch_size, num_workers=workers,
+        sampler=  RandomPairSampler(dataset.train, neg_pos_ratio=1),
+        shuffle=True, pin_memory=True, drop_last=True)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
@@ -82,7 +80,8 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
 
 
 def main(args):
-    lz.logging.info('config is {}'.format(vars(args)))
+    for k, v in vars(args).iteritems():
+        print('{}: {}'.format(k, v))
     if args.seed is not None:
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
@@ -107,13 +106,14 @@ def main(args):
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
 
-    model = models.create(args.arch,
-                          num_features=args.features,
-                          dropout=args.dropout,
-                          branchs=args.branchs,
-                          branch_dim=args.branch_dim,
-                          use_global=args.use_global,
-                          normalize=args.normalize)
+
+    base_model = models.create(args.arch, pretrained=True,
+                          cut_at_pooling=True,
+                          dropout=args.dropout)
+    embed_model = KronEmbed(7, 7, 128, 2)
+
+    model = SiameseNet(base_model, embed_model)
+    model = torch.nn.DataParallel(model).cuda()
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -124,7 +124,6 @@ def main(args):
         best_top1 = checkpoint['best_top1']
         print("=> Start epoch {}  best top1 {:.1%}"
               .format(start_epoch, best_top1))
-    model = nn.DataParallel(model).cuda()
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
@@ -132,41 +131,71 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model)
 
-    if hasattr(model.module, 'base') and args.freeze:
-        base_param_ids = set(map(id, model.module.base.parameters()))
-        new_params = [p for p in model.parameters() if
-                      id(p) not in base_param_ids]
-        param_groups = [
-            {'params': model.module.base.parameters(), 'lr_mult': 0.1},
-            {'params': new_params, 'lr_mult': 1.0}]
-    else:
-        param_groups = model.parameters()
-
-    if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(param_groups, lr=args.lr,
+    # Criterion # Optimizer
+    if args.loss == 'triplet' and not args.verf:
+        criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda()
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
                                      weight_decay=args.weight_decay)
-    else:
+
+        # Schedule learning rate
+        def adjust_lr(epoch, decay_epoch=100):
+            lr = args.lr if epoch <= decay_epoch else \
+                args.lr * (0.001 ** ((epoch - decay_epoch) / float(decay_epoch / 2.)))
+            for g in optimizer.param_groups:
+                g['lr'] = lr * g.get('lr_mult', 1)
+    elif args.loss == 'tuple' and not args.verf:
+        criterion = TupletLoss(margin=args.margin).cuda()
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
+                                     weight_decay=args.weight_decay)
+
+        # Schedule learning rate
+        def adjust_lr(epoch):
+            lr = args.lr if epoch <= 100 else \
+                args.lr * (0.001 ** ((epoch - 100) / 50.0))
+            for g in optimizer.param_groups:
+                g['lr'] = lr * g.get('lr_mult', 1)
+    elif args.loss == 'softmax' and not args.verf:
+        criterion = nn.CrossEntropyLoss().cuda()
+        if hasattr(model.module, 'base'):
+            base_param_ids = set(map(id, model.module.base.parameters()))
+            new_params = [p for p in model.parameters() if
+                          id(p) not in base_param_ids]
+            param_groups = [
+                {'params': model.module.base.parameters(), 'lr_mult': 0.1},
+                {'params': new_params, 'lr_mult': 1.0}]
+        else:
+            param_groups = model.parameters()
         optimizer = torch.optim.SGD(param_groups, lr=args.lr,
-                                    momentum=args.momentum,
+                                    momentum=0.9,
                                     weight_decay=args.weight_decay,
                                     nesterov=True)
 
-    def adjust_lr(epoch, decay_epoch=100):
-        lr = args.lr if epoch <= decay_epoch else \
-            args.lr * (0.001 ** ((epoch - decay_epoch) / float(decay_epoch / 2.)))
-        for g in optimizer.param_groups:
-            g['lr'] = lr * g.get('lr_mult', 1)
-
-    # Criterion # Optimizer
-    if args.loss == 'triplet':
-        criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda()
-    elif args.loss == 'tuple':
-        criterion = TupletLoss(margin=args.margin).cuda()
-    elif args.loss == 'softmax':
+        def adjust_lr(epoch):
+            step_size = 60 if args.arch == 'inception' else 40
+            lr = args.lr * (0.1 ** (epoch // step_size))
+            for g in optimizer.param_groups:
+                g['lr'] = lr * g.get('lr_mult', 1)
+    elif args.verf:
         criterion = nn.CrossEntropyLoss().cuda()
+        base_param_ids = set(map(id, model.module.model.base.parameters()))
+        new_params = [p for p in model.parameters() if
+                      id(p) not in base_param_ids]
+        param_groups = [
+            {'params': model.module.model.base.parameters(), 'lr_mult': 0.1},
+            {'params': new_params, 'lr_mult': 1.0}]
+        optimizer = torch.optim.SGD(param_groups, lr=args.lr,
+                                    momentum=0.9,
+                                    weight_decay=args.weight_decay,
+                                    nesterov=True)
+
+        def adjust_lr(epoch):
+            lr = args.lr if epoch <= 100 else \
+                args.lr * (0.001 ** ((epoch - 100) / 50.0))
+            for g in optimizer.param_groups:
+                g['lr'] = lr * g.get('lr_mult', 1)
 
     # Trainer
-    trainer = Trainer(model, criterion)
+    trainer = VerfTrainer(model, criterion)
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
@@ -176,10 +205,10 @@ def main(args):
             writer.add_scalar('train/' + k, v, epoch)
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 10 != 0:
-            continue
-        elif epoch < args.epochs - 20 and epoch % 5 != 0:
-            continue
+        # if epoch < args.epochs // 2 and epoch % 10 != 0:
+        #     continue
+        # elif epoch < args.epochs - 20 and epoch % 5 != 0:
+        #     continue
 
         acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, return_all=True)
         acc = {'top-1': acc['cuhk03'][0],
@@ -216,8 +245,7 @@ def main(args):
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
     model.module.load_state_dict(checkpoint['state_dict'])
     metric.train(model, train_loader)
-    acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-    lz.logging.info('final rank1 is {}'.format(acc))
+    evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
 
 
 if __name__ == '__main__':
@@ -225,12 +253,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="many kind loss classification")
 
     # data
+
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
-    parser.add_argument('--height', type=int, default=256,
+    parser.add_argument('--height', type=int,
                         help="input height, default: 256 for resnet*, "
                              "144 for inception")
-    parser.add_argument('--width', type=int, default=128,
+    parser.add_argument('--width', type=int,
                         help="input width, default: 128 for resnet*, "
                              "56 for inception")
     parser.add_argument('--combine-trainval', action='store_true',
@@ -242,7 +271,10 @@ if __name__ == '__main__':
                              "(batch_size // num_instances) identities, and "
                              "each identity has num_instances instances, "
                              "default: 4")
+    # model
 
+    parser.add_argument('--features', type=int, default=128)
+    parser.add_argument('--dropout', type=float, default=0.4)  # 0.5
     # loss
     parser.add_argument('--margin', type=float, default=0.5,
                         help="margin of the triplet loss, default: 0.5")
@@ -252,8 +284,9 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
-
-    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--start_save', type=int, default=0,
+                        help="start saving checkpoints after specific epoch")
+    parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--print-freq', type=int, default=5)
     # metric learning
     parser.add_argument('--dist-metric', type=str, default='euclidean',
@@ -265,121 +298,35 @@ if __name__ == '__main__':
                         default=osp.join(home_dir, 'data'))
 
     # tuning
-
-    configs_str = '''
-        
-    # - dataset: cuhk03
-    #  logs_dir: logs.resnet152
-    #  batch_size: 300
-    #  gpu: [2,3]
-    # 
-    # - dataset: cuhk03
-    #  logs_dir: logs.bs320
-    #  batch_size: 320
-    #  gpu: [2,3]        
-    
-    - arch: resnet50 
-      dropout: 0 
-      logs_dir: logs.res.0
-      
-    - arch: resnet50
-      dropout: 0.3 
-      logs_dir: logs.res.0.3 
-      
-    - arch: resnet50 
-      dropout: 0.8 
-      logs_dir: logs.res.0.8 
-    
-    # - arch: attention50 
-    #   branchs: 16
-    #   branch_dim: 64
-    #   dropout: 0.8
-    #   logs_dir: logs.at.16.64.0.8
-
-    # - arch: attention50 
-    #   branchs: 8
-    #   branch_dim: 128
-    #   dropout: 0.8
-    #   logs_dir: logs.at.8.128.0.8
-    # 
-    # - dataset: cuhk03
-    #   arch: attention50
-    #   logs_dir: logs.at.dp.0.3
-    # 
-    # - arch: attention50
-    #   branchs: 8
-    #   branch_dim: 64
-    #   dropout: 0.8
-    #   logs_dir: logs.at.0.8
-    
-    # - dataset: cuhk03 
-    #   mode: lift
-    #   logs_dir: logs.tri.lift
-    
-    '''
-    parser.add_argument('freeze', action='store_true', default=False)
-    parser.add_argument('--optimizier', type=str, default='adam')
-    parser.add_argument('--decay_epoch', type=int, default=100)
-    parser.add_argument('--branchs', type=int, default=8)
-    parser.add_argument('--branch_dim', type=int, default=64)
-    parser.add_argument('--dropout', type=float, default=0.3)
-    parser.add_argument('--use_global', action='store_true', default=False)
-    parser.add_argument('--normalize', action='store_true', default=True)
-
-    parser.add_argument('--features', type=int, default=1024)
-    parser.add_argument('--num_classes', type=int, default=128)
-    parser.add_argument('--start_save', type=int, default=120,
-                        help="start saving checkpoints after specific epoch")
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+    parser.add_argument('--verf', action='store_true', default=True)
+    parser.add_argument('-d', '--dataset', type=str, default='viper',
                         choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=160)
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--epochs', type=int, default=150)
 
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, '../works/logs'))
+                        default=osp.join(working_dir, 'logs'))
 
     parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
     parser.add_argument('--loss', type=str, default='triplet',
                         choices=['triplet', 'tuple', 'softmax'])
-    parser.add_argument('--mode', type=str, default='hard',
+    parser.add_argument('--mode', type=str, default='all',
                         choices=['rand', 'hard', 'all', 'lift'])
-    parser.add_argument('--gpu', type=list, default=[0, ])
-    dbg = False
+    lz.init_dev((3,))
+    dbg = True
 
     args = parser.parse_args()
-    lz.init_dev(args.gpu)
 
     if dbg:
         lz.init_dev((1,))
         args.epochs = 1
-        args.workers = 32
-        args.batch_size = 8
+        args.workers = 4
+        args.batch_size = 12
         args.logs_dir += '.dbg'
 
     if args.loss == 'softmax':
         args.num_instances = None
 
-    for config in yaml.load(configs_str):
-        lz.logging.info('training {}'.format(config))
-        for k, v in config.iteritems():
-            if k not in vars(args):
-                raise ValueError('{} {}'.format(k, v))
-            setattr(args, k, v)
-        args.logs_dir = '../work/' + args.logs_dir
-        if dbg:
-            # lz.init_dev((3,))
-            args.epochs = 1
-            args.workers = 32
-            # args.batch_size = 160
-            args.logs_dir += '.dbg'
-
-        lz.mkdir_p(args.logs_dir, delete=True)
-        lz.write_json(vars(args), args.logs_dir + '/conf.json')
-
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
-        proc.join()
-
-        # main(args)
+    main(args)

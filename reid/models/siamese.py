@@ -36,7 +36,7 @@ def _make_fc(in_, out_, dp_=0.):
 
 
 class Siamese(nn.Module):
-    def __init__(self, dropout=0.4, mode='cat', height=256, width=128, in_planes=2048):
+    def __init__(self, dropout=0.4, mode='cat', height=256, width=128, in_planes=2048,**kwargs):
         super(Siamese, self).__init__()
         self.dropout = dropout
         self.mode = mode

@@ -35,7 +35,7 @@ class ResNet(nn.Module):
     }
 
     def __init__(self, depth, pretrained=True, cut_at_pooling=False,
-                 num_features=0, norm=False, dropout=0, num_classes=0):
+                 num_features=0, norm=False, dropout=0, num_classes=0, **kwargs):
         super(ResNet, self).__init__()
 
         self.depth = depth
@@ -70,6 +70,7 @@ class ResNet(nn.Module):
                 self.num_features = out_planes
             if self.dropout > 0:
                 self.drop = nn.Dropout(self.dropout)
+                self.drop0 = nn.Dropout(self.dropout)
             if self.num_classes > 0:
                 self.classifier = nn.Linear(self.num_features, self.num_classes)
                 init.normal(self.classifier.weight, std=0.001)
@@ -92,6 +93,8 @@ class ResNet(nn.Module):
         x = x.view(x.size(0), -1)
 
         if self.has_embedding:
+            if self.dropout>0:
+                x=self.drop0(x)
             x = self.feat(x)
             x = self.feat_bn(x)
         if self.norm:

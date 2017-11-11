@@ -24,8 +24,9 @@ def write_json(obj, fpath):
 def save_checkpoint(state, is_best, fpath='checkpoint.pth'):
     mkdir_if_missing(osp.dirname(fpath))
     torch.save(state, fpath)
-    if is_best:
-        shutil.copy(fpath, osp.join(osp.dirname(fpath), 'model_best.pth'))
+    dest = osp.join(osp.dirname(fpath), 'model_best.pth')
+    if is_best or not osp.exists(dest):
+        shutil.copy(fpath, dest )
 
 
 def load_checkpoint(fpath):
