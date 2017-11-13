@@ -2,9 +2,10 @@ from __future__ import absolute_import
 from collections import OrderedDict
 
 from torch.autograd import Variable
-
-from ..utils import to_torch
-
+import torch
+from ..utils.meters import *
+from ..utils import to_numpy,to_torch
+import time
 
 def extract_cnn_feature(model, inputs, modules=None):
     model.eval()
@@ -25,3 +26,17 @@ def extract_cnn_feature(model, inputs, modules=None):
     for h in handles:
         h.remove()
     return list(outputs.values())
+
+
+def extract_cnn_embeddings(model, inputs, modules=None):
+    model.eval()
+
+    for ind, inp in enumerate(inputs):
+        inputs[ind] = to_torch(inp)
+    inputs = [Variable(x, volatile=True) for x in inputs]
+
+    assert  modules  is None
+
+    outputs = model( *inputs)
+    outputs = outputs.data.cpu()
+    return  outputs

@@ -3,13 +3,15 @@ import time
 from collections import OrderedDict
 
 import torch
-
+import numpy as np
+from torch.utils.data import DataLoader
+from .utils.data.preprocessor import *
 from .evaluation_metrics import cmc, mean_ap
-from .feature_extraction import extract_cnn_feature
+from .feature_extraction import *
 from .utils.meters import AverageMeter
 
 
-def extract_features(model, data_loader, print_freq=10, metric=None):
+def extract_features(model, data_loader, print_freq=10, metric=None, output_file=None):
     model.eval()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -38,6 +40,31 @@ def extract_features(model, data_loader, print_freq=10, metric=None):
                           data_time.val, data_time.avg))
 
     return features, labels
+
+
+def extract_embeddings(model, data_loader, print_freq=10, ):
+    model.eval()
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    embeddings = []
+    end = time.time()
+    for i, inputs in enumerate(data_loader):
+        data_time.update(time.time() - end)
+        outputs = extract_cnn_embeddings(model, inputs)
+
+        embeddings.append(outputs)
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if (i + 1) % print_freq == 0:
+            print('Extract Embedding: [{}/{}]\t'
+                  'Time {:.3f} ({:.3f})\t'
+                  'Data {:.3f} ({:.3f})\t'.format(
+                i + 1, len(data_loader),
+                batch_time.val, batch_time.avg,
+                data_time.val, data_time.avg))
+
+    return torch.cat(embeddings)
 
 
 def pairwise_distance(features, query=None, gallery=None, metric=None):
@@ -113,7 +140,6 @@ def evaluate_all(distmat, query=None, gallery=None,
         # return cmc_scores['allshots'][0]
         return cmc_scores['cuhk03'][0]
 
-import numpy as np
 
 class Evaluator(object):
     def __init__(self, model):
@@ -129,3 +155,69 @@ class Evaluator(object):
 
         distmat = pairwise_distance(features, query, gallery, metric=metric)
         return evaluate_all(distmat, query=query, gallery=gallery, return_all=return_all)
+
+
+class CascadeEvaluator(object):
+    def __init__(self, base_model, embed_model, embed_dist_fn=None, ):
+        super(CascadeEvaluator, self).__init__()
+        self.base_model = base_model
+        self.embed_model = embed_model
+        self.embed_dist_fn = embed_dist_fn
+
+    def evaluate(self, data_loader, query, gallery, cache_file=None,
+                 rerank_topk=20, return_all=False):
+        # Extract features image by image
+        features = extract_features(self.base_model, data_loader,
+                                    output_file=cache_file)
+
+        # Compute pairwise distance and evaluate for the first stage
+        distmat = pairwise_distance(features, query, gallery)
+        print("First stage evaluation:")
+        print(cmc(distmat, query, gallery, separate_camera_set=True,
+                  single_gallery_shot=True,
+                  first_match_break=False))
+
+        # Sort according to the first stage distance
+        distmat = distmat.cpu().numpy()
+        rank_indices = np.argsort(distmat, axis=1)
+
+        # Build a data loader for topk predictions for each query
+        pair_samples = []
+        for i, indices in enumerate(rank_indices):
+            query_fname, _, _ = query[i]
+            for j in indices[:rerank_topk]:
+                gallery_fname, _, _ = gallery[j]
+                pair_samples.append((query_fname, gallery_fname))
+
+        data_loader = DataLoader(
+            KeyValuePreprocessor(features),
+            sampler=pair_samples,
+            batch_size=min(len(gallery), 4096),
+            num_workers=1, pin_memory=False)
+
+        # Extract embeddings of each pair
+        embeddings = extract_cnn_embeddings(self.embed_model, data_loader)
+        if self.embed_dist_fn is not None:
+            embeddings = self.embed_dist_fn(embeddings)
+
+        # Merge two-stage distances
+        for k, embed in enumerate(embeddings):
+            i, j = k // rerank_topk, k % rerank_topk
+            distmat[i, rank_indices[i, j]] = embed
+        for i, indices in enumerate(rank_indices):
+            bar = max(distmat[i][indices[:rerank_topk]])
+            gap = max(bar + 1. - distmat[i, indices[rerank_topk]], 0)
+            if gap > 0:
+                distmat[i][indices[rerank_topk:]] += gap
+
+        print("Second stage evaluation:")
+
+        cmc_scores = cmc(distmat, query, gallery,
+                         separate_camera_set=True,
+                         single_gallery_shot=True,
+                         first_match_break=False)
+        print(cmc_scores)
+        if return_all:
+            return cmc_scores
+        else:
+            return cmc_scores[0]

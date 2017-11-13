@@ -32,19 +32,18 @@ def _make_fc(in_, out_, dp_=0., with_relu=True):
     fc = nn.Linear(in_, out_)
     init.normal(fc.weight, std=0.001)
     init.constant(fc.bias, 0)
-    relu = nn.ReLU(inplace=True)
     dp = nn.Dropout(dp_)
+    relu = nn.ReLU(inplace=True)
     res = [fc, ]
     if dp_ != 0:
         res.append(dp)
     if with_relu:
         res.append(relu)
-
     return nn.Sequential(*res)
 
 
 class MaskBranch(nn.Module):
-    def __init__(self, in_planes, branch_dim, height, width, dopout=0.3):
+    def __init__(self, in_planes, branch_dim, height, width, dopout=0.3, normalize=True):
         super(MaskBranch, self).__init__()
         self.height = height
         self.width = width
@@ -54,7 +53,7 @@ class MaskBranch(nn.Module):
             nn.Sigmoid()
         )
         self.pool = nn.AvgPool2d((self.height // 32, self.width // 32))
-        self.fc = _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
+        self.fc = _make_fc(in_planes, branch_dim, with_relu=not normalize, dp_=dopout)
 
     def forward(self, x):
         x_left = self.branch_left(x)
@@ -71,20 +70,27 @@ class Mask(nn.Module):
         super(Mask, self).__init__()
         self.branch_l = nn.ModuleList()
         for ind in range(branchs):
-            self.branch_l.append(MaskBranch(in_planes, branch_dim, height, width, dopout=dopout))
+            self.branch_l.append(MaskBranch(in_planes, branch_dim, height, width, dopout=dopout, normalize=normalize))
         if use_global:
-            self.branch_l.append(nn.Sequential(
-                nn.AvgPool2d((self.height // 32, self.width // 32)),
-                _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
-            ))
+            self.branch_g = [nn.AvgPool2d((height // 32, width // 32)),
+                             _make_fc(in_planes, branch_dim, with_relu=not normalize, dp_=dopout)]
         self.normalize = normalize
+        self.use_global = use_global
 
     def forward(self, x):
-        x = torch.cat([b(x) for b in self.branch_l], 1)
+
+        x_l = torch.cat([b(x) for b in self.branch_l], 1)
+        if self.use_global:
+            x_g = self.branch_g[0](x)
+            x_g= x_g.view(x_g.size(0), -1)
+            x_g = self.branch_g[1](x_g)
+            x = torch.cat([x_g, x_l], 1)
+        else:
+            x = x_l
+
         if self.normalize:
             x = F.normalize(x)
-        else:
-            x = F.relu(x)
+
         return x
 
 

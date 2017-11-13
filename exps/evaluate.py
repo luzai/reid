@@ -213,16 +213,16 @@ if __name__ == '__main__':
     queue = mp.Queue()
     res = []
 
-    model_dir = lz.glob.glob('../work/logs.dukemtmc.randeval/model_best.pth')[0]
-    lz.logging.info('start {}'.format(model_dir))
-    args.model_dir = model_dir
-    args.dataset = 'dukemtmc'
-    proc = mp.Process(target=main, args=(args, queue))
-    proc.start()
-    proc.join()
-    res.append(queue.get())
+    # model_dir = lz.glob.glob('../work/logs.dukemtmc.randeval/model_best.pth')[0]
+    # lz.logging.info('start {}'.format(model_dir))
+    # args.model_dir = model_dir
+    # args.dataset = 'dukemtmc'
+    # proc = mp.Process(target=main, args=(args, queue))
+    # proc.start()
+    # proc.join()
+    # res.append(queue.get())
 
-    model_dir = lz.glob.glob('../work/logs.market1501.randeval/model_best.pth')[0]
+    model_dir = lz.glob.glob('../arc/logs.market1501.randeval/model_best.pth')[0]
     lz.logging.info('start {}'.format(model_dir))
     args.model_dir = model_dir
     args.dataset = 'market1501'

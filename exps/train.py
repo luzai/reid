@@ -124,7 +124,10 @@ def main(args):
         best_top1 = checkpoint['best_top1']
         print("=> Start epoch {}  best top1 {:.1%}"
               .format(start_epoch, best_top1))
-    model = nn.DataParallel(model).cuda()
+    if len(args.gpu) == 1:
+        model = nn.DataParallel(model).cuda()
+    else:
+        model = nn.DataParallel(model.cuda(args.gpu[0]), device_ids=args.gpu, output_device=args.gpu[0])
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
@@ -147,30 +150,37 @@ def main(args):
                                      weight_decay=args.weight_decay)
     else:
         optimizer = torch.optim.SGD(param_groups, lr=args.lr,
-                                    momentum=args.momentum,
+                                    momentum=0.9,
                                     weight_decay=args.weight_decay,
                                     nesterov=True)
 
-    def adjust_lr(epoch, decay_epoch=100):
-        lr = args.lr if epoch <= decay_epoch else \
-            args.lr * (0.001 ** ((epoch - decay_epoch) / float(decay_epoch / 2.)))
-        for g in optimizer.param_groups:
-            g['lr'] = lr * g.get('lr_mult', 1)
+    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps):
+        exp = len(steps)
+        for i, step in enumerate(steps):
+            if epoch < step:
+                exp = i
+                break
+        lr = base_lr * 0.1 ** exp
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
 
     # Criterion # Optimizer
+
     if args.loss == 'triplet':
-        criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda()
+        criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda(args.gpu[0])
     elif args.loss == 'tuple':
-        criterion = TupletLoss(margin=args.margin).cuda()
+        criterion = TupletLoss(margin=args.margin).cuda(args.gpu[0])
     elif args.loss == 'softmax':
-        criterion = nn.CrossEntropyLoss().cuda()
+        criterion = nn.CrossEntropyLoss().cuda(args.gpu[0])
+    else:
+        raise NotImplementedError
 
     # Trainer
     trainer = Trainer(model, criterion)
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
-        adjust_lr(epoch)
+        adjust_lr(epoch=epoch)
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
         for k, v in hist.iteritems():
             writer.add_scalar('train/' + k, v, epoch)
@@ -247,8 +257,10 @@ if __name__ == '__main__':
     parser.add_argument('--margin', type=float, default=0.5,
                         help="margin of the triplet loss, default: 0.5")
     # optimizer
-    parser.add_argument('--lr', type=float, default=0.0002,
-                        help="learning rate of all parameters")  # 0.1
+    parser.add_argument('--lr', type=float, default=0.1,
+                        help="learning rate of all parameters")
+    parser.add_argument('--steps', type=list, default=[100, 150, 180])
+
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
@@ -269,39 +281,47 @@ if __name__ == '__main__':
     configs_str = '''
         
     # - dataset: cuhk03
-    #  logs_dir: logs.resnet152
-    #  batch_size: 300
-    #  gpu: [2,3]
-    # 
+    #   logs_dir: logs.resnet152
+    #   batch_size: 300
+    #   gpu: [0,1]
+
     # - dataset: cuhk03
-    #  logs_dir: logs.bs320
-    #  batch_size: 320
-    #  gpu: [2,3]        
+    #   arch: resnet50
+    #   dropout: 0
+    #   logs_dir: logs.bs320
+    #   batch_size: 320
+    #   gpu: [2,3]  
+    
+    # - dataset: cuhk03
+    #   logs_dir: logs.bs480
+    #   batch_size: 480
+    #   gpu: [0,1,2]       
     
     - arch: resnet50 
       dropout: 0 
-      logs_dir: logs.res.0
-      
-    - arch: resnet50
-      dropout: 0.3 
-      logs_dir: logs.res.0.3 
-      
-    - arch: resnet50 
-      dropout: 0.8 
-      logs_dir: logs.res.0.8 
+      logs_dir: logs.res.0.sgd
+      gpu: [1,]
+
+    # - arch: resnet50
+    #   dropout: 0.3 
+    #   logs_dir: logs.res.0.3 
     
     # - arch: attention50 
-    #   branchs: 16
+    #   gpu: [0,]
+    #   branchs: 8
     #   branch_dim: 64
-    #   dropout: 0.8
-    #   logs_dir: logs.at.16.64.0.8
+    #   dropout: 0.3
+    #   freeze: False
+    #   use_global: False
+    #   normalize: True
+    #   logs_dir: logs.at.8.64.0.3    
 
     # - arch: attention50 
     #   branchs: 8
     #   branch_dim: 128
-    #   dropout: 0.8
-    #   logs_dir: logs.at.8.128.0.8
-    # 
+    #   dropout: 0.3
+    #   logs_dir: logs.at.8.128.0.3
+
     # - dataset: cuhk03
     #   arch: attention50
     #   logs_dir: logs.at.dp.0.3
@@ -317,24 +337,24 @@ if __name__ == '__main__':
     #   logs_dir: logs.tri.lift
     
     '''
-    parser.add_argument('freeze', action='store_true', default=False)
-    parser.add_argument('--optimizier', type=str, default='adam')
+    parser.add_argument('--freeze', action='store_true', default=False)
+    parser.add_argument('--optimizer', type=str, default='sgd')
     parser.add_argument('--decay_epoch', type=int, default=100)
     parser.add_argument('--branchs', type=int, default=8)
     parser.add_argument('--branch_dim', type=int, default=64)
-    parser.add_argument('--dropout', type=float, default=0.3)
+    parser.add_argument('--dropout', type=float, default=0.)
     parser.add_argument('--use_global', action='store_true', default=False)
     parser.add_argument('--normalize', action='store_true', default=True)
 
     parser.add_argument('--features', type=int, default=1024)
     parser.add_argument('--num_classes', type=int, default=128)
-    parser.add_argument('--start_save', type=int, default=120,
+    parser.add_argument('--start_save', type=int, default=180,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=160)
     working_dir = osp.dirname(osp.abspath(__file__))
-    parser.add_argument('--epochs', type=int, default=150)
+    parser.add_argument('--epochs', type=int, default=200)
 
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, '../works/logs'))
@@ -346,17 +366,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='hard',
                         choices=['rand', 'hard', 'all', 'lift'])
     parser.add_argument('--gpu', type=list, default=[0, ])
-    dbg = False
+    dbg = True
 
     args = parser.parse_args()
-    lz.init_dev(args.gpu)
-
-    if dbg:
-        lz.init_dev((1,))
-        args.epochs = 1
-        args.workers = 32
-        args.batch_size = 8
-        args.logs_dir += '.dbg'
 
     if args.loss == 'softmax':
         args.num_instances = None
@@ -368,13 +380,15 @@ if __name__ == '__main__':
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
         args.logs_dir = '../work/' + args.logs_dir
+        # lz.get_dev(ok=(0, 1,))
         if dbg:
-            # lz.init_dev((3,))
-            args.epochs = 1
+            args.gpu = [lz.get_dev(n=1)]
+            args.epochs = 2
             args.workers = 32
-            # args.batch_size = 160
+            args.batch_size = 160
             args.logs_dir += '.dbg'
-
+        if len(args.gpu) == 1:
+            lz.init_dev(args.gpu)
         lz.mkdir_p(args.logs_dir, delete=True)
         lz.write_json(vars(args), args.logs_dir + '/conf.json')
 

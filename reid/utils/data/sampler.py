@@ -10,7 +10,10 @@ from torch.utils.data.sampler import (
 
 
 class RandomIdentitySampler(Sampler):
-    def __init__(self, data_source, num_instances=1):
+    def __init__(self, data_source, num_instances=4, batch_size=160):
+        assert batch_size % num_instances == 0
+        self.batch_size = batch_size
+
         self.data_source = data_source
         self.num_instances = num_instances
         self.index_dic = defaultdict(list)
@@ -25,6 +28,7 @@ class RandomIdentitySampler(Sampler):
     def __iter__(self):
         indices = torch.randperm(self.num_samples)
         ret = []
+        ret_t = []
         for i in indices:
             pid = self.pids[i]
             t = self.index_dic[pid]
@@ -32,7 +36,12 @@ class RandomIdentitySampler(Sampler):
                 t = np.random.choice(t, size=self.num_instances, replace=False)
             else:
                 t = np.random.choice(t, size=self.num_instances, replace=True)
-            ret.extend(t)
+            if len(ret_t) < self.batch_size:
+                ret_t.extend(t)
+            else:
+                np.random.shuffle(ret_t)
+                ret.extend(ret_t)
+                ret_t = []
         return iter(ret)
 
 
@@ -134,4 +143,3 @@ class RandomTripletSampler(Sampler):
 
     def __len__(self):
         return self.num_samples
-

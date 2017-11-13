@@ -86,7 +86,7 @@ class VerfTrainer(BaseTrainer):
 class Trainer(BaseTrainer):
     def _parse_data(self, inputs):
         imgs, _, pids, _ = inputs
-        inputs = [Variable(imgs)]
+        inputs = [Variable(imgs.cuda())]
         targets = Variable(pids.cuda())
         return inputs, targets
 
@@ -107,3 +107,17 @@ class Trainer(BaseTrainer):
         else:
             raise ValueError("Unsupported loss:", self.criterion)
         return loss, prec
+
+
+class SiameseTrainer(BaseTrainer):
+    def _parse_data(self, inputs):
+        (imgs1, _, pids1, _), (imgs2, _, pids2, _) = inputs
+        inputs = [Variable(imgs1), Variable(imgs2)]
+        targets = Variable((pids1 == pids2).long().cuda())
+        return inputs, targets
+
+    def _forward(self, inputs, targets):
+        outputs = self.model(*inputs)
+        loss = self.criterion(outputs, targets)
+        prec1, = accuracy(outputs.data, targets.data)
+        return loss, prec1[0]

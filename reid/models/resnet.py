@@ -5,9 +5,9 @@ from torch.nn import functional as F
 from torch.nn import init
 import torchvision
 
-
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
+
 
 def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
                bias=False):
@@ -55,8 +55,8 @@ class ResNet(nn.Module):
             self.num_classes = num_classes
 
             out_planes = self.base.fc.in_features
-            if self.cut_at_pooling:
-                self.conv1 = _make_conv(2048, 512 )
+            # if self.cut_at_pooling:
+            #     self.conv1 = _make_conv(2048, 512)
             # Append new layers
             if self.has_embedding:
                 self.feat = nn.Linear(out_planes, self.num_features)
@@ -86,15 +86,15 @@ class ResNet(nn.Module):
             x = module(x)
 
         if self.cut_at_pooling:
-            x=self.conv1(x)
+            # x = self.conv1(x)
             return x
 
         x = F.avg_pool2d(x, x.size()[2:])
         x = x.view(x.size(0), -1)
 
         if self.has_embedding:
-            if self.dropout>0:
-                x=self.drop0(x)
+            if self.dropout > 0:
+                x = self.drop0(x)
             x = self.feat(x)
             x = self.feat_bn(x)
         if self.norm:
