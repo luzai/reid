@@ -18,7 +18,7 @@ def _choose_from(start, end, excluding=None, size=1, replace=False):
 
 
 class ExhaustiveSampler(Sampler):
-    def __init__(self, *data_sources, return_index=False):
+    def __init__(self, data_sources, return_index=False):
         self.data_sources = data_sources
         self.return_index = return_index
 

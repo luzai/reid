@@ -27,7 +27,7 @@ class _ModelWrapper(nn.Module):
             if isinstance(module, nn.Linear):
                 x = x.view(x.size(0), -1)
             x = module(x)
-            if name in self._layer_names:
+            if name in self.layer_names:
                 outs[name] = x
         return outs
 

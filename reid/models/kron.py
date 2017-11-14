@@ -25,11 +25,11 @@ def kron_matching(*inputs):
     #    index = H x W x H x W
     #    index[i,j,p,q] = (p-i+H-1) * (2*W-1) + (q-j+W-1)
     use_cuda = inputs[0].is_cuda
-    i1 = torch.range(0, H - 1).long()
+    i1 = torch.arange(0, H ).long()
     if use_cuda: i1 = i1.cuda()
     i1 = i1.expand(H, H) - i1.unsqueeze(1).expand(H, H)
     i1 = (i1 + H - 1) * (2 * W - 1)
-    i2 = torch.range(0, W - 1).long()
+    i2 = torch.arange(0, W ).long()
     if use_cuda: i2 = i2.cuda()
     i2 = i2.expand(W, W) - i2.unsqueeze(1).expand(W, W)
     i2 = i2 + W - 1

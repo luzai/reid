@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
+sys.path.insert(0, '/home/xinglu/prj/open-reid-study/')
 from reid.datasets import get_dataset
 from reid.mining import mine_hard_pairs
 from reid.models import ResNet
@@ -44,7 +45,7 @@ def get_data(dataset_name, split_id, data_dir, batch_size, workers):
                          normalizer,
                      ])),
         sampler=RandomPairSampler(dataset.train, neg_pos_ratio=1),
-        batch_size=batch_size, num_workers=workers, pin_memory=False)
+        batch_size=batch_size, num_workers=workers, pin_memory=True)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
@@ -55,7 +56,7 @@ def get_data(dataset_name, split_id, data_dir, batch_size, workers):
                          normalizer,
                      ])),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=False)
+        shuffle=False, pin_memory=True)
 
     test_loader = DataLoader(
         Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
@@ -67,7 +68,7 @@ def get_data(dataset_name, split_id, data_dir, batch_size, workers):
                          normalizer,
                      ])),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=False)
+        shuffle=False, pin_memory=True)
 
     return dataset, train_loader, val_loader, test_loader
 
@@ -187,13 +188,16 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Training Inception Siamese Model")
+    import lz
+
+    lz.init_dev((1,))
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=['cuhk03', 'market1501', 'viper'])
-    parser.add_argument('-b', '--batch-size', type=int, default=64)
-    parser.add_argument('-j', '--workers', type=int, default=2)
+    parser.add_argument('-b', '--batch-size', type=int, default=52)
+    parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
-    parser.add_argument('--hard-examples', action='store_true')
+    parser.add_argument('--hard-examples', action='store_true', default=False)
     # model
     parser.add_argument('--depth', type=int, default=50,
                         choices=[18, 34, 50, 101, 152])
@@ -202,8 +206,6 @@ if __name__ == '__main__':
     parser.add_argument('--embedding', type=str, default='kron',
                         choices=['kron', 'sub'])
     # loss
-    parser.add_argument('--loss', type=str, default='xentropy',
-                        choices=['xentropy'])
     parser.add_argument('--margin', type=float, default=0.5)
     # optimizer
     parser.add_argument('--lr', type=float, default=0.1)
@@ -220,7 +222,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'data'))
+                        default='/home/xinglu/.torch/data/')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
+                        default=osp.join(working_dir, 'logs.dbg'))
     main(parser.parse_args())

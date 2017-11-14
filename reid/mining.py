@@ -3,6 +3,8 @@ import numpy as np
 from .features import extract_features
 from .metrics import pairwise_distance
 
+global_margin = 0
+
 
 def mine_hard_pairs(model, data_loader, margin=0):
     model.eval()
@@ -19,8 +21,12 @@ def mine_hard_pairs(model, data_loader, margin=0):
         pos_indices = np.where(pids == pids[i])[0]
         threshold = max(d[pos_indices]) + margin
         neg_indices = np.where(pids != pids[i])[0]
-        pairs.extend([(i, p) for p in pos_indices])
-        pairs.extend([(i, n) for n in neg_indices if threshold >= d[n]])
+        pairs_g = [(i, p) for p in pos_indices]
+        pairs.extend(pairs_g)
+        pairs_n = [(i, n) for n in neg_indices if threshold >= d[n]]
+        if len(pairs_n) < len(pairs_g):
+            print('!!! waring pos  {} neg  {} '.format(len(pairs_g), len(pairs_n)))
+        pairs.extend(pairs_n)
     return pairs
 
 
