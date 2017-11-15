@@ -36,12 +36,13 @@ class RandomIdentitySampler(Sampler):
                 t = np.random.choice(t, size=self.num_instances, replace=False)
             else:
                 t = np.random.choice(t, size=self.num_instances, replace=True)
-            if len(ret_t) < self.batch_size:
-                ret_t.extend(t)
-            else:
-                np.random.shuffle(ret_t)
-                ret.extend(ret_t)
-                ret_t = []
+            ret.extend(t)
+            # if len(ret_t) < self.batch_size:
+            #     ret_t.extend(t)
+            # else:
+            #     np.random.shuffle(ret_t)
+            #     ret.extend(ret_t)
+            #     ret_t = []
         return iter(ret)
 
 

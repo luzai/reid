@@ -8,7 +8,7 @@ from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
-sys.path.insert(0, '/home/xinglu/prj/open-reid/')
+sys.path.insert(0, '/home/xinglu/prj/open-reid')
 
 from reid import datasets
 from reid import models
@@ -116,28 +116,34 @@ def main(args):
                           norm=args.normalize,
                           num_classes=args.num_classes
                           )
-
+    print(model)
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
         model.load_state_dict(checkpoint['state_dict'])
-        start_epoch = checkpoint['epoch']
-        best_top1 = checkpoint['best_top1']
+
+        start_epoch_ = checkpoint['epoch']
+        best_top1_ = checkpoint['best_top1']
         print("=> Start epoch {}  best top1 {:.1%}"
-              .format(start_epoch, best_top1))
+              .format(start_epoch_, best_top1_))
     if len(args.gpu) == 1:
         model = nn.DataParallel(model).cuda()
     else:
-        model = nn.DataParallel(model.cuda(args.gpu[0]), device_ids=args.gpu, output_device=args.gpu[0])
+        model = nn.DataParallel(model.cuda( ), device_ids=range(len(args.gpu)),  )
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
     evaluator = Evaluator(model)
+    if args.evaluate:
+        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        lz.logging.info('final rank1 is {}'.format(acc))
+        return 0
 
     if hasattr(model.module, 'base') and args.freeze:
+        lz.logging.info('freeze!!!')
         base_param_ids = set(map(id, model.module.base.parameters()))
         new_params = [p for p in model.parameters() if
                       id(p) not in base_param_ids]
@@ -164,16 +170,17 @@ def main(args):
                 break
         lr = base_lr * 0.1 ** exp
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr * param_group.get('lr_mult',1)
+            param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Criterion # Optimizer
 
     if args.loss == 'triplet':
-        criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda(args.gpu[0])
+        lz.logging.info('{}'.format(TripletLoss))
+        criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda( )
     elif args.loss == 'tuple':
-        criterion = TupletLoss(margin=args.margin).cuda(args.gpu[0])
+        criterion = TupletLoss(margin=args.margin).cuda( )
     elif args.loss == 'softmax':
-        criterion = nn.CrossEntropyLoss().cuda(args.gpu[0])
+        criterion = nn.CrossEntropyLoss().cuda( )
     else:
         raise NotImplementedError
 
@@ -235,7 +242,7 @@ def main(args):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="many kind loss classification")
-
+    parser.add_argument('--evaluate', action='store_true', default=False)
     # data
     parser.add_argument('-j', '--workers', type=int, default=32)
     parser.add_argument('--split', type=int, default=0)
@@ -265,7 +272,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
-    parser.add_argument('--resume', type=str, default='', metavar='PATH')
+    parser.add_argument('--resume', type=str, default='../examples/logs.ori/model_best.pth.tar', metavar='PATH')
 
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--print-freq', type=int, default=5)
@@ -347,16 +354,19 @@ if __name__ == '__main__':
     #   gpu: [1,]
       
     - arch: resnet50
-      optimizer: adam  
-      normalize: True
+      resume: '../examples/logs.ori/model_best.pth.tar'
+      evaluate: False
+      optimizer: sgd  
+      normalize: False
       dropout: 0 
       features: 1024
       num_classes: 128 
-      lr: 0.002
+      lr: 0.1
       steps: [100,150,]
       epochs: 180
       logs_dir: logs.res.1.sgd
-      gpu: [2,]
+      batch_size: 60
+      gpu: [3,]
 
     # - arch: resnet50
     #   dropout: 0.3 
@@ -391,7 +401,7 @@ if __name__ == '__main__':
     
     '''
 
-    dbg = True
+    dbg = False
 
     args = parser.parse_args()
 
@@ -407,10 +417,10 @@ if __name__ == '__main__':
         args.logs_dir = '../work/' + args.logs_dir
         # lz.get_dev(ok=(0, 1,))
         if dbg:
-            args.gpu = [lz.get_dev(n=1,mem=(0.5,0.6))]
+            args.gpu = [lz.get_dev(n=1, mem=(0.5, 0.7))]
             args.epochs = 150
             args.workers = 4
-            args.batch_size = 80
+            args.batch_size = 60
             args.logs_dir += '.dbg'
         if len(args.gpu) == 1:
             lz.init_dev(args.gpu)
