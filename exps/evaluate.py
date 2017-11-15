@@ -146,7 +146,7 @@ def main(args, queue=None):
 if __name__ == '__main__':
 
     # lz.init_dev((0,1,2,3,))
-    lz.init_dev((0,))
+    # lz.init_dev((3,))
     parser = argparse.ArgumentParser(description="many kind loss classification")
     # tuning
     parser.add_argument('-b', '--batch-size', type=int, default=160)

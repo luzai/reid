@@ -1,6 +1,11 @@
 from __future__ import print_function, absolute_import
+import lz
+
 import argparse
-import os.path as osp, yaml
+import os.path as osp
+import sys,yaml
+
+sys.path.insert(0, '/home/xinglu/open-reid/')
 import numpy as np
 import sys
 import torch
@@ -8,12 +13,10 @@ from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
-sys.path.insert(0, '/home/xinglu/prj/open-reid')
-
 from reid import datasets
 from reid import models
 from reid.dist_metric import DistanceMetric
-from reid.loss import TripletLoss, TupletLoss
+from reid.loss import TripletLoss
 from reid.trainers import Trainer
 from reid.evaluators import Evaluator
 from reid.utils.data import transforms as T
@@ -24,11 +27,9 @@ from reid.utils.serialization import load_checkpoint, save_checkpoint
 
 import torchvision
 from tensorboardX import SummaryWriter
-import lz
 
-
-def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=None,
-             workers=32, combine_trainval=True):
+def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
+             workers, combine_trainval):
     root = osp.join(data_dir, name)
 
     dataset = datasets.create(name, root, split_id=split_id)
@@ -52,19 +53,13 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
         T.ToTensor(),
         normalizer,
     ])
-    if num_instances is not None:
-        train_loader = DataLoader(
-            Preprocessor(train_set, root=dataset.images_dir,
-                         transform=train_transformer),
-            batch_size=batch_size, num_workers=workers,
-            sampler=RandomIdentitySampler(train_set, num_instances),
-            pin_memory=True, drop_last=True)
-    else:
-        train_loader = DataLoader(
-            Preprocessor(train_set, root=dataset.images_dir,
-                         transform=train_transformer),
-            batch_size=batch_size, num_workers=workers,
-            shuffle=True, pin_memory=True, drop_last=True)
+
+    train_loader = DataLoader(
+        Preprocessor(train_set, root=dataset.images_dir,
+                     transform=train_transformer),
+        batch_size=batch_size, num_workers=workers,
+        sampler=RandomIdentitySampler(train_set, num_instances),
+        pin_memory=True, drop_last=True)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
@@ -90,12 +85,13 @@ def main(args):
     writer = SummaryWriter(args.logs_dir)
 
     # Redirect print to both console and log file
-    # sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
+    if not args.evaluate:
+        sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
     # Create data loaders
-    if args.num_instances is not None:
-        assert args.batch_size % args.num_instances == 0, \
-            'num_instances should divide batch_size'
+    assert args.num_instances > 1, "num_instances should be greater than 1"
+    assert args.batch_size % args.num_instances == 0, \
+        'num_instances should divide batch_size'
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
             (256, 128)
@@ -106,31 +102,42 @@ def main(args):
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
-
-    model = models.create(args.arch,
-                          num_features=args.features,
-                          dropout=args.dropout,
-                          branchs=args.branchs,
-                          branch_dim=args.branch_dim,
-                          use_global=args.use_global,
-                          norm=args.normalize,
-                          num_classes=args.num_classes
-                          )
+    model = models.create(args.arch, num_features=1024,
+                          dropout=args.dropout, num_classes=128)
     print(model)
+    def load_state_dict(model, state_dict):
+        own_state = model.state_dict()
+        for name, param in state_dict.items():
+            if name not in own_state:
+                print('ignore key "{}" in state_dict'.format(name))
+                continue
+            if isinstance(param, nn.Parameter):
+                # backwards compatibility for serialized parameters
+                param = param.data
+            try:
+                own_state[name].copy_(param)
+            except:
+                print('dimension mismatch for param "{}", in the model are {}'
+                      ' and in the checkpoint are {}, ...'.format(
+                          name, own_state[name].size(), param.size()))
+                raise
+        missing = set(own_state.keys()) - set(state_dict.keys())
+        if len(missing) > 0:
+            raise KeyError('missing keys in state_dict: "{}"'.format(missing))
+
+
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
-        model.load_state_dict(checkpoint['state_dict'])
-
-        start_epoch_ = checkpoint['epoch']
-        best_top1_ = checkpoint['best_top1']
+        # model.load_state_dict(checkpoint['state_dict'])
+        load_state_dict(model, checkpoint['state_dict'])
+        start_epoch = checkpoint['epoch']
+        best_top1 = checkpoint['best_top1']
         print("=> Start epoch {}  best top1 {:.1%}"
-              .format(start_epoch_, best_top1_))
-    if len(args.gpu) == 1:
-        model = nn.DataParallel(model).cuda()
-    else:
-        model = nn.DataParallel(model.cuda( ), device_ids=range(len(args.gpu)),  )
+              .format(start_epoch, best_top1))
+
+    model = nn.DataParallel(model).cuda()
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
@@ -142,27 +149,24 @@ def main(args):
         lz.logging.info('final rank1 is {}'.format(acc))
         return 0
 
-    if hasattr(model.module, 'base') and args.freeze:
-        lz.logging.info('freeze!!!')
-        base_param_ids = set(map(id, model.module.base.parameters()))
-        new_params = [p for p in model.parameters() if
-                      id(p) not in base_param_ids]
-        param_groups = [
-            {'params': model.module.base.parameters(), 'lr_mult': 0.1},
-            {'params': new_params, 'lr_mult': 1.0}]
-    else:
-        param_groups = model.parameters()
+    # Criterion
+    criterion = TripletLoss(margin=args.margin).cuda()
 
+    # Optimizer
     if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(param_groups, lr=args.lr,
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
                                      weight_decay=args.weight_decay)
+    elif args.optimizer == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
+                                weight_decay=args.weight_decay, momentum=0.9,
+                                nesterov=True)
     else:
-        optimizer = torch.optim.SGD(param_groups, lr=args.lr,
-                                    momentum=0.9,
-                                    weight_decay=args.weight_decay,
-                                    nesterov=True)
+        raise
+    # Trainer
+    trainer = Trainer(model, criterion)
 
-    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps):
+    # Schedule learning rate
+    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=(0, 100, 150,)):
         exp = len(steps)
         for i, step in enumerate(steps):
             if epoch < step:
@@ -171,21 +175,6 @@ def main(args):
         lr = base_lr * 0.1 ** exp
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
-
-    # Criterion # Optimizer
-
-    if args.loss == 'triplet':
-        lz.logging.info('{}'.format(TripletLoss))
-        criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda( )
-    elif args.loss == 'tuple':
-        criterion = TupletLoss(margin=args.margin).cuda( )
-    elif args.loss == 'softmax':
-        criterion = nn.CrossEntropyLoss().cuda( )
-    else:
-        raise NotImplementedError
-
-    # Trainer
-    trainer = Trainer(model, criterion)
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
@@ -240,6 +229,7 @@ def main(args):
 
 
 if __name__ == '__main__':
+    import lz
 
     parser = argparse.ArgumentParser(description="many kind loss classification")
     parser.add_argument('--evaluate', action='store_true', default=False)
@@ -354,7 +344,9 @@ if __name__ == '__main__':
     #   gpu: [1,]
       
     - arch: resnet50
-      resume: '../examples/logs.ori/model_best.pth.tar'
+      dataset: cuhk03
+      # resume: '../examples/logs.ori/model_best.pth.tar'
+      resume: ''
       evaluate: False
       optimizer: sgd  
       normalize: False

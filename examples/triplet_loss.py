@@ -3,7 +3,7 @@ import argparse
 import os.path as osp
 import sys
 
-sys.path.insert(0, '/home/xinglu/open-reid/')
+sys.path.insert(0, '/home/xinglu/open-reid-vef/')
 import numpy as np
 import sys
 import torch
@@ -97,35 +97,13 @@ def main(args):
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
     model = models.create(args.arch, num_features=1024,
-                          dropout=args.dropout, num_classes=args.features)
-    print(model)
-    def load_state_dict(model, state_dict):
-        own_state = model.state_dict()
-        for name, param in state_dict.items():
-            if name not in own_state:
-                print('ignore key "{}" in state_dict'.format(name))
-                continue
-            if isinstance(param, nn.Parameter):
-                # backwards compatibility for serialized parameters
-                param = param.data
-            try:
-                own_state[name].copy_(param)
-            except:
-                print('dimension mismatch for param "{}", in the model are {}'
-                      ' and in the checkpoint are {}, ...'.format(
-                          name, own_state[name].size(), param.size()))
-                raise
-        missing = set(own_state.keys()) - set(state_dict.keys())
-        if len(missing) > 0:
-            raise KeyError('missing keys in state_dict: "{}"'.format(missing))
-
+                          dropout=args.dropout, num_classes=128)
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
-        # model.load_state_dict(checkpoint['state_dict'])
-        load_state_dict(model, checkpoint['state_dict'])
+        model.load_state_dict(checkpoint['state_dict'])
         start_epoch = checkpoint['epoch']
         best_top1 = checkpoint['best_top1']
         print("=> Start epoch {}  best top1 {:.1%}"
@@ -199,7 +177,7 @@ def main(args):
 if __name__ == '__main__':
     import lz
 
-    lz.init_dev((3,))
+    lz.init_dev(lz.get_dev(n=1))
     parser = argparse.ArgumentParser(description="Triplet loss classification")
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
@@ -234,9 +212,9 @@ if __name__ == '__main__':
                         help="learning rate of all parameters")
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
-    parser.add_argument('--resume', type=str, default='logs.ori/model_best.pth.tar', metavar='PATH')#
+    parser.add_argument('--resume', type=str, default='../examples/logs.ori/model_best.pth.tar', metavar='PATH')
     parser.add_argument('--evaluate', action='store_true',
-                        help="evaluation only", default=False)
+                        help="evaluation only", default=True)
     parser.add_argument('--epochs', type=int, default=150)
     parser.add_argument('--start_save', type=int, default=120,
                         help="start saving checkpoints after specific epoch")
