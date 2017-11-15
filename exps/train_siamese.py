@@ -1,5 +1,4 @@
 from __future__ import print_function, absolute_import
-
 import argparse
 import os.path as osp, yaml
 import numpy as np
@@ -88,19 +87,21 @@ def main(args):
     writer = SummaryWriter(args.logs_dir)
 
     # Redirect print to both console and log file
-    # sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
+    if not args.evaluate:
+        sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
     # Create data loaders
-    if args.num_instances is not None:
-        assert args.batch_size % args.num_instances == 0, \
-            'num_instances should divide batch_size'
+    assert args.num_instances > 1, "num_instances should be greater than 1"
+    assert args.batch_size % args.num_instances == 0, \
+        'num_instances should divide batch_size'
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
-            (256, 128)
+                                  (256, 128)
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
                  args.combine_trainval)
+
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
@@ -206,12 +207,12 @@ def main(args):
     lz.logging.info('final rank1 is {}'.format(acc))
 
 if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(description="many kind loss classification")
-
+    parser = argparse.ArgumentParser(description="Triplet loss classification")
     # data
-
-    parser.add_argument('-j', '--workers', type=int, default=32)
+    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+                        choices=datasets.names())
+    parser.add_argument('-b', '--batch-size', type=int, default=256)
+    parser.add_argument('-j', '--workers', type=int, default=4)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int, default=256,
                         help="input height, default: 256 for resnet*, "
@@ -231,7 +232,7 @@ if __name__ == '__main__':
     # model
 
     parser.add_argument('--features', type=int, default=128)
-    parser.add_argument('--dropout', type=float, default=0.4)  # 0.5
+    parser.add_argument('--dropout', type=float, default=0)  # 0.5
     # loss
     parser.add_argument('--margin', type=float, default=0.5,
                         help="margin of the triplet loss, default: 0.5")
@@ -251,7 +252,6 @@ if __name__ == '__main__':
     # metric learning
     parser.add_argument('--dist-metric', type=str, default='euclidean',
                         choices=['euclidean', 'kissme'])
-
     # misc
     home_dir = osp.expanduser('~') + '/.torch/'
     parser.add_argument('--data-dir', type=str, metavar='PATH',
