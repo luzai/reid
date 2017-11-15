@@ -1,7 +1,8 @@
 from __future__ import print_function, absolute_import
 import argparse
 import os.path as osp
-
+import sys
+sys.path.insert(0,'/home/xinglu/open-reid-vef/')
 import numpy as np
 import sys
 import torch
@@ -85,7 +86,7 @@ def main(args):
         'num_instances should divide batch_size'
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
-                                  (256, 128)
+            (256, 128)
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
@@ -94,7 +95,7 @@ def main(args):
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
-    model = models.create(args.arch, num_features=1024,
+    model = models.create(args.arch, num_features=512,
                           dropout=args.dropout, num_classes=args.features)
 
     # Load from checkpoint
@@ -127,16 +128,23 @@ def main(args):
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
                                  weight_decay=args.weight_decay)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
+    #                             weight_decay=args.weight_decay, momentum=0.9,
+    #                             nesterov=True)
 
     # Trainer
     trainer = Trainer(model, criterion)
 
     # Schedule learning rate
-    def adjust_lr(epoch):
-        lr = args.lr if epoch <= 100 else \
-            args.lr * (0.001 ** ((epoch - 100) / 50.0))
-        for g in optimizer.param_groups:
-            g['lr'] = lr * g.get('lr_mult', 1)
+    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=(0, 100, 150,)):
+        exp = len(steps)
+        for i, step in enumerate(steps):
+            if epoch < step:
+                exp = i
+                break
+        lr = base_lr * 0.1 ** exp
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
@@ -166,11 +174,15 @@ def main(args):
 
 
 if __name__ == '__main__':
+
+    import  lz
+
+    lz.init_dev(lz.get_dev(n=1))
     parser = argparse.ArgumentParser(description="Triplet loss classification")
     # data
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
-    parser.add_argument('-b', '--batch-size', type=int, default=256)
+    parser.add_argument('-b', '--batch-size', type=int, default=80)
     parser.add_argument('-j', '--workers', type=int, default=4)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int,
@@ -196,15 +208,15 @@ if __name__ == '__main__':
     parser.add_argument('--margin', type=float, default=0.5,
                         help="margin of the triplet loss, default: 0.5")
     # optimizer
-    parser.add_argument('--lr', type=float, default=0.0002,
+    parser.add_argument('--lr', type=float, default=0.002,
                         help="learning rate of all parameters")
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
-    parser.add_argument('--resume', type=str, default='', metavar='PATH')
+    parser.add_argument('--resume', type=str, default='examples/logs.1024.0.3.lc/model_best.pth.tar', metavar='PATH')
     parser.add_argument('--evaluate', action='store_true',
-                        help="evaluation only")
+                        help="evaluation only", default =True )
     parser.add_argument('--epochs', type=int, default=150)
-    parser.add_argument('--start_save', type=int, default=0,
+    parser.add_argument('--start_save', type=int, default=120,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--print-freq', type=int, default=1)
@@ -214,7 +226,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'data'))
+                        default='/home/xinglu/.torch/data/')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
+                        default=osp.join(working_dir, 'logs.1024.0.3.lc'))
     main(parser.parse_args())
