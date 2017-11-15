@@ -82,6 +82,8 @@ class VerfTrainer(BaseTrainer):
         pred, y = self.model(inputs[0], targets)
         return
 
+def stat(tensor):
+    return tensor.min(),tensor.mean(),tensor.max(),tensor.std(),tensor.size()
 
 class Trainer(BaseTrainer):
     def _parse_data(self, inputs):

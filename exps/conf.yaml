@@ -1,3 +1,8 @@
+# - dataset: cuhk03
+    #   mode: lift
+    #   logs_dir: logs.tri.lift
+
+
 - dataset: cuhk03
  mode: all
  logs_dir: logs.tri.all

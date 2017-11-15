@@ -113,7 +113,9 @@ def main(args):
                           branchs=args.branchs,
                           branch_dim=args.branch_dim,
                           use_global=args.use_global,
-                          normalize=args.normalize)
+                          norm=args.normalize,
+                          num_classes=args.num_classes
+                          )
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -162,7 +164,7 @@ def main(args):
                 break
         lr = base_lr * 0.1 ** exp
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
+            param_group['lr'] = lr * param_group.get('lr_mult',1)
 
     # Criterion # Optimizer
 
@@ -277,30 +279,84 @@ if __name__ == '__main__':
                         default=osp.join(home_dir, 'data'))
 
     # tuning
+    parser.add_argument('--freeze', action='store_true', default=False)
+    parser.add_argument('--optimizer', type=str, default='sgd')
+    parser.add_argument('--decay_epoch', type=int, default=100)
+    parser.add_argument('--branchs', type=int, default=8)
+    parser.add_argument('--branch_dim', type=int, default=64)
+    parser.add_argument('--dropout', type=float, default=0.)
+    parser.add_argument('--use_global', action='store_true', default=False)
+    parser.add_argument('--normalize', action='store_true', default=True)
+
+    parser.add_argument('--features', type=int, default=1024)
+    parser.add_argument('--num_classes', type=int, default=128)
+    parser.add_argument('--start_save', type=int, default=180,
+                        help="start saving checkpoints after specific epoch")
+    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+                        choices=datasets.names())
+    parser.add_argument('-b', '--batch-size', type=int, default=160)
+    working_dir = osp.dirname(osp.abspath(__file__))
+    parser.add_argument('--epochs', type=int, default=200)
+
+    parser.add_argument('--logs-dir', type=str, metavar='PATH',
+                        default=osp.join(working_dir, '../works/logs'))
+
+    parser.add_argument('-a', '--arch', type=str, default='resnet50',
+                        choices=models.names())
+    parser.add_argument('--loss', type=str, default='triplet',
+                        choices=['triplet', 'tuple', 'softmax'])
+    parser.add_argument('--mode', type=str, default='hard',
+                        choices=['rand', 'hard', 'all', 'lift'])
+    parser.add_argument('--gpu', type=list, default=[0, ])
 
     configs_str = '''
         
     # - dataset: cuhk03
     #   logs_dir: logs.resnet152
+    #   dropout: 0 
+    #   features: 1024
+    #   normalize: False
+    #   num_classes: 128 
     #   batch_size: 300
-    #   gpu: [0,1]
-
+    #   gpu: [1,2]
+    # 
     # - dataset: cuhk03
     #   arch: resnet50
-    #   dropout: 0
+    #   dropout: 0 
+    #   features: 1024
+    #   normalize: False
+    #   num_classes: 128 
     #   logs_dir: logs.bs320
     #   batch_size: 320
-    #   gpu: [2,3]  
+    #   gpu: [1,2]  
     
     # - dataset: cuhk03
     #   logs_dir: logs.bs480
     #   batch_size: 480
     #   gpu: [0,1,2]       
     
-    - arch: resnet50 
+    # - arch: resnet50 
+    #   dropout: 0 
+    #   features: 1024
+    #   normalize: False
+    #   num_classes: 128 
+    #   lr: 0.1
+    #   steps: [100,150,180]
+    #   epochs: 200
+    #   logs_dir: logs.res.0.sgd
+    #   gpu: [1,]
+      
+    - arch: resnet50
+      optimizer: adam  
+      normalize: True
       dropout: 0 
-      logs_dir: logs.res.0.sgd
-      gpu: [1,]
+      features: 1024
+      num_classes: 128 
+      lr: 0.002
+      steps: [100,150,]
+      epochs: 180
+      logs_dir: logs.res.1.sgd
+      gpu: [2,]
 
     # - arch: resnet50
     #   dropout: 0.3 
@@ -332,40 +388,9 @@ if __name__ == '__main__':
     #   dropout: 0.8
     #   logs_dir: logs.at.0.8
     
-    # - dataset: cuhk03 
-    #   mode: lift
-    #   logs_dir: logs.tri.lift
     
     '''
-    parser.add_argument('--freeze', action='store_true', default=False)
-    parser.add_argument('--optimizer', type=str, default='sgd')
-    parser.add_argument('--decay_epoch', type=int, default=100)
-    parser.add_argument('--branchs', type=int, default=8)
-    parser.add_argument('--branch_dim', type=int, default=64)
-    parser.add_argument('--dropout', type=float, default=0.)
-    parser.add_argument('--use_global', action='store_true', default=False)
-    parser.add_argument('--normalize', action='store_true', default=True)
 
-    parser.add_argument('--features', type=int, default=1024)
-    parser.add_argument('--num_classes', type=int, default=128)
-    parser.add_argument('--start_save', type=int, default=180,
-                        help="start saving checkpoints after specific epoch")
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
-                        choices=datasets.names())
-    parser.add_argument('-b', '--batch-size', type=int, default=160)
-    working_dir = osp.dirname(osp.abspath(__file__))
-    parser.add_argument('--epochs', type=int, default=200)
-
-    parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, '../works/logs'))
-
-    parser.add_argument('-a', '--arch', type=str, default='resnet50',
-                        choices=models.names())
-    parser.add_argument('--loss', type=str, default='triplet',
-                        choices=['triplet', 'tuple', 'softmax'])
-    parser.add_argument('--mode', type=str, default='hard',
-                        choices=['rand', 'hard', 'all', 'lift'])
-    parser.add_argument('--gpu', type=list, default=[0, ])
     dbg = True
 
     args = parser.parse_args()
@@ -382,10 +407,10 @@ if __name__ == '__main__':
         args.logs_dir = '../work/' + args.logs_dir
         # lz.get_dev(ok=(0, 1,))
         if dbg:
-            args.gpu = [lz.get_dev(n=1)]
-            args.epochs = 2
-            args.workers = 32
-            args.batch_size = 160
+            args.gpu = [lz.get_dev(n=1,mem=(0.5,0.6))]
+            args.epochs = 150
+            args.workers = 4
+            args.batch_size = 80
             args.logs_dir += '.dbg'
         if len(args.gpu) == 1:
             lz.init_dev(args.gpu)
