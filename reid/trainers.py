@@ -69,21 +69,37 @@ class BaseTrainer(object):
 
 
 class VerfTrainer(BaseTrainer):
-    def __init__(self, model ):
-        super(BaseTrainer, self).__init__()
-        self.model = model
     def _parse_data(self, inputs):
         imgs, _, pids, _ = inputs
-        inputs = [Variable(imgs)]
-        targets = Variable(pids.cuda())
+        inputs = [Variable(imgs.cuda(), requires_grad=False)]
+        targets = Variable(pids.cuda(), requires_grad=False)
         return inputs, targets
 
     def _forward(self, inputs, targets):
         pred, y = self.model(inputs[0], targets)
-        return
+        loss = self.criterion(pred, y)
+        prec1, = accuracy(pred.data, y.data)
+
+        return loss, prec1[0]
+
 
 def stat(tensor):
-    return tensor.min(),tensor.mean(),tensor.max(),tensor.std(),tensor.size()
+    return tensor.min(), tensor.mean(), tensor.max(), tensor.std(), tensor.size()
+
+
+class SiameseTrainer(BaseTrainer):
+    def _parse_data(self, inputs):
+        (imgs1, _, pids1, _), (imgs2, _, pids2, _) = inputs
+        inputs = [Variable(imgs1), Variable(imgs2)]
+        targets = Variable((pids1 == pids2).long().cuda())
+        return inputs, targets
+
+    def _forward(self, inputs, targets):
+        outputs = self.model(*inputs)
+        loss = self.criterion(outputs, targets)
+        prec1, = accuracy(outputs.data, targets.data)
+        return loss, prec1[0]
+
 
 class Trainer(BaseTrainer):
     def _parse_data(self, inputs):
@@ -109,17 +125,3 @@ class Trainer(BaseTrainer):
         else:
             raise ValueError("Unsupported loss:", self.criterion)
         return loss, prec
-
-
-class SiameseTrainer(BaseTrainer):
-    def _parse_data(self, inputs):
-        (imgs1, _, pids1, _), (imgs2, _, pids2, _) = inputs
-        inputs = [Variable(imgs1), Variable(imgs2)]
-        targets = Variable((pids1 == pids2).long().cuda())
-        return inputs, targets
-
-    def _forward(self, inputs, targets):
-        outputs = self.model(*inputs)
-        loss = self.criterion(outputs, targets)
-        prec1, = accuracy(outputs.data, targets.data)
-        return loss, prec1[0]

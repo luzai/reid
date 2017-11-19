@@ -2,11 +2,8 @@ from __future__ import absolute_import
 
 from .inception import *
 from .resnet import *
-from .siamese import *
 from .attention import *
-from .siamese import Siamese
 from .transform import Transform
-from .combine import Combine
 from .multi_branch import *
 from .embedding import *
 

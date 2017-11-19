@@ -73,6 +73,7 @@ def pairwise_distance(features, query=None, gallery=None, metric=None):
         n = len(features)
         x = torch.cat(list(features.values()))
         x = x.view(n, -1)
+        print('feature size ', x.size())
         if metric is not None:
             x = metric.transform(x)
         dist = torch.pow(x, 2).sum(dim=1, keepdim=True) * 2
@@ -222,10 +223,10 @@ class CascadeEvaluator(object):
         # Extract embeddings of each pair
         embeddings = extract_embeddings(self.embed_model, data_loader)
         if self.embed_dist_fn is not None:
-            print(embeddings.size())
+            print('before embed_dist fn', embeddings.size())
             embeddings = self.embed_dist_fn(embeddings)
-            print(embeddings.size())
-
+            print('after embed dist fn', embeddings.size())
+        # type(embeddings), type(torch.autograd.Variable(embeddings))
         # Merge two-stage distances
         for k, embed in enumerate(embeddings):
             i, j = k // rerank_topk, k % rerank_topk

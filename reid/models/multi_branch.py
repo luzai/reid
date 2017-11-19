@@ -14,6 +14,22 @@ class SiameseNet(nn.Module):
         return self.embed_model(x1, x2)
 
 
+class SiameseNet2(nn.Module):
+    def __init__(self, base_model, tranform, embed_model):
+        super(SiameseNet2, self).__init__()
+        self.base_model = base_model
+        self.transform = tranform
+        self.embed_model = embed_model
+
+    def forward(self, x, y):
+        outputs = self.base_model(x)
+
+        pair1, pair2, y2 = self.transform(outputs, y)
+        pred = self.embed_model(pair1, pair2)
+
+        return pred, y2.type_as(y.data)
+
+
 class TripletNet(nn.Module):
     def __init__(self, base_model, embed_model):
         super(TripletNet, self).__init__()

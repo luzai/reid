@@ -9,7 +9,7 @@ import subprocess
 
 
 class Transform(nn.Module):
-    def __init__(self, mode='hard',**kwargs):
+    def __init__(self, mode='hard', **kwargs):
         super(Transform, self).__init__()
         self.mode = mode
         # subprocess.call(('rm -rf exps/dbg').split())
@@ -64,21 +64,21 @@ class Transform(nn.Module):
         pair1, pair2 = [], []
         # todo more mode
         for i in range(n):
-            pair1.append(inputs[i,:])
-            posp_ind =  all_ind[mask[i]]
+            pair1.append(inputs[i, :])
+            posp_ind = all_ind[mask[i]]
             posp_ind = posp_ind[np.random.randint(0, posp_ind.size(0))]
-            posp = torch.index_select(inputs, 0, posp_ind  )
+            posp = torch.index_select(inputs, 0, posp_ind)
             pair2.append(posp)
         # pair1[0].size(),pair2[0].size()
         for i in range(n):
-            pair1.append(inputs[i,:])
+            pair1.append(inputs[i, :])
             negp_ind = all_ind[mask[i] == 0]
-            negp_ind = negp_ind[np.random.randint(0, negp_ind.size(0)) ]
+            negp_ind = negp_ind[np.random.randint(0, negp_ind.size(0))]
             negp = torch.index_select(inputs, 0, negp_ind)
-            pair2.append(negp )
+            pair2.append(negp)
 
-        pair1, pair2 = torch.stack(pair1 )  , torch.cat(pair2)
-        pair1.size() ,pair2.size()
+        pair1, pair2 = torch.stack(pair1), torch.cat(pair2)
+        pair1.size(), pair2.size()
         y = torch.from_numpy(np.concatenate((
             np.ones((n,)),
             np.zeros((n,))

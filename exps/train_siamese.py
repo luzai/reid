@@ -185,7 +185,7 @@ def main(args):
     evaluator = CascadeEvaluator(
         torch.nn.DataParallel(base_model).cuda(),
         torch.nn.DataParallel(embed_model).cuda(),
-        embed_dist_fn=lambda x: F.softmax(Variable(x).data[:, 0])
+        embed_dist_fn=lambda x: F.softmax(Variable(x[:, 0]), dim=0 )
     )
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
@@ -338,23 +338,23 @@ if __name__ == '__main__':
     configs_str = '''
         - arch: resnet34
           dataset: cuhk03
-          resume: '../work/logs.resnet34/model_best.pth'
+          resume: '../work/logs.resnet34.2/model_best.pth'
           # resume: ''
           restart: True
-          
+                    
           evaluate: False
           optimizer: sgd  
           
           embed: kron
           
           dropout: 0 
-          lr: 0.01
-          start_save: 170
+          lr: 0.02
+          start_save: 1
           steps: [100,150,160]
           epochs: 180
-          logs_dir: logs.siamese
+          logs_dir: logs.siamese.2
           batch_size: 128
-          gpu: [2,]
+          gpu: [3,]
         '''
 
     dbg = False
@@ -368,7 +368,7 @@ if __name__ == '__main__':
         args.logs_dir = '../work/' + args.logs_dir
         # lz.get_dev(ok=(0, 1,))
         if dbg:
-            args.gpu = [lz.get_dev(n=1, mem=(0.5, 0.7))]
+            args.gpu = [0]
             args.epochs = 150
             args.workers = 4
             args.batch_size = 32

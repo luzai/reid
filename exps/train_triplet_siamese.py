@@ -21,7 +21,7 @@ from reid.evaluators import *
 from reid.mining import mine_hard_pairs
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
-from reid.utils.data.sampler import RandomIdentitySampler, RandomPairSampler
+from reid.utils.data.sampler import *
 from reid.utils.logging import Logger
 from reid.utils.serialization import load_checkpoint, save_checkpoint
 
@@ -30,7 +30,7 @@ from tensorboardX import SummaryWriter
 import lz
 
 
-def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=None,
+def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=4,
              workers=32, combine_trainval=True, return_vis=False):
     root = osp.join(data_dir, name)
 
@@ -60,7 +60,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        sampler=RandomPairSampler(dataset.train, neg_pos_ratio=1),
+        sampler=RandomIdentitySampler(train_set, num_instances),
         pin_memory=True, drop_last=True)
 
     val_loader = DataLoader(
@@ -129,14 +129,17 @@ def main(args):
         embed_model = ConcatEmbed(4096)
     elif args.embed == 'eltsub':
         EltwiseSubEmbed(args.features, args.num_classes)
+    tranform = Transform(mode = 'hard')
 
-    model = SiameseNet(base_model, embed_model)
+    model = SiameseNet2(base_model, tranform,embed_model, )
 
     def load_state_dict(model, state_dict):
         own_state = model.state_dict()
         for name, param in state_dict.items():
             if 'base_model.'+name in own_state:
                 name = 'base_model.'+name
+            if 'embed_model.'+name  in own_state:
+                name = 'embed_model.'+name
             if name not in own_state:
                 print('ignore key "{}" in his state_dict'.format(name))
                 continue
@@ -217,7 +220,7 @@ def main(args):
             param_group['lr'] = lr
 
     # Trainer
-    trainer = SiameseTrainer(model, criterion)
+    trainer = VerfTrainer(model, criterion)
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
@@ -338,7 +341,7 @@ if __name__ == '__main__':
     configs_str = '''
         - arch: resnet34
           dataset: cuhk03
-          resume: '../work/logs.resnet34/model_best.pth'
+          resume: '../work/logs.resnet34.2/model_best.pth'
           # resume: ''
           restart: True
           
@@ -354,10 +357,10 @@ if __name__ == '__main__':
           epochs: 180
           logs_dir: logs.siamese
           batch_size: 128
-          gpu: [2,]
+          gpu: [0,]
         '''
 
-    dbg = False
+    dbg = True
     args = parser.parse_args()
 
     for config in yaml.load(configs_str):
