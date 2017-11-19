@@ -1,11 +1,12 @@
 from __future__ import print_function, absolute_import
 import lz
-
+from torch.autograd import Variable
+import torch.nn.functional as F
 import argparse
 import os.path as osp
 import sys,yaml
 
-sys.path.insert(0, '/home/xinglu/open-reid/')
+sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 import numpy as np
 import sys
 import torch
@@ -29,7 +30,7 @@ import torchvision
 from tensorboardX import SummaryWriter
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
-             workers, combine_trainval):
+             workers, combine_trainval, return_vis=False):
     root = osp.join(data_dir, name)
 
     dataset = datasets.create(name, root, split_id=split_id)
@@ -72,8 +73,18 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
                      root=dataset.images_dir, transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=True)
-
-    return dataset, num_classes, train_loader, val_loader, test_loader
+    if not return_vis:
+        return dataset, num_classes, train_loader, val_loader, test_loader
+    else:
+        return dataset, num_classes, train_loader, val_loader, test_loader, DataLoader(
+            Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
+                         root=dataset.images_dir, transform= T.Compose([
+        T.RectScale(height, width),
+        T.ToTensor(),
+    ])),
+            batch_size=batch_size, num_workers=workers,
+            shuffle=False, pin_memory=True
+        )
 
 
 def main(args):
@@ -307,42 +318,6 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=list, default=[0, ])
 
     configs_str = '''
-        
-    # - dataset: cuhk03
-    #   logs_dir: logs.resnet152
-    #   dropout: 0 
-    #   features: 1024
-    #   normalize: False
-    #   num_classes: 128 
-    #   batch_size: 300
-    #   gpu: [1,2]
-    # 
-    # - dataset: cuhk03
-    #   arch: resnet50
-    #   dropout: 0 
-    #   features: 1024
-    #   normalize: False
-    #   num_classes: 128 
-    #   logs_dir: logs.bs320
-    #   batch_size: 320
-    #   gpu: [1,2]  
-    
-    # - dataset: cuhk03
-    #   logs_dir: logs.bs480
-    #   batch_size: 480
-    #   gpu: [0,1,2]       
-    
-    # - arch: resnet50 
-    #   dropout: 0 
-    #   features: 1024
-    #   normalize: False
-    #   num_classes: 128 
-    #   lr: 0.1
-    #   steps: [100,150,180]
-    #   epochs: 200
-    #   logs_dir: logs.res.0.sgd
-    #   gpu: [1,]
-      
     - arch: resnet50
       dataset: cuhk03
       # resume: '../examples/logs.ori/model_best.pth.tar'
@@ -359,38 +334,6 @@ if __name__ == '__main__':
       logs_dir: logs.res.1.sgd
       batch_size: 60
       gpu: [3,]
-
-    # - arch: resnet50
-    #   dropout: 0.3 
-    #   logs_dir: logs.res.0.3 
-    
-    # - arch: attention50 
-    #   gpu: [0,]
-    #   branchs: 8
-    #   branch_dim: 64
-    #   dropout: 0.3
-    #   freeze: False
-    #   use_global: False
-    #   normalize: True
-    #   logs_dir: logs.at.8.64.0.3    
-
-    # - arch: attention50 
-    #   branchs: 8
-    #   branch_dim: 128
-    #   dropout: 0.3
-    #   logs_dir: logs.at.8.128.0.3
-
-    # - dataset: cuhk03
-    #   arch: attention50
-    #   logs_dir: logs.at.dp.0.3
-    # 
-    # - arch: attention50
-    #   branchs: 8
-    #   branch_dim: 64
-    #   dropout: 0.8
-    #   logs_dir: logs.at.0.8
-    
-    
     '''
 
     dbg = False

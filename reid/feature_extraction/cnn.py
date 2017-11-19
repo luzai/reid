@@ -38,5 +38,5 @@ def extract_cnn_embeddings(model, inputs, modules=None):
     assert  modules  is None
 
     outputs = model( *inputs)
-    outputs = outputs.data.cpu()
+    outputs = outputs.data
     return  outputs

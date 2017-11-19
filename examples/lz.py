@@ -1,1 +1,0 @@
-/home/luzai/lz.py

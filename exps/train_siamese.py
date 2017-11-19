@@ -96,7 +96,7 @@ def main(args):
         'num_instances should divide batch_size'
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
-                                  (256, 128)
+            (256, 128)
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
@@ -109,19 +109,47 @@ def main(args):
     base_model = models.create(args.arch, pretrained=True,
                                cut_at_pooling=True,
                                dropout=args.dropout)
-    embed_model = KronEmbed(8, 4, 128, 2)
+    # embed_model = KronEmbed(8, 4, 128, 2)
+    embed_model = ConcatEmbed(4096)
 
     model = SiameseNet(base_model, embed_model)
+
+    def load_state_dict(model, state_dict):
+        own_state = model.state_dict()
+        for name, param in state_dict.items():
+            if name not in own_state:
+                print('ignore key "{}" in state_dict'.format(name))
+                continue
+            if isinstance(param, nn.Parameter):
+                # backwards compatibility for serialized parameters
+                param = param.data
+            try:
+                own_state[name].copy_(param)
+            except:
+                print('dimension mismatch for param "{}", in the model are {}'
+                      ' and in the checkpoint are {}, ...'.format(
+                    name, own_state[name].size(), param.size()))
+                raise
+
+        missing = set(own_state.keys()) - set(state_dict.keys())
+        if len(missing) > 0:
+            print('missing keys in state_dict: "{}"'.format(missing))
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
-        model.load_state_dict(checkpoint['state_dict'])
-        start_epoch = checkpoint['epoch']
-        best_top1 = checkpoint['best_top1']
-        print("=> Start epoch {}  best top1 {:.1%}"
-              .format(start_epoch, best_top1))
+        load_state_dict(model, checkpoint['state_dict'])
+        if args.restart:
+            start_epoch_ = checkpoint['epoch']
+            best_top1_ = checkpoint['best_top1']
+            print("=> Start epoch {}  best top1 {:.1%}"
+                  .format(start_epoch_, best_top1_))
+        else:
+            start_epoch = checkpoint['epoch']
+            best_top1 = checkpoint['best_top1']
+            print("=> Start epoch {}  best top1 {:.1%}"
+                  .format(start_epoch, best_top1))
     if len(args.gpu) == 1:
         model = nn.DataParallel(model).cuda()
     else:
@@ -136,6 +164,10 @@ def main(args):
         torch.nn.DataParallel(embed_model).cuda(),
         embed_dist_fn=lambda x: F.softmax(Variable(x).data[:, 0])
     )
+    if args.evaluate:
+        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        print('top-1 ', acc)
+        return 0
 
     criterion = nn.CrossEntropyLoss().cuda()
 
@@ -167,28 +199,32 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        # hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
-        # for k, v in hist.iteritems():
-        #     writer.add_scalar('train/' + k, v, epoch)
-        #
-        # if epoch < args.start_save:
-        #     continue
-        # if epoch < args.epochs // 2 and epoch % 10 != 0:
-        #     continue
-        # elif epoch < args.epochs - 20 and epoch % 5 != 0:
-        #     continue
+        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
+        for k, v in hist.iteritems():
+            writer.add_scalar('train/' + k, v, epoch)
+        writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
+        if epoch < args.start_save:
+            continue
+        if epoch < args.epochs // 2 and epoch % 10 != 0:
+            continue
+        elif epoch < args.epochs - 20 and epoch % 5 != 0:
+            continue
 
-        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
-        writer.add_scalar('train/top-1', acc, epoch)
+        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        writer.add_scalars('train/top-1', {'stage1': acc1,
+                                           'stage2': acc}, epoch)
 
         # if args.combine_trainval:
-        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
-        writer.add_scalar('test/top-1', acc, epoch)
+        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        writer.add_scalars('train/top-1', {'stage1': acc1,
+                                           'stage2': acc}, epoch)
 
         top1 = acc
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
+        # is_best = True
+        top1 = 0
         save_checkpoint({
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
@@ -203,15 +239,14 @@ def main(args):
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
     model.module.load_state_dict(checkpoint['state_dict'])
     metric.train(model, train_loader)
-    evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
+    acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
     lz.logging.info('final rank1 is {}'.format(acc))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Triplet loss classification")
     # data
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
-                        choices=datasets.names())
-    parser.add_argument('-b', '--batch-size', type=int, default=256)
+    parser.add_argument('--restart', action='store_true', default=True)
     parser.add_argument('-j', '--workers', type=int, default=4)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int, default=256,
@@ -230,7 +265,7 @@ if __name__ == '__main__':
                              "each identity has num_instances instances, "
                              "default: 4")
     # model
-
+    parser.add_argument('--evaluate', action='store_true', default=False)
     parser.add_argument('--features', type=int, default=128)
     parser.add_argument('--dropout', type=float, default=0)  # 0.5
     # loss
@@ -244,7 +279,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
-    parser.add_argument('--resume', type=str, default='', metavar='PATH')
+    parser.add_argument('--resume', type=str, default='', metavar='PATH') # ../work/logs.siamese/model_best.pth
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('--seed', type=int, default=1)
@@ -261,19 +296,19 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
 
-    parser.add_argument('-b', '--batch-size', type=int, default=88)
+    parser.add_argument('-b', '--batch-size', type=int, default=64)
     working_dir = osp.dirname(osp.abspath(__file__))
 
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs.dbg'))
+                        default=osp.join(working_dir, '../work/logs.siamese.concate3'))
 
     parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
-    parser.add_argument('--gpu', type=list, default=[2, ])
+    parser.add_argument('--gpu', type=list, default=[3, ])
 
     dbg = False
     args = parser.parse_args()
-    lz.init_dev(args.gpu )
+    lz.init_dev(args.gpu)
 
     if dbg:
         lz.init_dev((2,))

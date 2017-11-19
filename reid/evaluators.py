@@ -47,6 +47,7 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     embeddings = []
+    # labels= OrderedDict()
     end = time.time()
     for i, inputs in enumerate(data_loader):
         data_time.update(time.time() - end)
@@ -112,14 +113,14 @@ def evaluate_all(distmat, query=None, gallery=None,
 
     # Compute all kinds of CMC scores
     cmc_configs = {
-        'allshots': dict(separate_camera_set=False,
-                         single_gallery_shot=False,
+        'allshots': dict(separate_camera_set=False,  # hard
+                         single_gallery_shot=False,  # hard
                          first_match_break=False),
         'cuhk03': dict(separate_camera_set=True,
                        single_gallery_shot=True,
                        first_match_break=False),
-        'market1501': dict(separate_camera_set=False,
-                           single_gallery_shot=False,
+        'market1501': dict(separate_camera_set=False,  # hard
+                           single_gallery_shot=False,  # hard
                            first_match_break=True)}
     cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
                             query_cams, gallery_cams, **params)
@@ -167,15 +168,20 @@ class CascadeEvaluator(object):
     def evaluate(self, data_loader, query, gallery, cache_file=None,
                  rerank_topk=20, return_all=False):
         # Extract features image by image
-        features = extract_features(self.base_model, data_loader,
-                                    output_file=cache_file)
+        features, _ = extract_features(self.base_model, data_loader,
+                                       output_file=cache_file)
 
         # Compute pairwise distance and evaluate for the first stage
         distmat = pairwise_distance(features, query, gallery)
         print("First stage evaluation:")
-        print(cmc(distmat, query, gallery, separate_camera_set=True,
+        query_ids = [pid for _, pid, _ in query]
+        gallery_ids = [pid for _, pid, _ in gallery]
+        query_cams = [cam for _, _, cam in query]
+        gallery_cams = [cam for _, _, cam in gallery]
+        cmc_curve1=cmc(distmat, query_ids, gallery_ids, query_cams, gallery_cams, separate_camera_set=True,
                   single_gallery_shot=True,
-                  first_match_break=False))
+                  first_match_break=False)
+        print('cmc_curve is', cmc_curve1)
 
         # Sort according to the first stage distance
         distmat = distmat.cpu().numpy()
@@ -196,14 +202,16 @@ class CascadeEvaluator(object):
             num_workers=1, pin_memory=False)
 
         # Extract embeddings of each pair
-        embeddings = extract_cnn_embeddings(self.embed_model, data_loader)
+        embeddings = extract_embeddings(self.embed_model, data_loader)
         if self.embed_dist_fn is not None:
+            print(embeddings.size())
             embeddings = self.embed_dist_fn(embeddings)
+            print(embeddings.size())
 
         # Merge two-stage distances
         for k, embed in enumerate(embeddings):
             i, j = k // rerank_topk, k % rerank_topk
-            distmat[i, rank_indices[i, j]] = embed
+            distmat[i, rank_indices[i, j]] = embed.data.cpu().numpy()
         for i, indices in enumerate(rank_indices):
             bar = max(distmat[i][indices[:rerank_topk]])
             gap = max(bar + 1. - distmat[i, indices[rerank_topk]], 0)
@@ -212,7 +220,7 @@ class CascadeEvaluator(object):
 
         print("Second stage evaluation:")
 
-        cmc_scores = cmc(distmat, query, gallery,
+        cmc_scores = cmc(distmat, query_ids, gallery_ids, query_cams, gallery_cams,
                          separate_camera_set=True,
                          single_gallery_shot=True,
                          first_match_break=False)
@@ -220,4 +228,4 @@ class CascadeEvaluator(object):
         if return_all:
             return cmc_scores
         else:
-            return cmc_scores[0]
+            return cmc_curve1[0],cmc_scores[0]
