@@ -1,10 +1,10 @@
-from __future__ import print_function, absolute_import
+import torch
 import lz
 from torch.autograd import Variable
 import torch.nn.functional as F
 import argparse
 import os.path as osp
-import sys,yaml
+import sys, yaml
 
 sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 import numpy as np
@@ -28,6 +28,7 @@ from reid.utils.serialization import load_checkpoint, save_checkpoint
 
 import torchvision
 from tensorboardX import SummaryWriter
+
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
              workers, combine_trainval, return_vis=False):
@@ -78,16 +79,17 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     else:
         return dataset, num_classes, train_loader, val_loader, test_loader, DataLoader(
             Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
-                         root=dataset.images_dir, transform= T.Compose([
-        T.RectScale(height, width),
-        T.ToTensor(),
-    ])),
+                         root=dataset.images_dir, transform=T.Compose([
+                    T.RectScale(height, width),
+                    T.ToTensor(),
+                ])),
             batch_size=batch_size, num_workers=workers,
             shuffle=False, pin_memory=True
         )
 
 
 def main(args):
+    torch.cuda.set_device(args.gpu[0])
     lz.logging.info('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -113,9 +115,10 @@ def main(args):
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
-    model = models.create(args.arch, num_features=1024,
-                          dropout=args.dropout, num_classes=128)
+    model = models.create(args.arch, num_features=args.features,
+                          dropout=args.dropout, num_classes=args.num_classes)
     print(model)
+
     def load_state_dict(model, state_dict):
         own_state = model.state_dict()
         for name, param in state_dict.items():
@@ -130,12 +133,11 @@ def main(args):
             except:
                 print('dimension mismatch for param "{}", in the model are {}'
                       ' and in the checkpoint are {}, ...'.format(
-                          name, own_state[name].size(), param.size()))
+                    name, own_state[name].size(), param.size()))
                 raise
         missing = set(own_state.keys()) - set(state_dict.keys())
         if len(missing) > 0:
-            raise KeyError('missing keys in state_dict: "{}"'.format(missing))
-
+            print('missing keys in state_dict: "{}"'.format(missing))
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -143,12 +145,20 @@ def main(args):
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
         load_state_dict(model, checkpoint['state_dict'])
-        start_epoch = checkpoint['epoch']
-        best_top1 = checkpoint['best_top1']
-        print("=> Start epoch {}  best top1 {:.1%}"
-              .format(start_epoch, best_top1))
-
-    model = nn.DataParallel(model).cuda()
+        if args.restart:
+            start_epoch_ = checkpoint['epoch']
+            best_top1_ = checkpoint['best_top1']
+            print("=> Start epoch {}  best top1 {:.1%}"
+                  .format(start_epoch_, best_top1_))
+        else:
+            start_epoch = checkpoint['epoch']
+            best_top1 = checkpoint['best_top1']
+            print("=> Start epoch {}  best top1 {:.1%}"
+                  .format(start_epoch, best_top1))
+    if len(args.gpu) == 1:
+        model = nn.DataParallel(model).cuda()
+    else:
+        model = nn.DataParallel(model, device_ids=args.gpu).cuda()
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
@@ -169,15 +179,15 @@ def main(args):
                                      weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
-                                weight_decay=args.weight_decay, momentum=0.9,
-                                nesterov=True)
+                                    weight_decay=args.weight_decay, momentum=0.9,
+                                    nesterov=True)
     else:
         raise
     # Trainer
     trainer = Trainer(model, criterion)
 
     # Schedule learning rate
-    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=(0, 100, 150,)):
+    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps):
         exp = len(steps)
         for i, step in enumerate(steps):
             if epoch < step:
@@ -191,7 +201,7 @@ def main(args):
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch=epoch)
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
-        for k, v in hist.iteritems():
+        for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         if epoch < args.start_save:
             continue
@@ -245,7 +255,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="many kind loss classification")
     parser.add_argument('--evaluate', action='store_true', default=False)
     # data
-    parser.add_argument('-j', '--workers', type=int, default=32)
+    parser.add_argument('--restart', action='store_true', default=True)
+    parser.add_argument('-j', '--workers', type=int, default=4)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int, default=256,
                         help="input height, default: 256 for resnet*, "
@@ -336,29 +347,23 @@ if __name__ == '__main__':
       gpu: [3,]
     '''
 
-    dbg = False
+    dbg = True
 
     args = parser.parse_args()
 
-    if args.loss == 'softmax':
-        args.num_instances = None
-
     for config in yaml.load(configs_str):
         lz.logging.info('training {}'.format(config))
-        for k, v in config.iteritems():
+        for k, v in config.items():
             if k not in vars(args):
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
         args.logs_dir = '../work/' + args.logs_dir
-        # lz.get_dev(ok=(0, 1,))
         if dbg:
             args.gpu = [lz.get_dev(n=1, mem=(0.5, 0.7))]
             args.epochs = 150
             args.workers = 4
-            args.batch_size = 60
+            args.batch_size = 8
             args.logs_dir += '.dbg'
-        if len(args.gpu) == 1:
-            lz.init_dev(args.gpu)
         lz.mkdir_p(args.logs_dir, delete=True)
         lz.write_json(vars(args), args.logs_dir + '/conf.json')
 

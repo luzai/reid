@@ -1,4 +1,4 @@
-from __future__ import print_function, absolute_import
+import torch
 import argparse
 import os.path as osp, yaml
 import numpy as np
@@ -74,8 +74,18 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
                      root=dataset.images_dir, transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=True)
-
-    return dataset, num_classes, train_loader, val_loader, test_loader
+    if not return_vis:
+        return dataset, num_classes, train_loader, val_loader, test_loader
+    else:
+        return dataset, num_classes, train_loader, val_loader, test_loader, DataLoader(
+            Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
+                         root=dataset.images_dir, transform= T.Compose([
+        T.RectScale(height, width),
+        T.ToTensor(),
+    ])),
+            batch_size=batch_size, num_workers=workers,
+            shuffle=False, pin_memory=True
+        )
 
 
 def main(args):
@@ -139,6 +149,7 @@ def main(args):
     start_epoch = best_top1 = 0
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
+        # model.load_state_dict(checkpoint['state_dict'])
         load_state_dict(model, checkpoint['state_dict'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
@@ -200,7 +211,7 @@ def main(args):
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
-        for k, v in hist.iteritems():
+        for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
         if epoch < args.start_save:
@@ -216,7 +227,7 @@ def main(args):
 
         # if args.combine_trainval:
         acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
-        writer.add_scalars('train/top-1', {'stage1': acc1,
+        writer.add_scalars('test/top-1', {'stage1': acc1,
                                            'stage2': acc}, epoch)
 
         top1 = acc
@@ -244,7 +255,10 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Triplet loss classification")
+    import lz
+
+    parser = argparse.ArgumentParser(description="many kind loss classification")
+    parser.add_argument('--evaluate', action='store_true', default=False)
     # data
     parser.add_argument('--restart', action='store_true', default=True)
     parser.add_argument('-j', '--workers', type=int, default=4)
@@ -279,7 +293,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
-    parser.add_argument('--resume', type=str, default='', metavar='PATH') # ../work/logs.siamese/model_best.pth
+    parser.add_argument('--resume', type=str, default='', metavar='PATH')  # ../work/logs.siamese/model_best.pth
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('--seed', type=int, default=1)
@@ -306,15 +320,49 @@ if __name__ == '__main__':
                         choices=models.names())
     parser.add_argument('--gpu', type=list, default=[3, ])
 
+    configs_str = '''
+        - arch: resnet50
+          dataset: cuhk03
+          # resume: '../examples/logs.ori/model_best.pth.tar'
+          resume: ''
+          evaluate: False
+          optimizer: sgd  
+          normalize: False
+          dropout: 0 
+          features: 1024
+          num_classes: 128 
+          lr: 0.1
+          steps: [100,150,]
+          epochs: 180
+          logs_dir: logs.res.1.sgd
+          batch_size: 60
+          gpu: [3,]
+        '''
+
     dbg = False
     args = parser.parse_args()
-    lz.init_dev(args.gpu)
 
-    if dbg:
-        lz.init_dev((2,))
-        args.epochs = 2
-        args.workers = 4
-        args.batch_size = 12
-        args.logs_dir += '.dbg'
+    for config in yaml.load(configs_str):
+        lz.logging.info('training {}'.format(config))
+        for k, v in config.items():
+            if k not in vars(args):
+                raise ValueError('{} {}'.format(k, v))
+            setattr(args, k, v)
+        args.logs_dir = '../work/' + args.logs_dir
+        # lz.get_dev(ok=(0, 1,))
+        if dbg:
+            args.gpu = [lz.get_dev(n=1, mem=(0.5, 0.7))]
+            args.epochs = 150
+            args.workers = 4
+            args.batch_size = 32
+            args.logs_dir += '.dbg'
+        if len(args.gpu) == 1:
+            lz.init_dev(args.gpu)
+        lz.mkdir_p(args.logs_dir, delete=True)
+        lz.write_json(vars(args), args.logs_dir + '/conf.json')
 
-    main(args)
+        proc = lz.mp.Process(target=main, args=(args,))
+        proc.start()
+        proc.join()
+
+        # main(args)
