@@ -371,7 +371,7 @@ if __name__ == '__main__':
         args.logs_dir = '../work/' + args.logs_dir
         # lz.get_dev(ok=(0, 1,))
         if dbg:
-            args.gpu = [lz.get_dev(n=1, mem=(0.5, 0.7))]
+            args.gpu = [0 ]
             args.epochs = 150
             args.workers = 4
             args.batch_size = 32
