@@ -166,7 +166,7 @@ class CascadeEvaluator(object):
         self.embed_dist_fn = embed_dist_fn
 
     def evaluate(self, data_loader, query, gallery, cache_file=None,
-                 rerank_topk=20, return_all=False):
+                 rerank_topk=20, return_all=False, cmc_topk=(1, 5, 10)):
         # Extract features image by image
         features, _ = extract_features(self.base_model, data_loader,
                                        output_file=cache_file)
@@ -178,10 +178,28 @@ class CascadeEvaluator(object):
         gallery_ids = [pid for _, pid, _ in gallery]
         query_cams = [cam for _, _, cam in query]
         gallery_cams = [cam for _, _, cam in gallery]
-        cmc_curve1=cmc(distmat, query_ids, gallery_ids, query_cams, gallery_cams, separate_camera_set=True,
-                  single_gallery_shot=True,
-                  first_match_break=False)
-        print('cmc_curve is', cmc_curve1)
+
+        cmc_configs = {
+            'allshots': dict(separate_camera_set=False,  # hard
+                             single_gallery_shot=False,  # hard
+                             first_match_break=False),
+            'cuhk03': dict(separate_camera_set=True,
+                           single_gallery_shot=True,
+                           first_match_break=False),
+            'market1501': dict(separate_camera_set=False,  # hard
+                               single_gallery_shot=False,  # hard
+                               first_match_break=True)}
+        cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
+                                query_cams, gallery_cams, **params)
+                      for name, params in cmc_configs.items()}
+
+        print('CMC Scores{:>12}{:>12}{:>12}'
+              .format('allshots', 'cuhk03', 'market1501'))
+        for k in cmc_topk:
+            print('  top-{:<4}{:12.1%}{:12.1%}{:12.1%}'
+                  .format(k, cmc_scores['allshots'][k - 1],
+                          cmc_scores['cuhk03'][k - 1],
+                          cmc_scores['market1501'][k - 1]))
 
         # Sort according to the first stage distance
         distmat = distmat.cpu().numpy()
@@ -220,12 +238,19 @@ class CascadeEvaluator(object):
 
         print("Second stage evaluation:")
 
-        cmc_scores = cmc(distmat, query_ids, gallery_ids, query_cams, gallery_cams,
-                         separate_camera_set=True,
-                         single_gallery_shot=True,
-                         first_match_break=False)
-        print(cmc_scores)
+        cmc_scores2 = {name: cmc(distmat, query_ids, gallery_ids,
+                                 query_cams, gallery_cams, **params)
+                       for name, params in cmc_configs.items()}
+
+        print('CMC Scores{:>12}{:>12}{:>12}'
+              .format('allshots', 'cuhk03', 'market1501'))
+        for k in cmc_topk:
+            print('  top-{:<4}{:12.1%}{:12.1%}{:12.1%}'
+                  .format(k, cmc_scores2['allshots'][k - 1],
+                          cmc_scores2['cuhk03'][k - 1],
+                          cmc_scores2['market1501'][k - 1]))
+
         if return_all:
-            return cmc_scores
+            return cmc_scores, cmc_scores2
         else:
-            return cmc_curve1[0],cmc_scores[0]
+            return cmc_scores['cuhk03'][0], cmc_scores2['cuhk03'][0]

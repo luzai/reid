@@ -88,8 +88,8 @@ def stat(tensor):
 class Trainer(BaseTrainer):
     def _parse_data(self, inputs):
         imgs, _, pids, _ = inputs
-        inputs = [Variable(imgs.cuda())]
-        targets = Variable(pids.cuda())
+        inputs = [Variable(imgs.cuda(), requires_grad=False)]
+        targets = Variable(pids.cuda(), requires_grad=False)
         return inputs, targets
 
     def _forward(self, inputs, targets):

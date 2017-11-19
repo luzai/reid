@@ -31,7 +31,7 @@ from tensorboardX import SummaryWriter
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
-             workers, combine_trainval, return_vis=False):
+             workers, combine_trainval, return_vis=False, pin_memory=False):
     root = osp.join(data_dir, name)
 
     dataset = datasets.create(name, root, split_id=split_id)
@@ -61,19 +61,19 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
         sampler=RandomIdentitySampler(train_set, num_instances),
-        pin_memory=True, drop_last=True)
+        pin_memory=pin_memory, drop_last=True)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=True)
+        shuffle=False, pin_memory=pin_memory)
 
     test_loader = DataLoader(
         Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
                      root=dataset.images_dir, transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=True)
+        shuffle=False, pin_memory=pin_memory)
     if not return_vis:
         return dataset, num_classes, train_loader, val_loader, test_loader
     else:
@@ -84,12 +84,13 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
                     T.ToTensor(),
                 ])),
             batch_size=batch_size, num_workers=workers,
-            shuffle=False, pin_memory=True
+            shuffle=False, pin_memory=pin_memory
         )
 
 
 def main(args):
-    torch.cuda.set_device(args.gpu[0])
+    # torch.cuda.set_device(args.gpu[0])
+    lz.init_dev(args.gpu[0])
     lz.logging.info('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -111,7 +112,7 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
-                 args.combine_trainval)
+                 args.combine_trainval, pin_memory=args.pin_mem)
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
@@ -156,7 +157,7 @@ def main(args):
             print("=> Start epoch {}  best top1 {:.1%}"
                   .format(start_epoch, best_top1))
     if len(args.gpu) == 1:
-        model = nn.DataParallel(model).cuda()
+        model=nn.DataParallel(model).cuda()
     else:
         model = nn.DataParallel(model, device_ids=args.gpu).cuda()
 
@@ -182,18 +183,18 @@ def main(args):
                                     weight_decay=args.weight_decay, momentum=0.9,
                                     nesterov=True)
     else:
-        raise
+        raise NotImplementedError
     # Trainer
     trainer = Trainer(model, criterion)
 
     # Schedule learning rate
-    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps):
+    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
         exp = len(steps)
         for i, step in enumerate(steps):
             if epoch < step:
                 exp = i
                 break
-        lr = base_lr * 0.1 ** exp
+        lr = base_lr * args.decay ** exp
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
@@ -203,6 +204,8 @@ def main(args):
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
+        writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
+
         if epoch < args.start_save:
             continue
         if epoch < args.epochs // 2 and epoch % 10 != 0:
@@ -327,32 +330,39 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='hard',
                         choices=['rand', 'hard', 'all', 'lift'])
     parser.add_argument('--gpu', type=list, default=[0, ])
-
-    configs_str = '''
-    - arch: resnet50
+    parser.add_argument('--pin_mem',action="store_true", default=True)
+    parser.add_argument('--decay',type=float,default=0.5)
+    configs_str = '''    
+    - arch: resnet34
+      
+      
       dataset: cuhk03
-      # resume: '../examples/logs.ori/model_best.pth.tar'
+      workers: 4
+      # resume: '../work/logs.resnet34.2/model_best.pth'
       resume: ''
+      restart: True
       evaluate: False
-      optimizer: sgd  
+      optimizer: sgd
       normalize: False
       dropout: 0 
       features: 1024
       num_classes: 128 
-      lr: 0.1
-      steps: [100,150,]
+      lr: 0.02
+      decay: 0.5
+      steps: [100,150,160 ]
+      start_save: 170
       epochs: 180
-      logs_dir: logs.res.1.sgd
-      batch_size: 60
+      logs_dir: logs.resnet34.sgd.3
+      batch_size: 128
       gpu: [3,]
+      pin_mem: True
     '''
 
-    dbg = True
+    dbg = False
 
     args = parser.parse_args()
 
     for config in yaml.load(configs_str):
-        lz.logging.info('training {}'.format(config))
         for k, v in config.items():
             if k not in vars(args):
                 raise ValueError('{} {}'.format(k, v))
@@ -362,7 +372,7 @@ if __name__ == '__main__':
             args.gpu = [lz.get_dev(n=1, mem=(0.5, 0.7))]
             args.epochs = 150
             args.workers = 4
-            args.batch_size = 8
+            args.batch_size = 32
             args.logs_dir += '.dbg'
         lz.mkdir_p(args.logs_dir, delete=True)
         lz.write_json(vars(args), args.logs_dir + '/conf.json')
