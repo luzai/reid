@@ -13,13 +13,15 @@ import torch
 from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
-
+import torch.nn.functional as F
 from reid import datasets
 from reid import models
+from reid.models import *
 from reid.dist_metric import DistanceMetric
-from reid.loss import TripletLoss
-from reid.trainers import Trainer
-from reid.evaluators import Evaluator
+from reid.loss import *
+from reid.trainers import *
+from reid.evaluators import *
+from reid.mining import mine_hard_pairs
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
@@ -90,7 +92,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
 
 def main(args):
     # torch.cuda.set_device(args.gpu[0])
-    lz.init_dev(args.gpu[0])
+    lz.init_dev(args.gpu)
     lz.logging.info('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -124,7 +126,7 @@ def main(args):
         own_state = model.state_dict()
         for name, param in state_dict.items():
             if name not in own_state:
-                print('ignore key "{}" in state_dict'.format(name))
+                print('ignore key "{}" in his state_dict'.format(name))
                 continue
             if isinstance(param, nn.Parameter):
                 # backwards compatibility for serialized parameters
@@ -136,9 +138,12 @@ def main(args):
                       ' and in the checkpoint are {}, ...'.format(
                     name, own_state[name].size(), param.size()))
                 raise
+            else:
+                lz.logging.info('{} {} is ok '.format(name, param.size()))
+
         missing = set(own_state.keys()) - set(state_dict.keys())
         if len(missing) > 0:
-            print('missing keys in state_dict: "{}"'.format(missing))
+            print('missing keys in my state_dict: "{}"'.format(missing))
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -156,10 +161,11 @@ def main(args):
             best_top1 = checkpoint['best_top1']
             print("=> Start epoch {}  best top1 {:.1%}"
                   .format(start_epoch, best_top1))
+    # model = model.cuda()
     if len(args.gpu) == 1:
-        model=nn.DataParallel(model).cuda()
+        model = nn.DataParallel(model).cuda()
     else:
-        model = nn.DataParallel(model, device_ids=args.gpu).cuda()
+        model = nn.DataParallel(model, device_ids=range(len(args.gpu))).cuda()
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
@@ -194,7 +200,7 @@ def main(args):
             if epoch < step:
                 exp = i
                 break
-        lr = base_lr * args.decay ** exp
+        lr = base_lr * decay ** exp
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
@@ -259,7 +265,7 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', action='store_true', default=False)
     # data
     parser.add_argument('--restart', action='store_true', default=True)
-    parser.add_argument('-j', '--workers', type=int, default=4)
+    parser.add_argument('--workers', type=int, default=4)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int, default=256,
                         help="input height, default: 256 for resnet*, "
@@ -271,11 +277,8 @@ if __name__ == '__main__':
                         help="train and val sets together for training, "
                              "val set alone for validation",
                         default=True)
-    parser.add_argument('--num-instances', type=int, default=4,
-                        help="each minibatch consist of "
-                             "(batch_size // num_instances) identities, and "
-                             "each identity has num_instances instances, "
-                             "default: 4")
+    parser.add_argument('--num-instances', type=int, default=4)
+
 
     # loss
     parser.add_argument('--margin', type=float, default=0.5,
@@ -287,7 +290,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
-    parser.add_argument('--resume', type=str, default='../examples/logs.ori/model_best.pth.tar', metavar='PATH')
+    parser.add_argument('--resume', type=str, default='', metavar='PATH')
 
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--print-freq', type=int, default=5)
@@ -330,18 +333,19 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='hard',
                         choices=['rand', 'hard', 'all', 'lift'])
     parser.add_argument('--gpu', type=list, default=[0, ])
-    parser.add_argument('--pin_mem',action="store_true", default=True)
-    parser.add_argument('--decay',type=float,default=0.5)
+    parser.add_argument('--pin_mem', action="store_true", default=True)
+    parser.add_argument('--decay', type=float, default=0.5)
     configs_str = '''    
-    - arch: resnet34
-      
-      
+    - arch: resnet50
+            
       dataset: cuhk03
       workers: 4
-      # resume: '../work/logs.resnet34.2/model_best.pth'
+      # resume: '../work/logs.bs320/model_best.pth'
       resume: ''
+      
       restart: True
       evaluate: False
+      
       optimizer: sgd
       normalize: False
       dropout: 0 
@@ -352,9 +356,9 @@ if __name__ == '__main__':
       steps: [100,150,160 ]
       start_save: 170
       epochs: 180
-      logs_dir: logs.resnet34.sgd.3
+      logs_dir: logs.resnet50
       batch_size: 128
-      gpu: [3,]
+      gpu: [3]
       pin_mem: True
     '''
 

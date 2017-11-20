@@ -3,9 +3,9 @@ from __future__ import absolute_import
 import torch
 from torch import nn
 from torch.autograd import Variable
-import numpy as np
 from tensorboardX import SummaryWriter
 import subprocess
+import numpy as np, numpy
 
 
 class TripletLoss(nn.Module):
@@ -31,14 +31,25 @@ class TripletLoss(nn.Module):
         dist_ap, dist_an = [], []
         for i in range(n):
             if self.mode == 'hard':
-                dist_ap.append(dist[i][mask[i]].max())
-                dist_an.append(dist[i][mask[i] == 0].min())
-            elif self.mode == 'rand':
                 posp = dist[i][mask[i]]
-                dist_ap.append(posp[np.random.randint(0, posp.size(0))])
+                _, posp_ind = posp.max(0)
+                posp_ind = Variable(posp_ind.data, requires_grad=False)
+                posp_max = posp[posp_ind]
+                dist_ap.append(posp_max)  # dist[i][mask[i]].max()
 
                 negp = dist[i][mask[i] == 0]
-                dist_an.append(negp[np.random.randint(0, negp.size(0))])
+                _, negp_ind = negp.min(0)
+                negp_ind = Variable(negp_ind.data, requires_grad=False)
+                negp_min = negp[negp_ind]
+
+                dist_an.append(negp_min)  # dist[i][mask[i] == 0].min()
+
+            elif self.mode == 'rand':
+                posp = dist[i][mask[i]]
+                dist_ap.append(posp[numpy.random.randint(0, posp.size(0))])
+
+                negp = dist[i][mask[i] == 0]
+                dist_an.append(negp[numpy.random.randint(0, negp.size(0))])
             # todo check
             elif self.mode == 'lift':
                 negp = dist[i][mask[i] == 0]
@@ -49,9 +60,9 @@ class TripletLoss(nn.Module):
             elif self.mode == 'all':
                 posp = dist[i][mask[i]]
                 negp = dist[i][mask[i] == 0]
-                np, nn = posp.size(0), negp.size(0)
-                posp = posp.expand((nn, np)).t()
-                negp = negp.expand((np, nn))  # .contiguous().view(-1)
+                np_, nn = posp.size(0), negp.size(0)
+                posp = posp.expand((nn, np_)).t()
+                negp = negp.expand((np_, nn))  # .contiguous().view(-1)
                 for posp_, negp_ in zip(posp, negp):
                     dist_ap.extend(posp_)
                     dist_an.extend(negp_)

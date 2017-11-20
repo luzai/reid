@@ -1,11 +1,14 @@
 import torch
+import lz
+from torch.autograd import Variable
+import torch.nn.functional as F
 import argparse
-import os.path as osp, yaml
-import numpy as np
-import sys
+import os.path as osp
+import sys, yaml
 
 sys.path.insert(0, '/home/xinglu/prj/open-reid/')
-
+import numpy as np
+import sys
 import torch
 from torch import nn
 from torch.backends import cudnn
@@ -15,7 +18,7 @@ from reid import datasets
 from reid import models
 from reid.models import *
 from reid.dist_metric import DistanceMetric
-from reid.loss import TripletLoss, TupletLoss
+from reid.loss import *
 from reid.trainers import *
 from reid.evaluators import *
 from reid.mining import mine_hard_pairs
@@ -27,7 +30,6 @@ from reid.utils.serialization import load_checkpoint, save_checkpoint
 
 import torchvision
 from tensorboardX import SummaryWriter
-import lz
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=4,
@@ -89,6 +91,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
 
 
 def main(args):
+    lz.init_dev(args.gpu)
     lz.logging.info('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -129,17 +132,18 @@ def main(args):
         embed_model = ConcatEmbed(4096)
     elif args.embed == 'eltsub':
         EltwiseSubEmbed(args.features, args.num_classes)
-    tranform = Transform(mode = 'hard')
+    tranform = Transform(mode='hard')
 
-    model = SiameseNet2(base_model, tranform,embed_model, )
-
+    model = SiameseNet2(base_model, tranform, embed_model, )
+    print(model)
+    print(model)
     def load_state_dict(model, state_dict):
         own_state = model.state_dict()
         for name, param in state_dict.items():
-            if 'base_model.'+name in own_state:
-                name = 'base_model.'+name
-            if 'embed_model.'+name  in own_state:
-                name = 'embed_model.'+name
+            if 'base_model.' + name in own_state:
+                name = 'base_model.' + name
+            if 'embed_model.' + name in own_state:
+                name = 'embed_model.' + name
             if name not in own_state:
                 print('ignore key "{}" in his state_dict'.format(name))
                 continue
@@ -179,7 +183,7 @@ def main(args):
     if len(args.gpu) == 1:
         model = nn.DataParallel(model).cuda()
     else:
-        model = nn.DataParallel(model.cuda(args.gpu[0]), device_ids=args.gpu, output_device=args.gpu[0])
+        model = nn.DataParallel(model, device_ids=range(len(args.gpu))).cuda()
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
@@ -188,7 +192,7 @@ def main(args):
     evaluator = CascadeEvaluator(
         torch.nn.DataParallel(base_model).cuda(),
         torch.nn.DataParallel(embed_model).cuda(),
-        embed_dist_fn=lambda x: F.softmax(Variable(x).data[:, 0])
+        embed_dist_fn=lambda x: F.softmax(Variable(x.data[:, 0]), dim=0)
     )
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
@@ -209,15 +213,16 @@ def main(args):
                                 weight_decay=args.weight_decay,
                                 nesterov=True)
 
-    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps):
+    # Schedule learning rate
+    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
         exp = len(steps)
         for i, step in enumerate(steps):
             if epoch < step:
                 exp = i
                 break
-        lr = base_lr * 0.1 ** exp
+        lr = base_lr * decay ** exp
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
+            param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Trainer
     trainer = VerfTrainer(model, criterion)
@@ -236,20 +241,20 @@ def main(args):
         elif epoch < args.epochs - 20 and epoch % 5 != 0:
             continue
 
-        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
-        writer.add_scalars('train/top-1', {'stage1': acc1,
-                                           'stage2': acc}, epoch)
-
-        # if args.combine_trainval:
-        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
-        writer.add_scalars('test/top-1', {'stage1': acc1,
-                                          'stage2': acc}, epoch)
-
-        top1 = acc
-
-        is_best = top1 > best_top1
-        best_top1 = max(top1, best_top1)
-        # is_best = True
+        # acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        # writer.add_scalars('train/top-1', {'stage1': acc1,
+        #                                    'stage2': acc}, epoch)
+        #
+        # # if args.combine_trainval:
+        # acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        # writer.add_scalars('test/top-1', {'stage1': acc1,
+        #                                   'stage2': acc}, epoch)
+        #
+        # top1 = acc
+        #
+        # is_best = top1 > best_top1
+        # best_top1 = max(top1, best_top1)
+        is_best = True
         top1 = 0
         save_checkpoint({
             'state_dict': model.module.state_dict(),
@@ -351,16 +356,16 @@ if __name__ == '__main__':
           embed: kron
           
           dropout: 0 
-          lr: 0.01
-          start_save: 170
+          lr: 0.02
+          start_save: 0
           steps: [100,150,160]
           epochs: 180
-          logs_dir: logs.siamese
+          logs_dir: logs.siamese.tri
           batch_size: 128
-          gpu: [0,]
+          gpu: [0,2,]
         '''
 
-    dbg = True
+    dbg = False
     args = parser.parse_args()
 
     for config in yaml.load(configs_str):
@@ -371,13 +376,11 @@ if __name__ == '__main__':
         args.logs_dir = '../work/' + args.logs_dir
         # lz.get_dev(ok=(0, 1,))
         if dbg:
-            args.gpu = [0 ]
+            args.gpu = [0]
             args.epochs = 150
             args.workers = 4
             args.batch_size = 32
             args.logs_dir += '.dbg'
-        if len(args.gpu) == 1:
-            lz.init_dev(args.gpu)
         lz.mkdir_p(args.logs_dir, delete=True)
         lz.write_json(vars(args), args.logs_dir + '/conf.json')
 

@@ -336,10 +336,10 @@ if __name__ == '__main__':
     parser.add_argument('--num_classes', type=int)
 
     configs_str = '''
-        - arch: resnet34
+        - arch: resnet50
           dataset: cuhk03
-          resume: '../work/logs.resnet34.2/model_best.pth'
-          # resume: ''
+          resume: ''
+          # resume: '../work/logs.resnet34.sgd.3/model_best.pth'
           restart: True
                     
           evaluate: False
@@ -349,12 +349,12 @@ if __name__ == '__main__':
           
           dropout: 0 
           lr: 0.02
-          start_save: 1
+          start_save: 170
           steps: [100,150,160]
           epochs: 180
-          logs_dir: logs.siamese.2
+          logs_dir: logs.siamese
           batch_size: 128
-          gpu: [3,]
+          gpu: [0,2,]
         '''
 
     dbg = False
