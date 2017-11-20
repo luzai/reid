@@ -339,8 +339,8 @@ if __name__ == '__main__':
         - arch: resnet50
           dataset: cuhk03
           resume: ''
-          # resume: '../work/logs.resnet34.sgd.3/model_best.pth'
-          restart: True
+          resume: '../work/logs.resnet50/model_best.pth'
+          # restart: True
                     
           evaluate: False
           optimizer: sgd  
@@ -349,12 +349,12 @@ if __name__ == '__main__':
           
           dropout: 0 
           lr: 0.02
-          start_save: 170
+          start_save: 0
           steps: [100,150,160]
           epochs: 180
           logs_dir: logs.siamese
-          batch_size: 128
-          gpu: [0,2,]
+          batch_size: 16
+          gpu: [0,]
         '''
 
     dbg = False

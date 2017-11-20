@@ -192,7 +192,7 @@ def main(args):
     evaluator = CascadeEvaluator(
         torch.nn.DataParallel(base_model).cuda(),
         torch.nn.DataParallel(embed_model).cuda(),
-        embed_dist_fn=lambda x: F.softmax(Variable(x.data[:, 0]), dim=0)
+        embed_dist_fn=lambda x: F.softmax(Variable(x[:, 0]), dim=0)
     )
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
@@ -236,26 +236,26 @@ def main(args):
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 10 != 0:
-            continue
-        elif epoch < args.epochs - 20 and epoch % 5 != 0:
-            continue
+        # if epoch < args.epochs // 2 and epoch % 10 != 0:
+        #     continue
+        # elif epoch < args.epochs - 20 and epoch % 5 != 0:
+        #     continue
 
-        # acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
-        # writer.add_scalars('train/top-1', {'stage1': acc1,
-        #                                    'stage2': acc}, epoch)
-        #
-        # # if args.combine_trainval:
-        # acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
-        # writer.add_scalars('test/top-1', {'stage1': acc1,
-        #                                   'stage2': acc}, epoch)
-        #
-        # top1 = acc
-        #
-        # is_best = top1 > best_top1
-        # best_top1 = max(top1, best_top1)
-        is_best = True
-        top1 = 0
+        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        writer.add_scalars('train/top-1', {'stage1': acc1,
+                                           'stage2': acc}, epoch)
+
+        # if args.combine_trainval:
+        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        writer.add_scalars('test/top-1', {'stage1': acc1,
+                                          'stage2': acc}, epoch)
+
+        top1 = acc
+
+        is_best = top1 > best_top1
+        best_top1 = max(top1, best_top1)
+        # is_best = True
+        # top1 = 0
         save_checkpoint({
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
@@ -342,11 +342,11 @@ if __name__ == '__main__':
     parser.add_argument('--optimizer', type=str)
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--num_classes', type=int)
-
+    parser.add_argument('--decay', type=float,default=0.5)
     configs_str = '''
-        - arch: resnet34
+        - arch: resnet50
           dataset: cuhk03
-          resume: '../work/logs.resnet34.2/model_best.pth'
+          resume: '../work/logs.resnet50/model_best.pth'
           # resume: ''
           restart: True
           
@@ -358,11 +358,14 @@ if __name__ == '__main__':
           dropout: 0 
           lr: 0.02
           start_save: 0
+          
           steps: [100,150,160]
+          decay: 0.5
           epochs: 180
+          
           logs_dir: logs.siamese.tri
           batch_size: 128
-          gpu: [0,2,]
+          gpu: [3,]
         '''
 
     dbg = False
