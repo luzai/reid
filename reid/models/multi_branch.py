@@ -28,7 +28,12 @@ class SiameseNet2(nn.Module):
         pred = self.embed_model(pair1, pair2)
 
         return pred, y2.type_as(y.data)
-
+        # x.size(), y.size(), outputs.size()
+        # pair1.size(), pred.size()
+        # outputs[:,12,7,3]
+        # pair1[:,12,7,3]
+        # pair2[:,12,7,3]
+        # y2
 
 class TripletNet(nn.Module):
     def __init__(self, base_model, embed_model):

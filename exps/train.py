@@ -88,7 +88,33 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
             batch_size=batch_size, num_workers=workers,
             shuffle=False, pin_memory=pin_memory
         )
+def load_state_dict(model, state_dict):
+    own_state = model.state_dict()
+    success=[]
+    for name, param in state_dict.items():
+        if 'base_model.' + name in own_state:
+            name = 'base_model.' + name
+        if 'module.' + name in own_state:
+            name = 'module.' + name
+        if name not in own_state:
+            print('ignore key "{}" in his state_dict'.format(name))
+            continue
 
+        if isinstance(param, nn.Parameter):
+            param = param.data
+
+        if own_state[name].size() == param.size():
+            own_state[name].copy_(param)
+            print('{} {} is ok '.format(name, param.size()))
+            success.append(name )
+        else:
+            lz.logging.error('dimension mismatch for param "{}", in the model are {}'
+                             ' and in the checkpoint are {}, ...'.format(
+                name, own_state[name].size(), param.size()))
+
+    missing = set(own_state.keys()) - set(success)
+    if len(missing) > 0:
+        print('missing keys in my state_dict: "{}"'.format(missing))
 
 def main(args):
     # torch.cuda.set_device(args.gpu[0])
@@ -121,29 +147,6 @@ def main(args):
     model = models.create(args.arch, num_features=args.features,
                           dropout=args.dropout, num_classes=args.num_classes)
     print(model)
-
-    def load_state_dict(model, state_dict):
-        own_state = model.state_dict()
-        for name, param in state_dict.items():
-            if name not in own_state:
-                print('ignore key "{}" in his state_dict'.format(name))
-                continue
-            if isinstance(param, nn.Parameter):
-                # backwards compatibility for serialized parameters
-                param = param.data
-            try:
-                own_state[name].copy_(param)
-            except:
-                print('dimension mismatch for param "{}", in the model are {}'
-                      ' and in the checkpoint are {}, ...'.format(
-                    name, own_state[name].size(), param.size()))
-                raise
-            else:
-                lz.logging.info('{} {} is ok '.format(name, param.size()))
-
-        missing = set(own_state.keys()) - set(state_dict.keys())
-        if len(missing) > 0:
-            print('missing keys in my state_dict: "{}"'.format(missing))
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -279,7 +282,6 @@ if __name__ == '__main__':
                         default=True)
     parser.add_argument('--num-instances', type=int, default=4)
 
-
     # loss
     parser.add_argument('--margin', type=float, default=0.5,
                         help="margin of the triplet loss, default: 0.5")
@@ -335,13 +337,16 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=list, default=[0, ])
     parser.add_argument('--pin_mem', action="store_true", default=True)
     parser.add_argument('--decay', type=float, default=0.5)
+    parser.add_argument('--config', metavar='PATH', default=None)
+    parser.add_argument('--export-config', action='store_true', default=False)
+
     configs_str = '''    
     - arch: resnet50
             
       dataset: cuhk03
       workers: 4
-      # resume: '../work/logs.bs320/model_best.pth'
-      resume: ''
+      resume: '../work/logs.resnet50/model_best.pth'
+      # resume: ''
       
       restart: True
       evaluate: False
@@ -349,15 +354,15 @@ if __name__ == '__main__':
       optimizer: sgd
       normalize: False
       dropout: 0 
-      features: 1024
+      features: 512
       num_classes: 128 
       lr: 0.02
       decay: 0.5
       steps: [100,150,160 ]
-      start_save: 170
+      start_save: 0
       epochs: 180
-      logs_dir: logs.resnet50
-      batch_size: 128
+      logs_dir: logs.resnet50.2
+      batch_size: 120
       gpu: [3]
       pin_mem: True
     '''
@@ -378,6 +383,11 @@ if __name__ == '__main__':
             args.workers = 4
             args.batch_size = 32
             args.logs_dir += '.dbg'
+
+        if args.export_config:
+            lz.mypickle((args), './conf.pkl')
+            exit(0)
+
         lz.mkdir_p(args.logs_dir, delete=True)
         lz.write_json(vars(args), args.logs_dir + '/conf.json')
 

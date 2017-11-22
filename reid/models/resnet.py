@@ -50,7 +50,7 @@ class ResNet(nn.Module):
         if depth not in ResNet.__factory:
             raise KeyError("Unsupported depth:", depth)
         self.base = ResNet.__factory[depth](pretrained=pretrained)
-
+        out_planes = self.base.fc.in_features
         if not self.cut_at_pooling:
             self.num_features = num_features
             self.norm = norm
@@ -58,11 +58,9 @@ class ResNet(nn.Module):
             self.has_embedding = num_features > 0
             self.num_classes = num_classes
 
-            out_planes = self.base.fc.in_features
-
             # Append new layers
             if self.has_embedding:
-                self.feat = nn.Linear(out_planes, self.num_features)
+                self.feat = nn.Linear(512, self.num_features)
                 self.feat_bn = nn.BatchNorm1d(self.num_features)
                 init.kaiming_normal(self.feat.weight, mode='fan_out')
                 init.constant(self.feat.bias, 0)
@@ -77,7 +75,7 @@ class ResNet(nn.Module):
                 self.classifier = nn.Linear(self.num_features, self.num_classes)
                 init.normal(self.classifier.weight, std=0.001)
                 init.constant(self.classifier.bias, 0)
-
+        self.conv1 = _make_conv(out_planes, 512, kernel_size=1, stride=1, padding=0, with_relu=True)
         if not self.pretrained:
             self.reset_params()
 
@@ -86,7 +84,7 @@ class ResNet(nn.Module):
             if name == 'avgpool':
                 break
             x = module(x)
-
+        x=self.conv1(x)
         if self.cut_at_pooling:
             return x
 

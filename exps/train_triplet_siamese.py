@@ -129,40 +129,13 @@ def main(args):
     if args.embed == 'kron':
         embed_model = KronEmbed(8, 4, 128, 2)
     elif args.embed == 'concat':
-        embed_model = ConcatEmbed(4096)
+        embed_model = ConcatEmbed(1024)
     elif args.embed == 'eltsub':
         EltwiseSubEmbed(args.features, args.num_classes)
     tranform = Transform(mode='hard')
 
     model = SiameseNet2(base_model, tranform, embed_model, )
     print(model)
-    print(model)
-    def load_state_dict(model, state_dict):
-        own_state = model.state_dict()
-        for name, param in state_dict.items():
-            if 'base_model.' + name in own_state:
-                name = 'base_model.' + name
-            if 'embed_model.' + name in own_state:
-                name = 'embed_model.' + name
-            if name not in own_state:
-                print('ignore key "{}" in his state_dict'.format(name))
-                continue
-            if isinstance(param, nn.Parameter):
-                # backwards compatibility for serialized parameters
-                param = param.data
-            try:
-                own_state[name].copy_(param)
-            except:
-                print('dimension mismatch for param "{}", in the model are {}'
-                      ' and in the checkpoint are {}, ...'.format(
-                    name, own_state[name].size(), param.size()))
-                raise
-            else:
-                lz.logging.info('{} {} is ok '.format(name, param.size()))
-
-        missing = set(own_state.keys()) - set(state_dict.keys())
-        if len(missing) > 0:
-            print('missing keys in my state_dict: "{}"'.format(missing))
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -236,10 +209,10 @@ def main(args):
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
         if epoch < args.start_save:
             continue
-        # if epoch < args.epochs // 2 and epoch % 10 != 0:
-        #     continue
-        # elif epoch < args.epochs - 20 and epoch % 5 != 0:
-        #     continue
+        if epoch < args.epochs // 2 and epoch % 10 != 0:
+            continue
+        elif epoch < args.epochs - 20 and epoch % 5 != 0:
+            continue
 
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
         writer.add_scalars('train/top-1', {'stage1': acc1,
@@ -333,7 +306,7 @@ if __name__ == '__main__':
     working_dir = osp.dirname(osp.abspath(__file__))
 
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, '../work/logs.siamese.concate3'))
+                        default=osp.join(working_dir, 'logs.dbg'))
 
     parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
@@ -346,7 +319,8 @@ if __name__ == '__main__':
     configs_str = '''
         - arch: resnet50
           dataset: cuhk03
-          resume: '../work/logs.resnet50/model_best.pth'
+          resume: '../work/logs.resnet50.2/model_best.pth'
+          # resume: '../work/logs.siamese/model_best.pth'
           # resume: ''
           restart: True
           
@@ -364,8 +338,8 @@ if __name__ == '__main__':
           epochs: 180
           
           logs_dir: logs.siamese.tri
-          batch_size: 128
-          gpu: [3,]
+          batch_size: 120
+          gpu: [0,]
         '''
 
     dbg = False

@@ -25,6 +25,13 @@ if __name__ == '__main__':
     import os.path as osp
     from reid.datasets.cuhk03 import CUHK03
     from reid.utils.serialization import read_json
+    import matplotlib
+
+    matplotlib.use('Agg')
+    from matplotlib import pylab as p
+    # axes3d is being used implictly for visualization.
+    from mpl_toolkits.mplot3d import axes3d   # pylint:disable=unused-import
+    axes3d.Axes3D
 
     root, split_id, num_val = '/home/xinglu/.torch/data/cuhk03', 0, 100
     dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True, mode='label')

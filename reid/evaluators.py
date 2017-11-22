@@ -167,7 +167,9 @@ class CascadeEvaluator(object):
         self.embed_dist_fn = embed_dist_fn
 
     def evaluate(self, data_loader, query, gallery, cache_file=None,
-                 rerank_topk=20, return_all=False, cmc_topk=(1, 5, 10)):
+                 rerank_topk=100, return_all=False, cmc_topk=(1, 5, 10), one_stage=True):
+        if one_stage:
+            rerank_topk = len(gallery)
         # Extract features image by image
         features, _ = extract_features(self.base_model, data_loader,
                                        output_file=cache_file)
@@ -217,8 +219,8 @@ class CascadeEvaluator(object):
         data_loader = DataLoader(
             KeyValuePreprocessor(features),
             sampler=pair_samples,
-            batch_size=min(len(gallery), 4096),
-            num_workers=1, pin_memory=False)
+            batch_size=min(len(gallery)*rerank_topk, 4096*2),
+            num_workers=4, pin_memory=False)
 
         # Extract embeddings of each pair
         embeddings = extract_embeddings(self.embed_model, data_loader)
@@ -231,13 +233,14 @@ class CascadeEvaluator(object):
         for k, embed in enumerate(embeddings):
             i, j = k // rerank_topk, k % rerank_topk
             distmat[i, rank_indices[i, j]] = embed.data.cpu().numpy()
-        for i, indices in enumerate(rank_indices):
-            bar = max(distmat[i][indices[:rerank_topk]])
-            gap = max(bar + 1. - distmat[i, indices[rerank_topk]], 0)
-            if gap > 0:
-                distmat[i][indices[rerank_topk:]] += gap
+        if not one_stage:
+            for i, indices in enumerate(rank_indices):
+                bar = max(distmat[i][indices[:rerank_topk]])
+                gap = max(bar + 1. - distmat[i, indices[rerank_topk]], 0)
+                if gap > 0:
+                    distmat[i][indices[rerank_topk:]] += gap
 
-        print("Second stage evaluation:")
+        print("Second stage evaluation: (one stage?)", one_stage)
 
         cmc_scores2 = {name: cmc(distmat, query_ids, gallery_ids,
                                  query_cams, gallery_cams, **params)

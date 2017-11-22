@@ -87,6 +87,33 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
             shuffle=False, pin_memory=True
         )
 
+def load_state_dict(model, state_dict):
+    own_state = model.state_dict()
+    success=[]
+    for name, param in state_dict.items():
+        if 'base_model.' + name in own_state:
+            name = 'base_model.' + name
+        if 'module.' + name in own_state:
+            name = 'module.' + name
+        if name not in own_state:
+            print('ignore key "{}" in his state_dict'.format(name))
+            continue
+
+        if isinstance(param, nn.Parameter):
+            param = param.data
+
+        if own_state[name].size() == param.size():
+            own_state[name].copy_(param)
+            print('{} {} is ok '.format(name, param.size()))
+            success.append(name )
+        else:
+            lz.logging.error('dimension mismatch for param "{}", in the model are {}'
+                             ' and in the checkpoint are {}, ...'.format(
+                name, own_state[name].size(), param.size()))
+
+    missing = set(own_state.keys()) - set(success)
+    if len(missing) > 0:
+        print('missing keys in my state_dict: "{}"'.format(missing))
 
 def main(args):
     lz.logging.info('config is {}'.format(vars(args)))
@@ -126,36 +153,11 @@ def main(args):
     if args.embed == 'kron':
         embed_model = KronEmbed(8, 4, 128, 2)
     elif args.embed == 'concat':
-        embed_model = ConcatEmbed(4096)
+        embed_model = ConcatEmbed(1024)
     elif args.embed == 'eltsub':
         EltwiseSubEmbed(args.features, args.num_classes)
 
     model = SiameseNet(base_model, embed_model)
-
-    def load_state_dict(model, state_dict):
-        own_state = model.state_dict()
-        for name, param in state_dict.items():
-            if 'base_model.'+name in own_state:
-                name = 'base_model.'+name
-            if name not in own_state:
-                print('ignore key "{}" in his state_dict'.format(name))
-                continue
-            if isinstance(param, nn.Parameter):
-                # backwards compatibility for serialized parameters
-                param = param.data
-            try:
-                own_state[name].copy_(param)
-            except:
-                print('dimension mismatch for param "{}", in the model are {}'
-                      ' and in the checkpoint are {}, ...'.format(
-                    name, own_state[name].size(), param.size()))
-                raise
-            else:
-                lz.logging.info('{} {} is ok '.format(name, param.size()))
-
-        missing = set(own_state.keys()) - set(state_dict.keys())
-        if len(missing) > 0:
-            print('missing keys in my state_dict: "{}"'.format(missing))
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -352,9 +354,9 @@ if __name__ == '__main__':
           start_save: 0
           steps: [100,150,160]
           epochs: 180
-          logs_dir: logs.siamese
-          batch_size: 16
-          gpu: [0,]
+          logs_dir: logs.siamese.2
+          batch_size: 48
+          gpu: [2,]
         '''
 
     dbg = False
