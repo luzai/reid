@@ -89,6 +89,33 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
             shuffle=False, pin_memory=True
         )
 
+def load_state_dict(model, state_dict):
+    own_state = model.state_dict()
+    success=[]
+    for name, param in state_dict.items():
+        if 'base_model.' + name in own_state:
+            name = 'base_model.' + name
+        if 'module.' + name in own_state:
+            name = 'module.' + name
+        if name not in own_state:
+            print('ignore key "{}" in his state_dict'.format(name))
+            continue
+
+        if isinstance(param, nn.Parameter):
+            param = param.data
+
+        if own_state[name].size() == param.size():
+            own_state[name].copy_(param)
+            print('{} {} is ok '.format(name, param.size()))
+            success.append(name )
+        else:
+            lz.logging.error('dimension mismatch for param "{}", in the model are {}'
+                             ' and in the checkpoint are {}, ...'.format(
+                name, own_state[name].size(), param.size()))
+
+    missing = set(own_state.keys()) - set(success)
+    if len(missing) > 0:
+        print('missing keys in my state_dict: "{}"'.format(missing))
 
 def main(args):
     lz.init_dev(args.gpu)
@@ -316,6 +343,9 @@ if __name__ == '__main__':
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--num_classes', type=int)
     parser.add_argument('--decay', type=float,default=0.5)
+    parser.add_argument('--config', metavar='PATH', default=None)
+    parser.add_argument('--export-config', action='store_true', default=False)
+
     configs_str = '''
         - arch: resnet50
           dataset: cuhk03
@@ -358,6 +388,11 @@ if __name__ == '__main__':
             args.workers = 4
             args.batch_size = 32
             args.logs_dir += '.dbg'
+
+        if args.export_config:
+            lz.mypickle((args), './conf.pkl')
+            exit(0)
+
         lz.mkdir_p(args.logs_dir, delete=True)
         lz.write_json(vars(args), args.logs_dir + '/conf.json')
 

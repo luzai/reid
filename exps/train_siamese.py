@@ -160,7 +160,8 @@ def main(args):
     model = SiameseNet(base_model, embed_model)
 
     # Load from checkpoint
-    start_epoch = best_top1 = 0
+    best_top1 = 0
+    start_epoch =1
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
@@ -220,7 +221,14 @@ def main(args):
 
     # Trainer
     trainer = SiameseTrainer(model, criterion)
+    acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+    writer.add_scalars('train/top-1', {'stage1': acc1,
+                                       'stage2': acc}, 0)
 
+    # if args.combine_trainval:
+    acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+    writer.add_scalars('test/top-1', {'stage1': acc1,
+                                      'stage2': acc}, 0)
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
@@ -336,6 +344,8 @@ if __name__ == '__main__':
     parser.add_argument('--optimizer', type=str)
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--num_classes', type=int)
+    parser.add_argument('--config', metavar='PATH', default=None)
+    parser.add_argument('--export-config', action='store_true', default=False)
 
     configs_str = '''
         - arch: resnet50
@@ -350,13 +360,13 @@ if __name__ == '__main__':
           embed: kron
           
           dropout: 0 
-          lr: 0.02
+          lr: 0.005
           start_save: 0
           steps: [100,150,160]
           epochs: 180
-          logs_dir: logs.siamese.2
+          logs_dir: logs.siamese.3
           batch_size: 48
-          gpu: [2,]
+          gpu: [0,]
         '''
 
     dbg = False
@@ -377,6 +387,12 @@ if __name__ == '__main__':
             args.logs_dir += '.dbg'
         if len(args.gpu) == 1:
             lz.init_dev(args.gpu)
+
+
+        if args.export_config:
+            lz.mypickle((args), './conf.pkl')
+            exit(0)
+
         lz.mkdir_p(args.logs_dir, delete=True)
         lz.write_json(vars(args), args.logs_dir + '/conf.json')
 
