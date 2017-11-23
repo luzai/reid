@@ -1,14 +1,10 @@
-import torch
-import lz
-from torch.autograd import Variable
-import torch.nn.functional as F
-import argparse
-import os.path as osp
-import sys, yaml
+import torch, sys
 
 sys.path.insert(0, '/home/xinglu/prj/open-reid/')
-import numpy as np
-import sys
+
+from lz import *
+import lz
+from exps.opts import get_parser
 import torch
 from torch import nn
 from torch.backends import cudnn
@@ -88,9 +84,11 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
             batch_size=batch_size, num_workers=workers,
             shuffle=False, pin_memory=pin_memory
         )
+
+
 def load_state_dict(model, state_dict):
     own_state = model.state_dict()
-    success=[]
+    success = []
     for name, param in state_dict.items():
         if 'base_model.' + name in own_state:
             name = 'base_model.' + name
@@ -105,8 +103,8 @@ def load_state_dict(model, state_dict):
 
         if own_state[name].size() == param.size():
             own_state[name].copy_(param)
-            print('{} {} is ok '.format(name, param.size()))
-            success.append(name )
+            # print('{} {} is ok '.format(name, param.size()))
+            success.append(name)
         else:
             lz.logging.error('dimension mismatch for param "{}", in the model are {}'
                              ' and in the checkpoint are {}, ...'.format(
@@ -115,6 +113,7 @@ def load_state_dict(model, state_dict):
     missing = set(own_state.keys()) - set(success)
     if len(missing) > 0:
         print('missing keys in my state_dict: "{}"'.format(missing))
+
 
 def main(args):
     # torch.cuda.set_device(args.gpu[0])
@@ -178,6 +177,9 @@ def main(args):
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         lz.logging.info('final rank1 is {}'.format(acc))
+        db = lz.Database('distmat.h5', 'a')
+        db['ohnm'] = evaluator.distmat
+        db.close()
         return 0
 
     # Criterion
@@ -262,84 +264,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    import lz
-
-    parser = argparse.ArgumentParser(description="many kind loss classification")
-    parser.add_argument('--evaluate', action='store_true', default=False)
-    # data
-    parser.add_argument('--restart', action='store_true', default=True)
-    parser.add_argument('--workers', type=int, default=4)
-    parser.add_argument('--split', type=int, default=0)
-    parser.add_argument('--height', type=int, default=256,
-                        help="input height, default: 256 for resnet*, "
-                             "144 for inception")
-    parser.add_argument('--width', type=int, default=128,
-                        help="input width, default: 128 for resnet*, "
-                             "56 for inception")
-    parser.add_argument('--combine-trainval', action='store_true',
-                        help="train and val sets together for training, "
-                             "val set alone for validation",
-                        default=True)
-    parser.add_argument('--num-instances', type=int, default=4)
-
-    # loss
-    parser.add_argument('--margin', type=float, default=0.5,
-                        help="margin of the triplet loss, default: 0.5")
-    # optimizer
-    parser.add_argument('--lr', type=float, default=0.1,
-                        help="learning rate of all parameters")
-    parser.add_argument('--steps', type=list, default=[100, 150, 180])
-
-    parser.add_argument('--weight-decay', type=float, default=5e-4)
-    # training configs
-    parser.add_argument('--resume', type=str, default='', metavar='PATH')
-
-    parser.add_argument('--seed', type=int, default=1)
-    parser.add_argument('--print-freq', type=int, default=5)
-    # metric learning
-    parser.add_argument('--dist-metric', type=str, default='euclidean',
-                        choices=['euclidean', 'kissme'])
-
-    # misc
-    home_dir = osp.expanduser('~') + '/.torch/'
-    parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(home_dir, 'data'))
-
-    # tuning
-    parser.add_argument('--freeze', action='store_true', default=False)
-    parser.add_argument('--optimizer', type=str, default='sgd')
-    parser.add_argument('--decay_epoch', type=int, default=100)
-    parser.add_argument('--branchs', type=int, default=8)
-    parser.add_argument('--branch_dim', type=int, default=64)
-    parser.add_argument('--dropout', type=float, default=0.)
-    parser.add_argument('--use_global', action='store_true', default=False)
-    parser.add_argument('--normalize', action='store_true', default=True)
-
-    parser.add_argument('--features', type=int, default=1024)
-    parser.add_argument('--num_classes', type=int, default=128)
-    parser.add_argument('--start_save', type=int, default=180,
-                        help="start saving checkpoints after specific epoch")
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
-                        choices=datasets.names())
-    parser.add_argument('-b', '--batch-size', type=int, default=160)
-    working_dir = osp.dirname(osp.abspath(__file__))
-    parser.add_argument('--epochs', type=int, default=200)
-
-    parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, '../works/logs'))
-
-    parser.add_argument('-a', '--arch', type=str, default='resnet50',
-                        choices=models.names())
-    parser.add_argument('--loss', type=str, default='triplet',
-                        choices=['triplet', 'tuple', 'softmax'])
-    parser.add_argument('--mode', type=str, default='hard',
-                        choices=['rand', 'hard', 'all', 'lift'])
-    parser.add_argument('--gpu', type=list, default=[0, ])
-    parser.add_argument('--pin_mem', action="store_true", default=True)
-    parser.add_argument('--decay', type=float, default=0.5)
-    parser.add_argument('--config', metavar='PATH', default=None)
-    parser.add_argument('--export-config', action='store_true', default=False)
-
+    parser = get_parser()
     configs_str = '''    
     - arch: resnet50
             
@@ -349,7 +274,7 @@ if __name__ == '__main__':
       # resume: ''
       
       restart: True
-      evaluate: False
+      evaluate: True
       
       optimizer: sgd
       normalize: False
@@ -359,7 +284,7 @@ if __name__ == '__main__':
       lr: 0.02
       decay: 0.5
       steps: [100,150,160 ]
-      start_save: 0
+      start_save: 175
       epochs: 180
       logs_dir: logs.resnet50.2
       batch_size: 120
@@ -387,9 +312,9 @@ if __name__ == '__main__':
         if args.export_config:
             lz.mypickle((args), './conf.pkl')
             exit(0)
-
-        lz.mkdir_p(args.logs_dir, delete=True)
-        lz.write_json(vars(args), args.logs_dir + '/conf.json')
+        if not args.evaluate:
+            lz.mkdir_p(args.logs_dir, delete=True)
+            lz.write_json(vars(args), args.logs_dir + '/conf.json')
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()

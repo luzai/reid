@@ -147,6 +147,7 @@ class Evaluator(object):
     def __init__(self, model):
         super(Evaluator, self).__init__()
         self.model = model
+        self.distmat=None
 
     def evaluate(self, data_loader, query, gallery, metric=None, return_all=False, final=False):
         features, _ = extract_features(self.model, data_loader)
@@ -156,6 +157,7 @@ class Evaluator(object):
             gallery = np.array(gallery)[choice]
 
         distmat = pairwise_distance(features, query, gallery, metric=metric)
+        self.distmat=distmat.cpu().numpy()
         return evaluate_all(distmat, query=query, gallery=gallery, return_all=return_all)
 
 
@@ -165,6 +167,7 @@ class CascadeEvaluator(object):
         self.base_model = base_model
         self.embed_model = embed_model
         self.embed_dist_fn = embed_dist_fn
+        self.distmat1 = self.distmat2=None
 
     def evaluate(self, data_loader, query, gallery, cache_file=None,
                  rerank_topk=100, return_all=False, cmc_topk=(1, 5, 10), one_stage=True):
@@ -206,6 +209,7 @@ class CascadeEvaluator(object):
 
         # Sort according to the first stage distance
         distmat = distmat.cpu().numpy()
+        self.distmat1=distmat
         rank_indices = np.argsort(distmat, axis=1)
 
         # Build a data loader for topk predictions for each query
@@ -239,6 +243,8 @@ class CascadeEvaluator(object):
                 gap = max(bar + 1. - distmat[i, indices[rerank_topk]], 0)
                 if gap > 0:
                     distmat[i][indices[rerank_topk:]] += gap
+
+        self.distmat2=distmat
 
         print("Second stage evaluation: (one stage?)", one_stage)
 

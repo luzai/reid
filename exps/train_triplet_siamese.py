@@ -1,14 +1,10 @@
-import torch
-import lz
-from torch.autograd import Variable
-import torch.nn.functional as F
-import argparse
-import os.path as osp
-import sys, yaml
+import torch, sys
 
 sys.path.insert(0, '/home/xinglu/prj/open-reid/')
-import numpy as np
-import sys
+
+from lz import *
+import lz
+from exps.opts import get_parser
 import torch
 from torch import nn
 from torch.backends import cudnn
@@ -30,6 +26,7 @@ from reid.utils.serialization import load_checkpoint, save_checkpoint
 
 import torchvision
 from tensorboardX import SummaryWriter
+
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=4,
@@ -89,9 +86,10 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
             shuffle=False, pin_memory=True
         )
 
+
 def load_state_dict(model, state_dict):
     own_state = model.state_dict()
-    success=[]
+    success = []
     for name, param in state_dict.items():
         if 'base_model.' + name in own_state:
             name = 'base_model.' + name
@@ -106,8 +104,8 @@ def load_state_dict(model, state_dict):
 
         if own_state[name].size() == param.size():
             own_state[name].copy_(param)
-            print('{} {} is ok '.format(name, param.size()))
-            success.append(name )
+            # print('{} {} is ok '.format(name, param.size()))
+            success.append(name)
         else:
             lz.logging.error('dimension mismatch for param "{}", in the model are {}'
                              ' and in the checkpoint are {}, ...'.format(
@@ -116,6 +114,7 @@ def load_state_dict(model, state_dict):
     missing = set(own_state.keys()) - set(success)
     if len(missing) > 0:
         print('missing keys in my state_dict: "{}"'.format(missing))
+
 
 def main(args):
     lz.init_dev(args.gpu)
@@ -197,6 +196,9 @@ def main(args):
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
         print('top-1 ', acc)
+        fid = h5py.File('distmat.h5')
+        fid.create_dataset('ohnm_match/1', evaluator.distmat1)
+        fid.create_dataset('ohmn_match/2', evaluator.distmat2)
         return 0
 
     criterion = nn.CrossEntropyLoss().cuda()
@@ -275,77 +277,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    import lz
-
-    parser = argparse.ArgumentParser(description="many kind loss classification")
-    # data
-    parser.add_argument('--restart', action='store_true', default=True)
-    parser.add_argument('-j', '--workers', type=int, default=4)
-    parser.add_argument('--split', type=int, default=0)
-    parser.add_argument('--height', type=int, default=256,
-                        help="input height, default: 256 for resnet*, "
-                             "144 for inception")
-    parser.add_argument('--width', type=int, default=128,
-                        help="input width, default: 128 for resnet*, "
-                             "56 for inception")
-    parser.add_argument('--combine-trainval', action='store_true',
-                        help="train and val sets together for training, "
-                             "val set alone for validation",
-                        default=True)
-    parser.add_argument('--num-instances', type=int, default=4,
-                        help="each minibatch consist of "
-                             "(batch_size // num_instances) identities, and "
-                             "each identity has num_instances instances, "
-                             "default: 4")
-    # model
-    parser.add_argument('--evaluate', action='store_true', default=False)
-    parser.add_argument('--features', type=int, default=128)
-    parser.add_argument('--dropout', type=float, default=0)  # 0.5
-    # loss
-    parser.add_argument('--margin', type=float, default=0.5,
-                        help="margin of the triplet loss, default: 0.5")
-    # optimizer
-    parser.add_argument('--lr', type=float, default=0.01,
-                        help="learning rate of all parameters")
-    parser.add_argument('--steps', type=list, default=[50, 100, 150])
-    parser.add_argument('--epochs', type=int, default=160)
-
-    parser.add_argument('--weight-decay', type=float, default=5e-4)
-    # training configs
-    parser.add_argument('--resume', type=str, default='', metavar='PATH')  # ../work/logs.siamese/model_best.pth
-    parser.add_argument('--start_save', type=int, default=0,
-                        help="start saving checkpoints after specific epoch")
-    parser.add_argument('--seed', type=int, default=1)
-    parser.add_argument('--print-freq', type=int, default=5)
-    # metric learning
-    parser.add_argument('--dist-metric', type=str, default='euclidean',
-                        choices=['euclidean', 'kissme'])
-    # misc
-    home_dir = osp.expanduser('~') + '/.torch/'
-    parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(home_dir, 'data'))
-
-    # tuning
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
-                        choices=datasets.names())
-
-    parser.add_argument('-b', '--batch-size', type=int, default=64)
-    working_dir = osp.dirname(osp.abspath(__file__))
-
-    parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs.dbg'))
-
-    parser.add_argument('-a', '--arch', type=str, default='resnet50',
-                        choices=models.names())
-    parser.add_argument('--gpu', type=list, default=[3, ])
-    parser.add_argument('--embed', type=str)
-    parser.add_argument('--optimizer', type=str)
-    parser.add_argument('--normalize', action='store_true')
-    parser.add_argument('--num_classes', type=int)
-    parser.add_argument('--decay', type=float,default=0.5)
-    parser.add_argument('--config', metavar='PATH', default=None)
-    parser.add_argument('--export-config', action='store_true', default=False)
-
+    parser = get_parser()
     configs_str = '''
         - arch: resnet50
           dataset: cuhk03

@@ -27,10 +27,12 @@ class FeatureDatabase(Dataset):
     def __setitem__(self, key, value):
         if key in self.fid:
             if self.fid[key].shape == value.shape and \
-               self.fid[key].dtype == value.dtype:
+                            self.fid[key].dtype == value.dtype:
+                print('old is updated')
                 self.fid[key][...] = value
             else:
                 del self.fid[key]
+                print('old {} new {}'.format(self.fid[key].shape, value.shape))
                 self.fid.create_dataset(key, data=value)
         else:
             self.fid.create_dataset(key, data=value)
