@@ -61,6 +61,9 @@ def get_parser():
                         choices=['rand', 'hard', 'all', 'lift'])
     parser.add_argument('--gpu', type=list, default=[0, ])
     parser.add_argument('--pin_mem', action="store_true", default=True)
+    parser.add_argument('--log_start',action='store_true')
+    parser.add_argument('--log_middle',action='store_true')
+
     # tuning
     parser.add_argument('--freeze', action='store_true', default=False)
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',

@@ -1,5 +1,5 @@
 from torch import nn
-
+from lz import Database
 
 class SiameseNet(nn.Module):
     def __init__(self, base_model, embed_model):
@@ -20,14 +20,30 @@ class SiameseNet2(nn.Module):
         self.base_model = base_model
         self.transform = tranform
         self.embed_model = embed_model
+        # self.iter = 0
+        # self.fid = Database('dbg.h5','a')
 
-    def forward(self, x, y):
-        outputs = self.base_model(x)
-
-        pair1, pair2, y2 = self.transform(outputs, y)
+    def forward(self, x1, y1):
+        batch = self.base_model(x1)
+        pair1, pair2, y2 = self.transform(batch, y1)
+        y2= y2.type_as(y1.data)
         pred = self.embed_model(pair1, pair2)
 
-        return pred, y2.type_as(y.data)
+        # def save(k,v):
+        #     self.fid[k]=v.data.cpu().numpy()
+        #
+        # save('x1',x1)
+        # save('batch',batch)
+        # save('pair1',pair1)
+        # save('pair2',pair2)
+        # save('pred', pred)
+        #
+        # save('y1',y1)
+        # save('y2',y2)
+        # self.fid.close()
+        # exit(0)
+
+        return pred, y2
         # x.size(), y.size(), outputs.size()
         # pair1.size(), pred.size()
         # outputs[:,12,7,3]

@@ -10,6 +10,7 @@ from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
+import reid
 from reid import datasets
 from reid import models
 from reid.models import *
@@ -27,6 +28,56 @@ from reid.utils.serialization import load_checkpoint, save_checkpoint
 import torchvision
 from tensorboardX import SummaryWriter
 
+
+def run(args):
+    configs_str = '''
+        - arch: resnet50
+          dataset: cuhk03
+          optimizer: sgd  
+          embed: kron
+          
+          # resume: '../work/logs.siamese.tri.bak1/checkpoint.167.pth'
+          resume: '../work/logs.siamese/model_best.pth'
+          # resume: ''
+          restart: True
+
+          evaluate: True
+          export_config: False
+
+          dropout: 0 
+          lr: 0.005
+
+          steps: [100,150,160]
+          decay: 0.5
+          epochs: 170
+
+          logs_dir: logs.siamese.tri.dbg
+          start_save: 0
+
+          log_start: False
+          log_middle: True
+          batch_size: 80
+          gpu: [2,]
+        '''
+    for config in yaml.load(configs_str):
+        for k, v in config.items():
+            if k not in vars(args):
+                raise ValueError('{} {}'.format(k, v))
+            setattr(args, k, v)
+        args.logs_dir = '../work/' + args.logs_dir
+
+        if args.export_config:
+            lz.mypickle((args), './conf.pkl')
+            exit(0)
+        if not args.evaluate:
+            lz.mkdir_p(args.logs_dir, delete=True)
+            lz.write_json(vars(args), args.logs_dir + '/conf.json')
+
+        proc = lz.mp.Process(target=main, args=(args,))
+        proc.start()
+        proc.join()
+
+        # main(args)
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=4,
@@ -164,7 +215,12 @@ def main(args):
     print(model)
 
     # Load from checkpoint
-    start_epoch = best_top1 = 0
+    if args.log_start:
+        best_top1 = 0
+        start_epoch = 1
+    else:
+        best_top1 = start_epoch = 0
+
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
@@ -195,11 +251,17 @@ def main(args):
     )
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
-        print('top-1 ', acc)
-        db = lz.Database('distmat.h5', 'a')
-        db['ohmn_match/1'] = evaluator.distmat1
-        db['ohmn_match/2'] = evaluator.distmat2
-        db.close()
+        lz.logging.info('final rank1 is {}'.format(acc))
+        # db = lz.Database('distmat.h5', 'a')
+        # db['ohmn_match/1'] = evaluator.distmat1
+        # db['ohmn_match/2'] = evaluator.distmat2
+
+        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        print('val rank1', acc)
+        # db['ohmn_match/val/1'] = evaluator.distmat1
+        # db['ohmn_match/val/2'] = evaluator.distmat2
+        # db.close()
+
         return 0
 
     criterion = nn.CrossEntropyLoss().cuda()
@@ -229,7 +291,15 @@ def main(args):
 
     # Trainer
     trainer = VerfTrainer(model, criterion)
+    if args.log_start:
+        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        writer.add_scalars('train/top-1', {'stage1': acc1,
+                                           'stage2': acc}, 0)
 
+        # if args.combine_trainval:
+        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        writer.add_scalars('test/top-1', {'stage1': acc1,
+                                          'stage2': acc}, 0)
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
@@ -237,6 +307,8 @@ def main(args):
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
+        if not args.log_middle:
+            continue
         if epoch < args.start_save:
             continue
         if epoch < args.epochs // 2 and epoch % 10 != 0:
@@ -279,58 +351,6 @@ def main(args):
 
 if __name__ == '__main__':
     parser = get_parser()
-    configs_str = '''
-        - arch: resnet50
-          dataset: cuhk03
-          resume: '../work/logs.siamese.tri/model_best.pth'
-          # resume: '../work/logs.siamese/model_best.pth'
-          # resume: ''
-          restart: True
-          
-          evaluate: True
-          optimizer: sgd  
-          
-          embed: kron
-          
-          dropout: 0 
-          lr: 0.02
-          start_save: 0
-          
-          steps: [100,150,160]
-          decay: 0.5
-          epochs: 180
-          
-          # logs_dir: logs.siamese.tri
-          batch_size: 120
-          gpu: [3,]
-        '''
 
-    dbg = False
     args = parser.parse_args()
-
-    for config in yaml.load(configs_str):
-        for k, v in config.items():
-            if k not in vars(args):
-                raise ValueError('{} {}'.format(k, v))
-            setattr(args, k, v)
-        args.logs_dir = '../work/' + args.logs_dir
-        # lz.get_dev(ok=(0, 1,))
-        if dbg:
-            args.gpu = [0]
-            args.epochs = 150
-            args.workers = 4
-            args.batch_size = 32
-            args.logs_dir += '.dbg'
-
-        if args.export_config:
-            lz.mypickle((args), './conf.pkl')
-            exit(0)
-        if not args.evaluate:
-            lz.mkdir_p(args.logs_dir, delete=True)
-            lz.write_json(vars(args), args.logs_dir + '/conf.json')
-
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
-        proc.join()
-
-        # main(args)
+    run(args)

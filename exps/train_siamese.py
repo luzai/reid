@@ -161,8 +161,12 @@ def main(args):
     model = SiameseNet(base_model, embed_model)
 
     # Load from checkpoint
-    best_top1 = 0
-    start_epoch = 1
+    if args.log_start:
+        best_top1 = 0
+        start_epoch = 1
+    else:
+        best_top1 = start_epoch = 0
+
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
@@ -196,7 +200,7 @@ def main(args):
         lz.logging.info('final rank1 is {}'.format(acc))
         db = lz.Database('distmat.h5', 'a')
         db['match/1'] = evaluator.distmat1
-        db['match/2']=evaluator.distmat2
+        db['match/2'] = evaluator.distmat2
         db.close()
         return 0
 
@@ -223,18 +227,19 @@ def main(args):
                 break
         lr = base_lr * decay ** exp
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
+            param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Trainer
     trainer = SiameseTrainer(model, criterion)
-    acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
-    writer.add_scalars('train/top-1', {'stage1': acc1,
-                                       'stage2': acc}, 0)
+    if args.log_start:
+        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        writer.add_scalars('train/top-1', {'stage1': acc1,
+                                           'stage2': acc}, 0)
 
-    # if args.combine_trainval:
-    acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
-    writer.add_scalars('test/top-1', {'stage1': acc1,
-                                      'stage2': acc}, 0)
+        # if args.combine_trainval:
+        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        writer.add_scalars('test/top-1', {'stage1': acc1,
+                                          'stage2': acc}, 0)
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
@@ -242,6 +247,8 @@ def main(args):
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
+        if not args.log_middle:
+            continue
         if epoch < args.start_save:
             continue
         if epoch < args.epochs // 2 and epoch % 10 != 0:
@@ -285,26 +292,29 @@ def main(args):
 if __name__ == '__main__':
     parser = get_parser()
     configs_str = '''
-        - arch: resnet50
-          dataset: cuhk03
-          # resume: ''
-          resume: '../work/logs.siamese/model_best.pth'
-          restart: True
-                    
-          evaluate: True
-          optimizer: sgd  
-          
-          embed: kron
-          
-          dropout: 0 
-          lr: 0.005
-          start_save: 175
-          steps: [100,150,160]
-          epochs: 180
-          # logs_dir: logs.siamese
-          batch_size: 48
-          gpu: [3,]
-        '''
+    - arch: resnet50
+      dataset: cuhk03
+      # resume: ''
+      resume: '../work/logs.siamese/model_best.pth'
+      restart: True
+                
+      evaluate: False
+      
+      optimizer: sgd        
+      embed: kron
+      
+      log_first: False
+      log_middle: False 
+      
+      dropout: 0 
+      lr: 0.005
+      start_save: 165
+      steps: [100,150,160]
+      epochs: 170
+      # logs_dir: logs.siamese.dbg
+      batch_size: 32
+      gpu: [0,]
+    '''
 
     dbg = False
     args = parser.parse_args()

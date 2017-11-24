@@ -28,55 +28,27 @@ class Transform(nn.Module):
         dist = dist + dist.t()
         dist.addmm_(1, -2, inputs_flat, inputs_flat.t())
         dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
-        # For each anchor, find the hardest positive and negative
-        # dist_ap, dist_an = [], []
-        # for i in range(n):
-        #     if self.mode == 'hard':
-        #         dist_ap.append(dist[i][mask[i]].max())
-        #         dist_an.append(dist[i][mask[i] == 0].min())
-        #     elif self.mode == 'rand':
-        #         posp = dist[i][mask[i]]
-        #         dist_ap.append(posp[np.random.randint(0, posp.size(0))])
-        #
-        #         negp = dist[i][mask[i] == 0]
-        #         dist_an.append(negp[np.random.randint(0, negp.size(0))])
-        #     elif self.mode == 'lift':
-        #         negp = dist[i][mask[i] == 0]
-        #         posp = (dist[i][mask[i]].max()).expand(negp.size(0))
-        #
-        #         dist_ap.extend(posp)
-        #         dist_an.extend(negp)
-        #     elif self.mode == 'all':
-        #         posp = dist[i][mask[i]]
-        #         negp = dist[i][mask[i] == 0]
-        #         np, nn = posp.size(0), negp.size(0)
-        #         posp = posp.expand((nn, np)).t()
-        #         negp = negp.expand((np, nn))  # .contiguous().view(-1)
-        #         for posp_, negp_ in zip(posp, negp):
-        #             dist_ap.extend(posp_)
-        #             dist_an.extend(negp_)
-        #
-        #
-        # pairs = torch.cat(dist_ap+dist_an)
-        # Compute ranking hinge loss
-
 
         pair1, pair2 = [], []
-        # todo more mode
+        # if self.mode == 'rand'
         for i in range(n):
             pair1.append(inputs[i, :])
             posp_ind = all_ind[mask[i]]
-            _, posp_ind_t = dist[i][mask[i]].max(0)
-            posp_ind = posp_ind[Variable(posp_ind_t.data, requires_grad=False)]
-            posp = torch.index_select(inputs, 0, posp_ind)
+            # _, posp_ind_t = dist[i][mask[i]].max(0)
+            # posp_ind = posp_ind[Variable(posp_ind_t.data, requires_grad=False)]
+            posp_ind = np.random.randint(0, posp_ind.size(0))
+            # posp = torch.index_select(inputs, 0, posp_ind)
+            posp = inputs[posp_ind:posp_ind + 1, :]
             pair2.append(posp)
         # pair1[0].size(),pair2[0].size()
         for i in range(n):
             pair1.append(inputs[i, :])
             negp_ind = all_ind[mask[i] == 0]
-            _, negp_ind_t = dist[i][mask[i] == 0].min(0)
-            negp_ind = negp_ind[Variable(negp_ind_t.data, requires_grad=False)]
-            negp = torch.index_select(inputs, 0, negp_ind)
+            # _, negp_ind_t = dist[i][mask[i] == 0].min(0)
+            # negp_ind = negp_ind[Variable(negp_ind_t.data, requires_grad=False)]
+            negp_ind = np.random.randint(0, negp_ind.size(0))
+            # negp = torch.index_select(inputs, 0, negp_ind)
+            negp = inputs[negp_ind:negp_ind + 1, :]
             pair2.append(negp)
 
         pair1, pair2 = torch.stack(pair1), torch.cat(pair2)

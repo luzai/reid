@@ -147,7 +147,7 @@ class Evaluator(object):
     def __init__(self, model):
         super(Evaluator, self).__init__()
         self.model = model
-        self.distmat=None
+        self.distmat = None
 
     def evaluate(self, data_loader, query, gallery, metric=None, return_all=False, final=False):
         features, _ = extract_features(self.model, data_loader)
@@ -157,7 +157,7 @@ class Evaluator(object):
             gallery = np.array(gallery)[choice]
 
         distmat = pairwise_distance(features, query, gallery, metric=metric)
-        self.distmat=distmat.cpu().numpy()
+        self.distmat = distmat.cpu().numpy()
         return evaluate_all(distmat, query=query, gallery=gallery, return_all=return_all)
 
 
@@ -167,10 +167,11 @@ class CascadeEvaluator(object):
         self.base_model = base_model
         self.embed_model = embed_model
         self.embed_dist_fn = embed_dist_fn
-        self.distmat1 = self.distmat2=None
+        self.distmat1 = self.distmat2 = None
 
     def evaluate(self, data_loader, query, gallery, cache_file=None,
-                 rerank_topk=100, return_all=False, cmc_topk=(1, 5, 10), one_stage=True):
+                 rerank_topk=100, return_all=False, cmc_topk=(1, 5, 10),
+                 one_stage=True, need_second=True):
         if one_stage:
             rerank_topk = len(gallery)
         # Extract features image by image
@@ -207,9 +208,38 @@ class CascadeEvaluator(object):
                           cmc_scores['cuhk03'][k - 1],
                           cmc_scores['market1501'][k - 1]))
 
+        if not need_second:
+            if return_all:
+                return cmc_scores, 0
+            else:
+                return cmc_scores['cuhk03'][0], 0
+
+        # list(features.keys())
+        # features = [features[fname] for fname, pid, cid in query]
+        # pids = [pid for fname, pid, cid in query]
+        #
+        # features = features[:12]
+        # pids=pids[:12]
+        # pred = []
+        # for f1 in features:
+        #     for f2 in features:
+        #         pred.append(
+        #             self.embed_model(
+        #                 torch.autograd.Variable(f1.view((1,)+f1.size()).cuda()),
+        #                 torch.autograd.Variable(f2.view((1,)+f2.size()).cuda())
+        #                     )[0,1]
+        #         )
+        # pred = torch.cat(pred).view(12,12)
+
         # Sort according to the first stage distance
         distmat = distmat.cpu().numpy()
-        self.distmat1=distmat
+
+        # from lz import *
+        # plt.matshow(distmat)
+        # plt.colorbar()
+        # plt.show()
+
+        self.distmat1 = distmat
         rank_indices = np.argsort(distmat, axis=1)
 
         # Build a data loader for topk predictions for each query
@@ -223,13 +253,16 @@ class CascadeEvaluator(object):
         data_loader = DataLoader(
             KeyValuePreprocessor(features),
             sampler=pair_samples,
-            batch_size=min(len(gallery)*rerank_topk, 4096*2),
+            batch_size=min(len(gallery) * rerank_topk, 4096 * 4),
             num_workers=4, pin_memory=False)
 
         # Extract embeddings of each pair
         embeddings = extract_embeddings(self.embed_model, data_loader)
         if self.embed_dist_fn is not None:
             print('before embed_dist fn', embeddings.size())
+            # from lz import *
+            # plt.plot(embeddings[:,0].cpu().numpy())
+            # plt.show()
             embeddings = self.embed_dist_fn(embeddings)
             print('after embed dist fn', embeddings.size())
         # type(embeddings), type(torch.autograd.Variable(embeddings))
@@ -244,7 +277,7 @@ class CascadeEvaluator(object):
                 if gap > 0:
                     distmat[i][indices[rerank_topk:]] += gap
 
-        self.distmat2=distmat
+        self.distmat2 = distmat
 
         print("Second stage evaluation: (one stage?)", one_stage)
 
@@ -259,6 +292,14 @@ class CascadeEvaluator(object):
                   .format(k, cmc_scores2['allshots'][k - 1],
                           cmc_scores2['cuhk03'][k - 1],
                           cmc_scores2['market1501'][k - 1]))
+
+        # from lz import *
+        # plt.matshow(distmat)
+        # plt.colorbar()
+        #
+        # plt.matshow(np.log(distmat) )
+        # plt.colorbar()
+        # plt.show()
 
         if return_all:
             return cmc_scores, cmc_scores2

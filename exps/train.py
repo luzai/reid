@@ -284,9 +284,10 @@ if __name__ == '__main__':
       lr: 0.02
       decay: 0.5
       steps: [100,150,160 ]
-      start_save: 175
-      epochs: 180
-      logs_dir: logs.resnet50.2
+      epochs: 170
+      
+      start_save: 0      
+      logs_dir: logs.resnet50.dbg
       batch_size: 120
       gpu: [3]
       pin_mem: True

@@ -79,7 +79,8 @@ class VerfTrainer(BaseTrainer):
         pred, y = self.model(inputs[0], targets)
         loss = self.criterion(pred, y)
         prec1, = accuracy(pred.data, y.data)
-
+        ((pred.data[:,1]>pred.data[:,0]).type_as(y.data) == y.data).cpu().numpy()
+        (pred.data[:, 1] > pred.data[:, 0]).type_as(y.data).cpu().numpy()
         return loss, prec1[0]
 
 
