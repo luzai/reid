@@ -30,26 +30,42 @@ class Transform(nn.Module):
         dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
 
         pair1, pair2 = [], []
-        # if self.mode == 'rand'
-        for i in range(n):
-            pair1.append(inputs[i, :])
-            posp_ind = all_ind[mask[i]]
-            # _, posp_ind_t = dist[i][mask[i]].max(0)
-            # posp_ind = posp_ind[Variable(posp_ind_t.data, requires_grad=False)]
-            posp_ind = np.random.randint(0, posp_ind.size(0))
-            # posp = torch.index_select(inputs, 0, posp_ind)
-            posp = inputs[posp_ind:posp_ind + 1, :]
-            pair2.append(posp)
-        # pair1[0].size(),pair2[0].size()
-        for i in range(n):
-            pair1.append(inputs[i, :])
-            negp_ind = all_ind[mask[i] == 0]
-            # _, negp_ind_t = dist[i][mask[i] == 0].min(0)
-            # negp_ind = negp_ind[Variable(negp_ind_t.data, requires_grad=False)]
-            negp_ind = np.random.randint(0, negp_ind.size(0))
-            # negp = torch.index_select(inputs, 0, negp_ind)
-            negp = inputs[negp_ind:negp_ind + 1, :]
-            pair2.append(negp)
+        # self.mode='rand'
+        if self.mode == 'hard':
+            for i in range(n):
+                pair1.append(inputs[i, :])
+                posp_ind = all_ind[mask[i]]
+                _, posp_ind_t = dist[i][mask[i]].max(0)
+                posp_ind = posp_ind[Variable(posp_ind_t.data, requires_grad=False)]
+                posp_ind=posp_ind.data.cpu().numpy()
+                posp_ind=int(posp_ind)
+                # posp = torch.index_select(inputs, 0, posp_ind)
+                posp = inputs[posp_ind:posp_ind + 1, :]
+                pair2.append(posp)
+            # pair1[0].size(),pair2[0].size()
+            for i in range(n):
+                pair1.append(inputs[i, :])
+                negp_ind = all_ind[mask[i] == 0]
+                _, negp_ind_t = dist[i][mask[i] == 0].min(0)
+                negp_ind = negp_ind[Variable(negp_ind_t.data, requires_grad=False)]
+                negp_ind=negp_ind.data.cpu().numpy()
+                negp_ind = int(negp_ind)
+                # negp = torch.index_select(inputs, 0, negp_ind)
+                negp = inputs[negp_ind:negp_ind + 1, :]
+                pair2.append(negp)
+        else:
+            for i in range(n):
+                pair1.append(inputs[i, :])
+                posp_ind = all_ind[mask[i]]
+                posp_ind = np.random.randint(0, posp_ind.size(0))
+                posp = inputs[posp_ind:posp_ind + 1, :]
+                pair2.append(posp)
+            for i in range(n):
+                pair1.append(inputs[i, :])
+                negp_ind = all_ind[mask[i] == 0]
+                negp_ind = np.random.randint(0, negp_ind.size(0))
+                negp = inputs[negp_ind:negp_ind + 1, :]
+                pair2.append(negp)
 
         pair1, pair2 = torch.stack(pair1), torch.cat(pair2)
         pair1.size(), pair2.size()

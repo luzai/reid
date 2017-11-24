@@ -50,7 +50,7 @@ class ConcatEmbed(nn.Module):
         self.conv2 = _make_conv(1024, 1024)
         self.pool = nn.AvgPool2d(2)
         self.fc1 = _make_fc(1024, 512, dp_=0.4)
-        self.fc2 = _make_fc(512, 2, dp_=0.3)
+        self.fc2 = _make_fc(512, 2, dp_=0.3,with_relu=False)
 
     def forward(self, x1, x2):
         x = torch.cat([x1, x2], dim=1)

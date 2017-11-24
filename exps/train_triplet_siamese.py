@@ -31,33 +31,101 @@ from tensorboardX import SummaryWriter
 
 def run(args):
     configs_str = '''
+          
         - arch: resnet50
           dataset: cuhk03
           optimizer: sgd  
           embed: kron
-          
-          # resume: '../work/logs.siamese.tri.bak1/checkpoint.167.pth'
+          mode: hard
           resume: '../work/logs.siamese/model_best.pth'
           # resume: ''
           restart: True
-
-          evaluate: True
+          evaluate: False
           export_config: False
-
           dropout: 0 
           lr: 0.005
-
+          steps: [100,150,160]
+          decay: 0.5
+          epochs: 51
+          freeze: embed
+          logs_dir: logs.siamese.tri.kron.fe
+          start_save: 0
+          log_start: True
+          log_middle: True
+          
+          batch_size: 120
+          gpu: [2,]
+          
+        - arch: resnet50
+          dataset: cuhk03
+          optimizer: sgd  
+          embed: concat
+          mode: hard
+          resume: '../work/logs.siamese/model_best.pth'
+          # resume: ''
+          restart: True
+          evaluate: False
+          export_config: False
+          dropout: 0 
+          lr: 0.005
+          steps: [100,150,160]
+          decay: 0.5
+          epochs: 51
+          logs_dir: logs.siamese.tri.concat
+          start_save: 0
+          log_start: True
+          log_middle: True
+          
+          batch_size: 120
+          gpu: [2,]
+        
+        - arch: resnet50
+          dataset: cuhk03
+          optimizer: sgd  
+          embed: kron
+          mode: hard
+          resume: '../work/logs.siamese/model_best.pth'
+          # resume: ''
+          restart: True
+          evaluate: False
+          export_config: False
+          dropout: 0 
+          lr: 0.005
           steps: [100,150,160]
           decay: 0.5
           epochs: 170
-
-          logs_dir: logs.siamese.tri.dbg
+          logs_dir: logs.siamese.tri.kron
           start_save: 0
-
-          log_start: False
+          log_start: True
           log_middle: True
-          batch_size: 80
+          
+          batch_size: 120
           gpu: [2,]
+          
+        - arch: resnet50
+          dataset: cuhk03
+          optimizer: sgd  
+          embed: concat
+          mode: hard
+          resume: '../work/logs.siamese/model_best.pth'
+          # resume: ''
+          restart: True
+          evaluate: False
+          export_config: False
+          dropout: 0 
+          lr: 0.005
+          steps: [100,150,160]
+          decay: 0.5
+          epochs: 170
+          freeze: embed
+          logs_dir: logs.siamese.tri.concat.fe
+          start_save: 0
+          log_start: True
+          log_middle: True
+          
+          batch_size: 120
+          gpu: [2,]
+        
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
@@ -209,7 +277,7 @@ def main(args):
         embed_model = ConcatEmbed(1024)
     elif args.embed == 'eltsub':
         EltwiseSubEmbed(args.features, args.num_classes)
-    tranform = Transform(mode='hard')
+    tranform = Transform(mode=args.mode)
 
     model = SiameseNet2(base_model, tranform, embed_model, )
     print(model)
@@ -290,7 +358,9 @@ def main(args):
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Trainer
-    trainer = VerfTrainer(model, criterion)
+    trainer = VerfTrainer(model, criterion,freeze=args.freeze)
+    model.train()
+    model.module.base_model.eval()
     if args.log_start:
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
         writer.add_scalars('train/top-1', {'stage1': acc1,
@@ -311,9 +381,9 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 10 != 0:
+        if epoch < args.epochs // 2 and epoch % 25 != 0:
             continue
-        elif epoch < args.epochs - 20 and epoch % 5 != 0:
+        elif epoch < args.epochs - 20 and epoch % 15 != 0:
             continue
 
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)

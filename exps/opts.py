@@ -63,9 +63,8 @@ def get_parser():
     parser.add_argument('--pin_mem', action="store_true", default=True)
     parser.add_argument('--log_start',action='store_true')
     parser.add_argument('--log_middle',action='store_true')
-
+    parser.add_argument('--freeze',type=str,default='')
     # tuning
-    parser.add_argument('--freeze', action='store_true', default=False)
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
 

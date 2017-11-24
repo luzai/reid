@@ -1,4 +1,5 @@
-from __future__ import print_function, absolute_import
+from lz import *
+
 import time
 from collections import OrderedDict
 
@@ -150,6 +151,7 @@ class Evaluator(object):
         self.distmat = None
 
     def evaluate(self, data_loader, query, gallery, metric=None, return_all=False, final=False):
+        self.model.eval()
         features, _ = extract_features(self.model, data_loader)
         if not final and len(query) > 2000:
             choice = np.random.choice(len(query), 2000)
@@ -172,6 +174,8 @@ class CascadeEvaluator(object):
     def evaluate(self, data_loader, query, gallery, cache_file=None,
                  rerank_topk=100, return_all=False, cmc_topk=(1, 5, 10),
                  one_stage=True, need_second=True):
+        self.base_model.eval()
+        self.embed_model.eval()
         if one_stage:
             rerank_topk = len(gallery)
         # Extract features image by image
@@ -217,19 +221,31 @@ class CascadeEvaluator(object):
         # list(features.keys())
         # features = [features[fname] for fname, pid, cid in query]
         # pids = [pid for fname, pid, cid in query]
-        #
-        # features = features[:12]
-        # pids=pids[:12]
+        # features_bak = features
+        # features = features[:100]
+        # len(features)
+        # # pids=pids[:100]
+        # pids[:12]
         # pred = []
+        # self.embed_model.eval()
+        # # self.embed_model.train()
         # for f1 in features:
         #     for f2 in features:
         #         pred.append(
         #             self.embed_model(
-        #                 torch.autograd.Variable(f1.view((1,)+f1.size()).cuda()),
-        #                 torch.autograd.Variable(f2.view((1,)+f2.size()).cuda())
-        #                     )[0,1]
+        #                 torch.autograd.Variable(f1.view((1,)+f1.size()).cuda(), volatile=True),
+        #                 torch.autograd.Variable(f2.view((1,)+f2.size()).cuda(), volatile=True)
+        #                     )[0,0]
         #         )
-        # pred = torch.cat(pred).view(12,12)
+        # # pred = torch.cat(pred).view(12,12)
+        # pred=torch.cat(pred)
+        # pred =pred.view(int(np.sqrt(pred.size(0))) , int(np.sqrt(pred.size(0))))
+        # # plt.matshow(pred[:12,:12].data.cpu().numpy())
+        # # plt.colorbar()
+        # # plt.show()
+        # plt.matshow(pred.data.cpu().numpy())
+        # plt.colorbar()
+        # plt.show()
 
         # Sort according to the first stage distance
         distmat = distmat.cpu().numpy()
@@ -253,7 +269,7 @@ class CascadeEvaluator(object):
         data_loader = DataLoader(
             KeyValuePreprocessor(features),
             sampler=pair_samples,
-            batch_size=min(len(gallery) * rerank_topk, 4096 * 4),
+            batch_size=min(len(gallery) * rerank_topk, 4096),
             num_workers=4, pin_memory=False)
 
         # Extract embeddings of each pair
@@ -263,6 +279,16 @@ class CascadeEvaluator(object):
             # from lz import *
             # plt.plot(embeddings[:,0].cpu().numpy())
             # plt.show()
+
+            # for a,b in data_loader:
+            #     from reid.utils import  to_torch
+            #     from lz import *
+            #     a=to_torch(a)
+            #     a=Variable(a.cuda())
+            #     b=Variable(to_torch(b).cuda())
+            #     t=self.embed_model(a,b)
+            #     break
+
             embeddings = self.embed_dist_fn(embeddings)
             print('after embed dist fn', embeddings.size())
         # type(embeddings), type(torch.autograd.Variable(embeddings))

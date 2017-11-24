@@ -13,10 +13,11 @@ from .utils.meters import AverageMeter
 
 
 class BaseTrainer(object):
-    def __init__(self, model, criterion):
+    def __init__(self, model, criterion, freeze=''):
         super(BaseTrainer, self).__init__()
         self.model = model
         self.criterion = criterion
+        self.freeze = freeze
 
     def train(self, epoch, data_loader, optimizer, print_freq=1):
         self.model.train()
@@ -76,11 +77,15 @@ class VerfTrainer(BaseTrainer):
         return inputs, targets
 
     def _forward(self, inputs, targets):
+        # self.model.eval()
+        if self.freeze == 'embed':
+            # self.model.module.base_model.eval()
+            self.model.module.embed_model.eval()
         pred, y = self.model(inputs[0], targets)
         loss = self.criterion(pred, y)
         prec1, = accuracy(pred.data, y.data)
-        ((pred.data[:,1]>pred.data[:,0]).type_as(y.data) == y.data).cpu().numpy()
-        (pred.data[:, 1] > pred.data[:, 0]).type_as(y.data).cpu().numpy()
+        # ((pred.data[:,1]>pred.data[:,0]).type_as(y.data) == y.data).cpu().numpy()
+        # (pred.data[:, 1] > pred.data[:, 0]).type_as(y.data).cpu().numpy()
         return loss, prec1[0]
 
 

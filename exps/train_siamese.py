@@ -230,7 +230,7 @@ def main(args):
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Trainer
-    trainer = SiameseTrainer(model, criterion)
+    trainer = SiameseTrainer(model, criterion,freeze=args.freeze)
     if args.log_start:
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
         writer.add_scalars('train/top-1', {'stage1': acc1,
@@ -297,23 +297,41 @@ if __name__ == '__main__':
       # resume: ''
       resume: '../work/logs.siamese/model_best.pth'
       restart: True
-                
       evaluate: False
-      
       optimizer: sgd        
-      embed: kron
-      
-      log_first: False
-      log_middle: False 
-      
+      embed: concat
+      log_start: True
+      log_middle: True
       dropout: 0 
+      freeze: embed
       lr: 0.005
-      start_save: 165
+      start_save: 0
       steps: [100,150,160]
       epochs: 170
-      # logs_dir: logs.siamese.dbg
+      logs_dir: logs.siamese.concat.freezeembed
       batch_size: 32
       gpu: [0,]
+      
+    - arch: resnet50
+      dataset: cuhk03
+      # resume: ''
+      resume: '../work/logs.siamese/model_best.pth'
+      restart: True
+      evaluate: False
+      optimizer: sgd        
+      embed: concat
+      log_start: True
+      log_middle: True
+      dropout: 0 
+      freeze: ''
+      lr: 0.005
+      start_save: 0
+      steps: [100,150,160]
+      epochs: 170
+      logs_dir: logs.siamese.concat
+      batch_size: 32
+      gpu: [0,]
+      
     '''
 
     dbg = False
