@@ -29,7 +29,7 @@ from tensorboardX import SummaryWriter
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
-             workers, combine_trainval, return_vis=False, pin_memory=False):
+             workers, combine_trainval, return_vis=False, pin_memory=True):
     root = osp.join(data_dir, name)
 
     dataset = datasets.create(name, root, split_id=split_id)
@@ -274,7 +274,7 @@ if __name__ == '__main__':
       # resume: ''
       
       restart: True
-      evaluate: True
+      evaluate: False
       
       optimizer: sgd
       normalize: False

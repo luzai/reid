@@ -196,9 +196,10 @@ def main(args):
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
         print('top-1 ', acc)
-        fid = h5py.File('distmat.h5')
-        fid.create_dataset('ohnm_match/1', evaluator.distmat1)
-        fid.create_dataset('ohmn_match/2', evaluator.distmat2)
+        db = lz.Database('distmat.h5', 'a')
+        db['ohmn_match/1'] = evaluator.distmat1
+        db['ohmn_match/2'] = evaluator.distmat2
+        db.close()
         return 0
 
     criterion = nn.CrossEntropyLoss().cuda()
@@ -281,12 +282,12 @@ if __name__ == '__main__':
     configs_str = '''
         - arch: resnet50
           dataset: cuhk03
-          resume: '../work/logs.resnet50.2/model_best.pth'
+          resume: '../work/logs.siamese.tri/model_best.pth'
           # resume: '../work/logs.siamese/model_best.pth'
           # resume: ''
           restart: True
           
-          evaluate: False
+          evaluate: True
           optimizer: sgd  
           
           embed: kron
@@ -299,9 +300,9 @@ if __name__ == '__main__':
           decay: 0.5
           epochs: 180
           
-          logs_dir: logs.siamese.tri
+          # logs_dir: logs.siamese.tri
           batch_size: 120
-          gpu: [0,]
+          gpu: [3,]
         '''
 
     dbg = False
@@ -324,9 +325,9 @@ if __name__ == '__main__':
         if args.export_config:
             lz.mypickle((args), './conf.pkl')
             exit(0)
-
-        lz.mkdir_p(args.logs_dir, delete=True)
-        lz.write_json(vars(args), args.logs_dir + '/conf.json')
+        if not args.evaluate:
+            lz.mkdir_p(args.logs_dir, delete=True)
+            lz.write_json(vars(args), args.logs_dir + '/conf.json')
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()

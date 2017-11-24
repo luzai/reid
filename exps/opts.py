@@ -74,9 +74,9 @@ def get_parser():
 
     parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
-    parser.add_argument('--embed', type=str)
-    parser.add_argument('--optimizer', type=str)
-    parser.add_argument('--normalize', action='store_true')
+    parser.add_argument('--embed', type=str,default= "kron")
+    parser.add_argument('--optimizer', type=str,default='sgd')
+    parser.add_argument('--normalize', action='store_true',default=False)
     parser.add_argument('--num_classes', type=int)
     parser.add_argument('--decay', type=float, default=0.5)
     parser.add_argument('--config', metavar='PATH', default='')

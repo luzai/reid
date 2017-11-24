@@ -193,10 +193,11 @@ def main(args):
     )
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
-        print('top-1 ', acc)
-        fid = h5py.File('distmat.h5')
-        fid.create_dataset('match/1', evaluator.distmat1)
-        fid.create_dataset('match/2', evaluator.distmat2)
+        lz.logging.info('final rank1 is {}'.format(acc))
+        db = lz.Database('distmat.h5', 'a')
+        db['match/1'] = evaluator.distmat1
+        db['match/2']=evaluator.distmat2
+        db.close()
         return 0
 
     criterion = nn.CrossEntropyLoss().cuda()
@@ -213,13 +214,14 @@ def main(args):
                                 weight_decay=args.weight_decay,
                                 nesterov=True)
 
-    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps):
+    # Schedule learning rate
+    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
         exp = len(steps)
         for i, step in enumerate(steps):
             if epoch < step:
                 exp = i
                 break
-        lr = base_lr * 0.1 ** exp
+        lr = base_lr * decay ** exp
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
@@ -286,10 +288,10 @@ if __name__ == '__main__':
         - arch: resnet50
           dataset: cuhk03
           # resume: ''
-          resume: '../work/logs.resnet50/model_best.pth'
+          resume: '../work/logs.siamese/model_best.pth'
           restart: True
                     
-          evaluate: False
+          evaluate: True
           optimizer: sgd  
           
           embed: kron
@@ -299,9 +301,9 @@ if __name__ == '__main__':
           start_save: 175
           steps: [100,150,160]
           epochs: 180
-          logs_dir: logs.siamese
+          # logs_dir: logs.siamese
           batch_size: 48
-          gpu: [0,]
+          gpu: [3,]
         '''
 
     dbg = False
@@ -326,9 +328,9 @@ if __name__ == '__main__':
         if args.export_config:
             lz.mypickle((args), './conf.pkl')
             exit(0)
-
-        lz.mkdir_p(args.logs_dir, delete=True)
-        lz.write_json(vars(args), args.logs_dir + '/conf.json')
+        if not args.evaluate:
+            lz.mkdir_p(args.logs_dir, delete=True)
+            lz.write_json(vars(args), args.logs_dir + '/conf.json')
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
