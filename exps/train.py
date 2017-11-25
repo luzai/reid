@@ -30,9 +30,14 @@ from tensorboardX import SummaryWriter
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
              workers, combine_trainval, return_vis=False, pin_memory=True):
-    root = osp.join(data_dir, name)
-
-    dataset = datasets.create(name, root, split_id=split_id)
+    if isinstance(name, list):
+        names = name
+        root = '/home/xinglu/.torch/data/'
+        roots = [root + name_ for name_ in names]
+        dataset = datasets.creates(name, roots=roots)
+    else:
+        root = osp.join(data_dir, name)
+        dataset = datasets.create(name, root, split_id=split_id)
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -216,18 +221,19 @@ def main(args):
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
-
+        if not args.log_middle:
+            continue
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 10 != 0:
+        if epoch < args.epochs // 2 and epoch % 25 != 0:
             continue
-        elif epoch < args.epochs - 20 and epoch % 5 != 0:
+        elif epoch < args.epochs - 5 and epoch % 20 != 0:
             continue
 
         acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, return_all=True)
         acc = {'top-1': acc['cuhk03'][0],
-               'top-5': acc['cuhk03'][4],
-               'top-10': acc['cuhk03'][9]
+               # 'top-5': acc['cuhk03'][4],
+               # 'top-10': acc['cuhk03'][9]
                }
         writer.add_scalars('train', acc, epoch)
 
@@ -236,8 +242,8 @@ def main(args):
         # else:
         #     top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=True)
         acc = {'top-1': acc['cuhk03'][0],
-               'top-5': acc['cuhk03'][4],
-               'top-10': acc['cuhk03'][9]
+               # 'top-5': acc['cuhk03'][4],
+               # 'top-10': acc['cuhk03'][9]
                }
         writer.add_scalars('test', acc, epoch)
 
@@ -267,8 +273,8 @@ if __name__ == '__main__':
     parser = get_parser()
     configs_str = '''    
     - arch: resnet50
-            
-      dataset: cuhk03
+      
+      dataset: ['cuhk03', 'cuhk01', 'viper','market1501','dukemtmc']
       workers: 4
       resume: '../work/logs.resnet50/model_best.pth'
       # resume: ''
@@ -287,13 +293,11 @@ if __name__ == '__main__':
       epochs: 170
       
       start_save: 0      
-      logs_dir: logs.resnet50.dbg
+      logs_dir: logs.resnet50.comb
       batch_size: 120
-      gpu: [3]
+      gpu: [2]
       pin_mem: True
     '''
-
-    dbg = False
 
     args = parser.parse_args()
 
@@ -303,17 +307,14 @@ if __name__ == '__main__':
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
         args.logs_dir = '../work/' + args.logs_dir
-        if dbg:
-            args.gpu = [lz.get_dev(n=1, mem=(0.5, 0.7))]
-            args.epochs = 150
-            args.workers = 4
-            args.batch_size = 32
-            args.logs_dir += '.dbg'
+
+        lz.get_dev(ok=args.gpu, sleep=2, mem=[0.5, 0.6])
 
         if args.export_config:
             lz.mypickle((args), './conf.pkl')
             exit(0)
         if not args.evaluate:
+            assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
             lz.write_json(vars(args), args.logs_dir + '/conf.json')
 

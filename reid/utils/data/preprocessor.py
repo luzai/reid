@@ -3,6 +3,9 @@ import os.path as osp
 
 from PIL import Image
 
+class Preprecessor_combine(object):
+    def __init__(self,dataset, tranform=None):
+        pass
 
 class Preprocessor(object):
     def __init__(self, dataset, root=None, transform=None):
@@ -22,7 +25,7 @@ class Preprocessor(object):
     def _get_single_item(self, index):
         fname, pid, camid = self.dataset[index]
         fpath = fname
-        if self.root is not None:
+        if not osp.exists(fpath) and self.root is not None :
             fpath = osp.join(self.root, fname)
         img = Image.open(fpath).convert('RGB')
         if self.transform is not None:

@@ -251,9 +251,9 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 10 != 0:
+        if epoch < args.epochs // 2 and epoch % 25 != 0:
             continue
-        elif epoch < args.epochs - 20 and epoch % 5 != 0:
+        elif epoch < args.epochs-5 and epoch % 20 != 0:
             continue
 
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
@@ -270,7 +270,7 @@ def main(args):
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
         # is_best = True
-        top1 = 0
+        # top1 = 0
         save_checkpoint({
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
@@ -307,7 +307,7 @@ if __name__ == '__main__':
       lr: 0.005
       start_save: 0
       steps: [100,150,160]
-      epochs: 170
+      epochs: 165
       logs_dir: logs.siamese.concat.freezeembed
       batch_size: 32
       gpu: [0,]

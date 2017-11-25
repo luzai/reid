@@ -28,4 +28,4 @@ if __name__ == '__main__':
     x = Variable(torch.randn(10, 3, 256,128), requires_grad=False)
     y = model(x)
     # y.norm(2,1)
-    print y.size()
+    print(y.size())

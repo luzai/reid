@@ -31,53 +31,6 @@ from tensorboardX import SummaryWriter
 
 def run(args):
     configs_str = '''
-          
-        - arch: resnet50
-          dataset: cuhk03
-          optimizer: sgd  
-          embed: kron
-          mode: hard
-          resume: '../work/logs.siamese/model_best.pth'
-          # resume: ''
-          restart: True
-          evaluate: False
-          export_config: False
-          dropout: 0 
-          lr: 0.005
-          steps: [100,150,160]
-          decay: 0.5
-          epochs: 51
-          freeze: embed
-          logs_dir: logs.siamese.tri.kron.fe
-          start_save: 0
-          log_start: True
-          log_middle: True
-          
-          batch_size: 120
-          gpu: [2,]
-          
-        - arch: resnet50
-          dataset: cuhk03
-          optimizer: sgd  
-          embed: concat
-          mode: hard
-          resume: '../work/logs.siamese/model_best.pth'
-          # resume: ''
-          restart: True
-          evaluate: False
-          export_config: False
-          dropout: 0 
-          lr: 0.005
-          steps: [100,150,160]
-          decay: 0.5
-          epochs: 51
-          logs_dir: logs.siamese.tri.concat
-          start_save: 0
-          log_start: True
-          log_middle: True
-          
-          batch_size: 120
-          gpu: [2,]
         
         - arch: resnet50
           dataset: cuhk03
@@ -93,19 +46,43 @@ def run(args):
           lr: 0.005
           steps: [100,150,160]
           decay: 0.5
-          epochs: 170
-          logs_dir: logs.siamese.tri.kron
+          epochs: 165
+          freeze: embed
+          logs_dir: logs.siamese.tri.kron.fe
           start_save: 0
-          log_start: True
+          log_start: False
           log_middle: True
           
           batch_size: 120
           gpu: [2,]
           
+        # - arch: resnet50
+        #   dataset: cuhk03
+        #   optimizer: sgd  
+        #   embed: concat
+        #   mode: hard
+        #   resume: '../work/logs.siamese/model_best.pth'
+        #   # resume: ''
+        #   restart: True
+        #   evaluate: False
+        #   export_config: False
+        #   dropout: 0 
+        #   lr: 0.005
+        #   steps: [100,150,160]
+        #   decay: 0.5
+        #   epochs: 51
+        #   logs_dir: logs.siamese.tri.concat
+        #   start_save: 0
+        #   log_start: True
+        #   log_middle: True
+        #   
+        #   batch_size: 120
+        #   gpu: [2,]
+        
         - arch: resnet50
           dataset: cuhk03
           optimizer: sgd  
-          embed: concat
+          embed: kron
           mode: hard
           resume: '../work/logs.siamese/model_best.pth'
           # resume: ''
@@ -116,15 +93,38 @@ def run(args):
           lr: 0.005
           steps: [100,150,160]
           decay: 0.5
-          epochs: 170
-          freeze: embed
-          logs_dir: logs.siamese.tri.concat.fe
+          epochs: 165
+          logs_dir: logs.siamese.tri.kron
           start_save: 0
-          log_start: True
+          log_start: False
           log_middle: True
           
           batch_size: 120
           gpu: [2,]
+          
+        # - arch: resnet50
+        #   dataset: cuhk03
+        #   optimizer: sgd  
+        #   embed: concat
+        #   mode: hard
+        #   resume: '../work/logs.siamese/model_best.pth'
+        #   # resume: ''
+        #   restart: True
+        #   evaluate: False
+        #   export_config: False
+        #   dropout: 0 
+        #   lr: 0.005
+        #   steps: [100,150,160]
+        #   decay: 0.5
+        #   epochs: 170
+        #   freeze: embed
+        #   logs_dir: logs.siamese.tri.concat.fe
+        #   start_save: 0
+        #   log_start: True
+        #   log_middle: True
+        #   
+        #   batch_size: 120
+        #   gpu: [2,]
         
         '''
     for config in yaml.load(configs_str):
@@ -359,8 +359,6 @@ def main(args):
 
     # Trainer
     trainer = VerfTrainer(model, criterion,freeze=args.freeze)
-    model.train()
-    model.module.base_model.eval()
     if args.log_start:
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
         writer.add_scalars('train/top-1', {'stage1': acc1,
@@ -383,7 +381,7 @@ def main(args):
             continue
         if epoch < args.epochs // 2 and epoch % 25 != 0:
             continue
-        elif epoch < args.epochs - 20 and epoch % 15 != 0:
+        elif epoch < args.epochs-5 and epoch % 20 != 0:
             continue
 
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
@@ -411,12 +409,13 @@ def main(args):
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    print('Test with best model:')
-    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
-    model.module.load_state_dict(checkpoint['state_dict'])
-    metric.train(model, train_loader)
-    acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
-    lz.logging.info('final rank1 is {}'.format(acc))
+    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
+        print('Test with best model:')
+        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
+        model.module.load_state_dict(checkpoint['state_dict'])
+        metric.train(model, train_loader)
+        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
+        lz.logging.info('final rank1 is {}'.format(acc))
 
 
 if __name__ == '__main__':
