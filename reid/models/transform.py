@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 from tensorboardX import SummaryWriter
 import subprocess
-
+from lz import *
 
 class Transform(nn.Module):
     def __init__(self, mode='hard', **kwargs):
@@ -14,7 +14,8 @@ class Transform(nn.Module):
         self.mode = mode
         # subprocess.call(('rm -rf exps/dbg').split())
         # self.writer = SummaryWriter('./exps/dbg')
-        # self.iter = 0
+        # self.db = Database('./dbg.hard.h5','w')
+        self.iter = 0
 
     def forward(self, inputs, targets, info=None):
         n = inputs.size(0)
@@ -72,17 +73,19 @@ class Transform(nn.Module):
             np.ones((n,)),
             np.zeros((n,))
         )))
-        info['inds2'] = pair2_ind
+        if info is not None:
+            info['inds2'] = pair2_ind
         y = y.type_as(pair1.data)
         # y.resize_as_()
         y = Variable(y, requires_grad=False)
 
         # if self.iter % 10 == 0:
+        #     self.db[self.iter] = np.asarray(pair2_ind)
         #     self.writer.add_histogram('features', inputs, self.iter)
         #     self.writer.add_histogram('dist', dist, self.iter)
         #     self.writer.add_histogram('ap', dist_ap, self.iter)
         #     self.writer.add_histogram('an', dist_an, self.iter)
-        #
-        # self.iter += 1
+
+        self.iter += 1
         # y.size()
         return pair1, pair2, y, info

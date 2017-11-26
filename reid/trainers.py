@@ -31,7 +31,8 @@ class BaseTrainer(object):
 
             inputs, targets = self._parse_data(inputs)
             loss, prec1 = self._forward(inputs, targets)
-
+            if isinstance(targets, tuple):
+                targets,_ = targets
             losses.update(loss.data[0], targets.size(0))
             precisions.update(prec1, targets.size(0))
 
@@ -71,13 +72,16 @@ class VerfTrainer(BaseTrainer):
     def _parse_data(self, inputs):
         imgs, fnames, pids, _ = inputs
         inputs = [Variable(imgs.cuda(), requires_grad=False)]
-        info = pd.DataFrame.from_dict({
-            'fnames': fnames,
-            'pids': pids.cpu().numpy(),
-            'inds': range(len(fnames))
-        })
-        info = pd.concat([info, info], axis=0)
-        info.reset_index(drop=True, inplace=True)
+        info = None
+
+        # info = pd.DataFrame.from_dict({
+        #     'fnames': fnames,
+        #     'pids': pids.cpu().numpy(),
+        #     'inds': range(len(fnames))
+        # })
+        # info = pd.concat([info, info], axis=0)
+        # info.reset_index(drop=True, inplace=True)
+
         targets = Variable(pids.cuda(), requires_grad=False)
         return inputs, (targets, info)
 
@@ -88,11 +92,12 @@ class VerfTrainer(BaseTrainer):
             # self.model.module.base_model.eval()
             self.model.module.embed_model.eval()
         pred, y, info = self.model(inputs[0], targets, info)
-        write_df(info, 'dbg.hard.h5')
-        print(
-           np.array(((pred.data[:, 1] > pred.data[:, 0]).type_as(y.data) == y.data).cpu().numpy()).mean()
-        )
-        exit(0)
+
+        # write_df(info, 'dbg.hard.h5')
+        # print(
+        #    np.array(((pred.data[:, 1] > pred.data[:, 0]).type_as(y.data) == y.data).cpu().numpy()).mean()
+        # )
+        # exit(0)
         loss = self.criterion(pred, y)
         prec1, = accuracy(pred.data, y.data)
         # ((pred.data[:,1] > pred.data[:,0]).type_as(y.data) == y.data).cpu().numpy()

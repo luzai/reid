@@ -27,19 +27,23 @@ class SiameseNet2(nn.Module):
 
     def forward(self, x1, y1, info=None):
         batch = self.base_model(x1)
-        batch_np = batch.data.cpu().numpy()
-        batch_np = batch_np.reshape((batch_np.shape[0], -1))
-        batch_np = np.concatenate([batch_np, batch_np])
 
-        info['features'] = batch_np.tolist()
+        if info is not None:
+            batch_np = batch.data.cpu().numpy()
+            batch_np = batch_np.reshape((batch_np.shape[0], -1))
+            batch_np = np.concatenate([batch_np, batch_np])
+            info['features'] = batch_np.tolist()
 
         pair1, pair2, y2, info = self.transform(batch, y1, info)
         y2 = y2.type_as(y1.data)
-        info['y2'] = y2.data.cpu().numpy().tolist()
+
 
         pred = self.embed_model(pair1, pair2)
-        info['pred0'] = pred[:, 0].data.cpu().numpy().tolist()
-        info['pred1'] = pred[:, 1].data.cpu().numpy().tolist()
+        if info is not None:
+            info['y2'] = y2.data.cpu().numpy().tolist()
+
+            info['pred0'] = pred[:, 0].data.cpu().numpy().tolist()
+            info['pred1'] = pred[:, 1].data.cpu().numpy().tolist()
 
         # def save(k,v):
         #     self.fid[k]=v.data.cpu().numpy()

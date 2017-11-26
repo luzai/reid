@@ -40,25 +40,25 @@ def run(args):
           dataset: cuhk03
           optimizer: sgd  
           embed: concat
-          mode: hard
+          mode: rand
           resume: '../work/logs.siamese.concat/model_best.pth'
           # resume: ''
           restart: True
           evaluate: False
           export_config: False
           dropout: 0 
-          lr: 0.01
+          lr: 0.002
           steps: [100,150,160]
           decay: 0.5
           epochs: 51
-          freeze: ''
+          freeze: 'embed'
           logs_dir: siamese.tri.dbg
           start_save: 0
           log_start: False
           log_middle: True
-
-          batch_size: 128
-          gpu: [1, ]
+          need_second: False
+          batch_size: 12
+          gpu: [3, ]
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
@@ -66,7 +66,9 @@ def run(args):
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
         args.logs_dir = '../work/' + args.logs_dir
-        # lz.get_dev(ok=args.gpu,mem=[0.5,0.9])
+        args.gpu = lz.get_dev(n=len(args.gpu), ok=(0, 1, 2, 3), mem=[0.5, 0.8])
+        if isinstance(args.gpu, int):
+            args.gpu = [args.gpu]
         if args.export_config:
             lz.mypickle((args), './conf.pkl')
             exit(0)
@@ -292,14 +294,16 @@ def main(args):
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Trainer
-    trainer = VerfTrainer(model, criterion,freeze=args.freeze)
+    trainer = VerfTrainer(model, criterion, freeze=args.freeze)
     if args.log_start:
-        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False,
+                                       need_second=args.need_second)
         writer.add_scalars('train/top-1', {'stage1': acc1,
                                            'stage2': acc}, 0)
 
         # if args.combine_trainval:
-        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False,
+                                       need_second=args.need_second)
         writer.add_scalars('test/top-1', {'stage1': acc1,
                                           'stage2': acc}, 0)
     # Start training
@@ -313,17 +317,19 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 20 != 0:
+        if epoch < args.epochs // 2 and epoch % 10 != 0:
             continue
-        elif epoch < args.epochs-5 and epoch % 10 != 0:
+        elif epoch < args.epochs - 5 and epoch % 5 != 0:
             continue
 
-        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False,
+                                       need_second=args.need_second)
         writer.add_scalars('train/top-1', {'stage1': acc1,
                                            'stage2': acc}, epoch)
 
         # if args.combine_trainval:
-        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False,
+                                       need_second=args.need_second)
         writer.add_scalars('test/top-1', {'stage1': acc1,
                                           'stage2': acc}, epoch)
 

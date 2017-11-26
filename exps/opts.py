@@ -83,5 +83,5 @@ def get_parser():
     parser.add_argument('--decay', type=float, default=0.5)
     parser.add_argument('--config', metavar='PATH', default='')
     parser.add_argument('--export-config', action='store_true', default=False)
-
+    parser.add_argument('--need-second', action='store_true',default=True)
     return parser
