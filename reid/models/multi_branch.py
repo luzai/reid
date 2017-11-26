@@ -1,5 +1,7 @@
 from torch import nn
 from lz import Database
+from lz import *
+
 
 class SiameseNet(nn.Module):
     def __init__(self, base_model, embed_model):
@@ -23,11 +25,21 @@ class SiameseNet2(nn.Module):
         # self.iter = 0
         # self.fid = Database('dbg.h5','a')
 
-    def forward(self, x1, y1):
+    def forward(self, x1, y1, info=None):
         batch = self.base_model(x1)
-        pair1, pair2, y2 = self.transform(batch, y1)
-        y2= y2.type_as(y1.data)
+        batch_np = batch.data.cpu().numpy()
+        batch_np = batch_np.reshape((batch_np.shape[0], -1))
+        batch_np = np.concatenate([batch_np, batch_np])
+
+        info['features'] = batch_np.tolist()
+
+        pair1, pair2, y2, info = self.transform(batch, y1, info)
+        y2 = y2.type_as(y1.data)
+        info['y2'] = y2.data.cpu().numpy().tolist()
+
         pred = self.embed_model(pair1, pair2)
+        info['pred0'] = pred[:, 0].data.cpu().numpy().tolist()
+        info['pred1'] = pred[:, 1].data.cpu().numpy().tolist()
 
         # def save(k,v):
         #     self.fid[k]=v.data.cpu().numpy()
@@ -43,13 +55,14 @@ class SiameseNet2(nn.Module):
         # self.fid.close()
         # exit(0)
 
-        return pred, y2
+        return pred, y2, info
         # x.size(), y.size(), outputs.size()
         # pair1.size(), pred.size()
         # outputs[:,12,7,3]
         # pair1[:,12,7,3]
         # pair2[:,12,7,3]
         # y2
+
 
 class TripletNet(nn.Module):
     def __init__(self, base_model, embed_model):

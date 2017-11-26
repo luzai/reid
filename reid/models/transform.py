@@ -16,7 +16,7 @@ class Transform(nn.Module):
         # self.writer = SummaryWriter('./exps/dbg')
         # self.iter = 0
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs, targets, info=None):
         n = inputs.size(0)
         all_ind = Variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False).cuda()
 
@@ -30,50 +30,49 @@ class Transform(nn.Module):
         dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
 
         pair1, pair2 = [], []
+        pair2_ind = []
         # self.mode='rand'
         if self.mode == 'hard':
             for i in range(n):
                 pair1.append(inputs[i, :])
                 posp_ind = all_ind[mask[i]]
                 _, posp_ind_t = dist[i][mask[i]].max(0)
-                posp_ind = posp_ind[Variable(posp_ind_t.data, requires_grad=False)]
-                posp_ind=posp_ind.data.cpu().numpy()
-                posp_ind=int(posp_ind)
-                # posp = torch.index_select(inputs, 0, posp_ind)
-                posp = inputs[posp_ind:posp_ind + 1, :]
+                posp_ind = posp_ind[posp_ind_t]
+                pair2_ind.append(int(posp_ind.data.cpu().numpy()))
+                posp = inputs[posp_ind, :]
                 pair2.append(posp)
-            # pair1[0].size(),pair2[0].size()
             for i in range(n):
                 pair1.append(inputs[i, :])
                 negp_ind = all_ind[mask[i] == 0]
                 _, negp_ind_t = dist[i][mask[i] == 0].min(0)
-                negp_ind = negp_ind[Variable(negp_ind_t.data, requires_grad=False)]
-                negp_ind=negp_ind.data.cpu().numpy()
-                negp_ind = int(negp_ind)
-                # negp = torch.index_select(inputs, 0, negp_ind)
-                negp = inputs[negp_ind:negp_ind + 1, :]
+                negp_ind = negp_ind[negp_ind_t]
+                pair2_ind.append(int(negp_ind.data.cpu().numpy()))
+                negp = inputs[negp_ind, :]
                 pair2.append(negp)
         else:
             for i in range(n):
                 pair1.append(inputs[i, :])
                 posp_ind = all_ind[mask[i]]
-                posp_ind = np.random.randint(0, posp_ind.size(0))
-                posp = inputs[posp_ind:posp_ind + 1, :]
+                posp_ind_t = np.random.randint(0, posp_ind.size(0))
+                posp_ind = posp_ind[posp_ind_t]
+                posp = inputs[posp_ind, :]
+                pair2_ind.append(int(posp_ind.data.cpu().numpy()))
                 pair2.append(posp)
             for i in range(n):
                 pair1.append(inputs[i, :])
                 negp_ind = all_ind[mask[i] == 0]
-                negp_ind = np.random.randint(0, negp_ind.size(0))
-                negp = inputs[negp_ind:negp_ind + 1, :]
+                negp_ind_t = np.random.randint(0, negp_ind.size(0))
+                negp_ind = negp_ind[negp_ind_t]
+                pair2_ind.append(int(negp_ind.data.cpu().numpy()))
+                negp = inputs[negp_ind, :]
                 pair2.append(negp)
-
         pair1, pair2 = torch.stack(pair1), torch.cat(pair2)
         pair1.size(), pair2.size()
         y = torch.from_numpy(np.concatenate((
             np.ones((n,)),
             np.zeros((n,))
         )))
-
+        info['inds2'] = pair2_ind
         y = y.type_as(pair1.data)
         # y.resize_as_()
         y = Variable(y, requires_grad=False)
@@ -86,4 +85,4 @@ class Transform(nn.Module):
         #
         # self.iter += 1
         # y.size()
-        return pair1, pair2, y
+        return pair1, pair2, y, info

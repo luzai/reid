@@ -71,19 +71,31 @@ class VerfTrainer(BaseTrainer):
     def _parse_data(self, inputs):
         imgs, fnames, pids, _ = inputs
         inputs = [Variable(imgs.cuda(), requires_grad=False)]
-
+        info = pd.DataFrame.from_dict({
+            'fnames': fnames,
+            'pids': pids.cpu().numpy(),
+            'inds': range(len(fnames))
+        })
+        info = pd.concat([info, info], axis=0)
+        info.reset_index(drop=True, inplace=True)
         targets = Variable(pids.cuda(), requires_grad=False)
-        return inputs, targets
+        return inputs, (targets, info)
 
     def _forward(self, inputs, targets):
+        targets, info = targets
         # self.model.eval()
         if self.freeze == 'embed':
             # self.model.module.base_model.eval()
             self.model.module.embed_model.eval()
-        pred, y = self.model(inputs[0], targets)
+        pred, y, info = self.model(inputs[0], targets, info)
+        write_df(info, 'dbg.hard.h5')
+        print(
+           np.array(((pred.data[:, 1] > pred.data[:, 0]).type_as(y.data) == y.data).cpu().numpy()).mean()
+        )
+        exit(0)
         loss = self.criterion(pred, y)
         prec1, = accuracy(pred.data, y.data)
-        # ((pred.data[:,1]>pred.data[:,0]).type_as(y.data) == y.data).cpu().numpy()
+        # ((pred.data[:,1] > pred.data[:,0]).type_as(y.data) == y.data).cpu().numpy()
         # (pred.data[:, 1] > pred.data[:, 0]).type_as(y.data).cpu().numpy()
         return loss, prec1[0]
 

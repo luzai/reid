@@ -4,8 +4,12 @@ sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 
 from lz import *
 import lz
-from exps.opts import get_parser
 import torch
+
+np.random.seed(1)
+torch.manual_seed(1)
+
+from exps.opts import get_parser
 from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
@@ -30,38 +34,13 @@ from tensorboardX import SummaryWriter
 
 
 def run(args):
-    configs_str = '''
-        
-        # - arch: resnet50
-        #   dataset: cuhk03
-        #   optimizer: sgd  
-        #   embed: concat
-        #   mode: hard
-        #   resume: '../work/logs.siamese.concat/checkpoint.154.pth'
-        #   # resume: ''
-        #   restart: True
-        #   evaluate: False
-        #   export_config: False
-        #   dropout: 0 
-        #   lr: 0.005
-        #   steps: [100,150,160]
-        #   decay: 0.5
-        #   epochs: 165
-        #   # freeze: ''
-        #   freeze: 'embed'
-        #   logs_dir: logs.siamese.tri.concat
-        #   start_save: 0
-        #   log_start: False
-        #   log_middle: True
-        #   
-        #   batch_size: 100
-        #   gpu: [0,]
+    configs_str = '''        
           
-        - arch: resnet50
+        - arch: resnet50          
           dataset: cuhk03
           optimizer: sgd  
           embed: concat
-          mode: rand
+          mode: hard
           resume: '../work/logs.siamese.concat/model_best.pth'
           # resume: ''
           restart: True
@@ -72,14 +51,14 @@ def run(args):
           steps: [100,150,160]
           decay: 0.5
           epochs: 51
-          freeze: 'embed'
-          logs_dir: logs.siamese.tri.concat.scratch
+          freeze: ''
+          logs_dir: siamese.tri.dbg
           start_save: 0
           log_start: False
           log_middle: True
 
-          batch_size: 100
-          gpu: [0,]
+          batch_size: 128
+          gpu: [1, ]
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
@@ -87,7 +66,7 @@ def run(args):
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
         args.logs_dir = '../work/' + args.logs_dir
-        lz.get_dev(ok=args.gpu,mem=[0.5,0.5])
+        # lz.get_dev(ok=args.gpu,mem=[0.5,0.9])
         if args.export_config:
             lz.mypickle((args), './conf.pkl')
             exit(0)
