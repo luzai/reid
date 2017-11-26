@@ -7,7 +7,8 @@ import torch
 from torch.nn import Parameter
 
 from .osutils import mkdir_if_missing
-
+import lz
+from torch import  nn
 
 def read_json(fpath):
     with open(fpath, 'r') as f:
@@ -36,6 +37,36 @@ def load_checkpoint(fpath):
         return checkpoint
     else:
         raise ValueError("=> No checkpoint found at '{}'".format(fpath))
+
+
+
+def load_state_dict(model, state_dict):
+    own_state = model.state_dict()
+    success = []
+    for name, param in state_dict.items():
+        if 'base_model.' + name in own_state:
+            name = 'base_model.' + name
+        if 'module.' + name in own_state:
+            name = 'module.' + name
+        if name not in own_state:
+            print('ignore key "{}" in his state_dict'.format(name))
+            continue
+
+        if isinstance(param, nn.Parameter):
+            param = param.data
+
+        if own_state[name].size() == param.size():
+            own_state[name].copy_(param)
+            # print('{} {} is ok '.format(name, param.size()))
+            success.append(name)
+        else:
+            lz.logging.error('dimension mismatch for param "{}", in the model are {}'
+                             ' and in the checkpoint are {}, ...'.format(
+                name, own_state[name].size(), param.size()))
+
+    missing = set(own_state.keys()) - set(success)
+    if len(missing) > 0:
+        print('missing keys in my state_dict: "{}"'.format(missing))
 
 
 def copy_state_dict(state_dict, model, strip=None):

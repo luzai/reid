@@ -22,7 +22,7 @@ from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
 from reid.utils.logging import Logger
-from reid.utils.serialization import load_checkpoint, save_checkpoint
+from reid.utils.serialization import *
 
 import torchvision
 from tensorboardX import SummaryWriter
@@ -84,35 +84,6 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
             batch_size=batch_size, num_workers=workers,
             shuffle=False, pin_memory=True
         )
-
-
-def load_state_dict(model, state_dict):
-    own_state = model.state_dict()
-    success = []
-    for name, param in state_dict.items():
-        if 'base_model.' + name in own_state:
-            name = 'base_model.' + name
-        if 'module.' + name in own_state:
-            name = 'module.' + name
-        if name not in own_state:
-            print('ignore key "{}" in his state_dict'.format(name))
-            continue
-
-        if isinstance(param, nn.Parameter):
-            param = param.data
-
-        if own_state[name].size() == param.size():
-            own_state[name].copy_(param)
-            # print('{} {} is ok '.format(name, param.size()))
-            success.append(name)
-        else:
-            lz.logging.error('dimension mismatch for param "{}", in the model are {}'
-                             ' and in the checkpoint are {}, ...'.format(
-                name, own_state[name].size(), param.size()))
-
-    missing = set(own_state.keys()) - set(success)
-    if len(missing) > 0:
-        print('missing keys in my state_dict: "{}"'.format(missing))
 
 
 def main(args):

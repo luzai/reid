@@ -23,7 +23,7 @@ from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
 from reid.utils.logging import Logger
-from reid.utils.serialization import load_checkpoint, save_checkpoint
+from reid.utils.serialization import *
 
 import torchvision
 from tensorboardX import SummaryWriter
@@ -32,36 +32,12 @@ from tensorboardX import SummaryWriter
 def run(args):
     configs_str = '''
         
-        - arch: resnet50
-          dataset: cuhk03
-          optimizer: sgd  
-          embed: kron
-          mode: hard
-          resume: '../work/logs.siamese/model_best.pth'
-          # resume: ''
-          restart: True
-          evaluate: False
-          export_config: False
-          dropout: 0 
-          lr: 0.005
-          steps: [100,150,160]
-          decay: 0.5
-          epochs: 165
-          freeze: embed
-          logs_dir: logs.siamese.tri.kron.fe
-          start_save: 0
-          log_start: False
-          log_middle: True
-          
-          batch_size: 120
-          gpu: [2,]
-          
         # - arch: resnet50
         #   dataset: cuhk03
         #   optimizer: sgd  
         #   embed: concat
         #   mode: hard
-        #   resume: '../work/logs.siamese/model_best.pth'
+        #   resume: '../work/logs.siamese.concat/checkpoint.154.pth'
         #   # resume: ''
         #   restart: True
         #   evaluate: False
@@ -70,62 +46,40 @@ def run(args):
         #   lr: 0.005
         #   steps: [100,150,160]
         #   decay: 0.5
-        #   epochs: 51
+        #   epochs: 165
+        #   # freeze: ''
+        #   freeze: 'embed'
         #   logs_dir: logs.siamese.tri.concat
         #   start_save: 0
-        #   log_start: True
+        #   log_start: False
         #   log_middle: True
         #   
-        #   batch_size: 120
-        #   gpu: [2,]
-        
+        #   batch_size: 100
+        #   gpu: [0,]
+          
         - arch: resnet50
           dataset: cuhk03
           optimizer: sgd  
-          embed: kron
-          mode: hard
-          resume: '../work/logs.siamese/model_best.pth'
+          embed: concat
+          mode: rand
+          resume: '../work/logs.siamese.concat/model_best.pth'
           # resume: ''
           restart: True
           evaluate: False
           export_config: False
           dropout: 0 
-          lr: 0.005
+          lr: 0.01
           steps: [100,150,160]
           decay: 0.5
-          epochs: 165
-          logs_dir: logs.siamese.tri.kron
+          epochs: 51
+          freeze: 'embed'
+          logs_dir: logs.siamese.tri.concat.scratch
           start_save: 0
           log_start: False
           log_middle: True
-          
-          batch_size: 120
-          gpu: [2,]
-          
-        # - arch: resnet50
-        #   dataset: cuhk03
-        #   optimizer: sgd  
-        #   embed: concat
-        #   mode: hard
-        #   resume: '../work/logs.siamese/model_best.pth'
-        #   # resume: ''
-        #   restart: True
-        #   evaluate: False
-        #   export_config: False
-        #   dropout: 0 
-        #   lr: 0.005
-        #   steps: [100,150,160]
-        #   decay: 0.5
-        #   epochs: 170
-        #   freeze: embed
-        #   logs_dir: logs.siamese.tri.concat.fe
-        #   start_save: 0
-        #   log_start: True
-        #   log_middle: True
-        #   
-        #   batch_size: 120
-        #   gpu: [2,]
-        
+
+          batch_size: 100
+          gpu: [0,]
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
@@ -133,7 +87,7 @@ def run(args):
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
         args.logs_dir = '../work/' + args.logs_dir
-
+        lz.get_dev(ok=args.gpu,mem=[0.5,0.5])
         if args.export_config:
             lz.mypickle((args), './conf.pkl')
             exit(0)
@@ -242,7 +196,8 @@ def main(args):
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
     cudnn.benchmark = True
-    writer = SummaryWriter(args.logs_dir)
+    if not args.evaluate:
+        writer = SummaryWriter(args.logs_dir)
 
     # Redirect print to both console and log file
     if not args.evaluate:
@@ -280,7 +235,7 @@ def main(args):
     tranform = Transform(mode=args.mode)
 
     model = SiameseNet2(base_model, tranform, embed_model, )
-    print(model)
+    # print(model)
 
     # Load from checkpoint
     if args.log_start:
@@ -379,9 +334,9 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 25 != 0:
+        if epoch < args.epochs // 2 and epoch % 20 != 0:
             continue
-        elif epoch < args.epochs-5 and epoch % 20 != 0:
+        elif epoch < args.epochs-5 and epoch % 10 != 0:
             continue
 
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)

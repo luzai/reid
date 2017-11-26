@@ -128,10 +128,11 @@ def evaluate_all(distmat, query=None, gallery=None,
                             query_cams, gallery_cams, **params)
                   for name, params in cmc_configs.items()}
 
-    print('CMC Scores{:>12}{:>12}{:>12}'
+    print('CMC Scores|{:>12}|{:>12}|{:>12}'
           .format('allshots', 'cuhk03', 'market1501'))
+    print('--|--|--|--')
     for k in cmc_topk:
-        print('  top-{:<4}{:12.1%}{:12.1%}{:12.1%}'
+        print('  top-{:<4}|{:12.1%}|{:12.1%}|{:12.1%}'
               .format(k, cmc_scores['allshots'][k - 1],
                       cmc_scores['cuhk03'][k - 1],
                       cmc_scores['market1501'][k - 1]))
@@ -204,10 +205,11 @@ class CascadeEvaluator(object):
                                 query_cams, gallery_cams, **params)
                       for name, params in cmc_configs.items()}
 
-        print('CMC Scores{:>12}{:>12}{:>12}'
+        print('CMC Scores|{:>12}|{:>12}|{:>12}'
               .format('allshots', 'cuhk03', 'market1501'))
+        print('--|--|--|--')
         for k in cmc_topk:
-            print('  top-{:<4}{:12.1%}{:12.1%}{:12.1%}'
+            print('  top-{:<4}|{:12.1%}|{:12.1%}|{:12.1%}'
                   .format(k, cmc_scores['allshots'][k - 1],
                           cmc_scores['cuhk03'][k - 1],
                           cmc_scores['market1501'][k - 1]))
@@ -311,10 +313,11 @@ class CascadeEvaluator(object):
                                  query_cams, gallery_cams, **params)
                        for name, params in cmc_configs.items()}
 
-        print('CMC Scores{:>12}{:>12}{:>12}'
+        print('CMC Scores|{:>12}|{:>12}|{:>12}'
               .format('allshots', 'cuhk03', 'market1501'))
+        print('--|--|--|--')
         for k in cmc_topk:
-            print('  top-{:<4}{:12.1%}{:12.1%}{:12.1%}'
+            print('  top-{:<4}|{:12.1%}|{:12.1%}|{:12.1%}'
                   .format(k, cmc_scores2['allshots'][k - 1],
                           cmc_scores2['cuhk03'][k - 1],
                           cmc_scores2['market1501'][k - 1]))

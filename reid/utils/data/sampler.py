@@ -10,7 +10,7 @@ from torch.utils.data.sampler import (
 
 
 class RandomIdentitySampler(Sampler):
-    def __init__(self, data_source, num_instances=4, batch_size=160,shuffle=False):
+    def __init__(self, data_source, num_instances=4, batch_size=160,shuffle=True):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
 

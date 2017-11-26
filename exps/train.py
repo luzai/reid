@@ -283,19 +283,21 @@ if __name__ == '__main__':
       evaluate: False
       
       optimizer: sgd
-      normalize: False
+      normalize: True
       dropout: 0 
       features: 512
       num_classes: 128 
-      lr: 0.02
+      lr: 0.01
       decay: 0.5
       steps: [100,150,160 ]
       epochs: 170
       
       start_save: 0      
+      log_start: False 
+      log_middle: True
       logs_dir: logs.resnet50.comb
-      batch_size: 120
-      gpu: [2]
+      batch_size: 100
+      gpu: [0]
       pin_mem: True
     '''
 
@@ -308,7 +310,7 @@ if __name__ == '__main__':
             setattr(args, k, v)
         args.logs_dir = '../work/' + args.logs_dir
 
-        lz.get_dev(ok=args.gpu, sleep=2, mem=[0.5, 0.6])
+        lz.get_dev(ok=args.gpu, sleep=2, mem=[0.5, 0.9])
 
         if args.export_config:
             lz.mypickle((args), './conf.pkl')

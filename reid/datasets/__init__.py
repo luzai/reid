@@ -51,11 +51,10 @@ def creates(names, roots, *args, **kwargs):
     dss = [create(name, root, *args, **kwargs) for name, root in zip(names, roots)]
     dsf = Dataset(root='', split_id=0)
 
-
     if osp.exists('/home/xinglu/work/cache.pkl'):
         dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
-        for k,v in dsf_dict.items():
-            setattr(dsf,k,v)
+        for k, v in dsf_dict.items():
+            setattr(dsf, k, v)
 
         return dsf
 
@@ -77,7 +76,6 @@ def creates(names, roots, *args, **kwargs):
 
         df_f = pd.concat(df_l)
         return df_f
-
 
     for name in ['trainval', 'val', 'train', 'query', 'gallery']:
         dff = combine(name)

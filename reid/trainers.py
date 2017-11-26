@@ -7,9 +7,7 @@ from torch.autograd import Variable
 from .evaluation_metrics import accuracy
 from .loss import OIMLoss, TripletLoss, TupletLoss
 from .utils.meters import AverageMeter
-
-
-# from .lz import logging
+from lz import *
 
 
 class BaseTrainer(object):
@@ -71,8 +69,9 @@ class BaseTrainer(object):
 
 class VerfTrainer(BaseTrainer):
     def _parse_data(self, inputs):
-        imgs, _, pids, _ = inputs
+        imgs, fnames, pids, _ = inputs
         inputs = [Variable(imgs.cuda(), requires_grad=False)]
+
         targets = Variable(pids.cuda(), requires_grad=False)
         return inputs, targets
 
