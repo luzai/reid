@@ -6,8 +6,8 @@ from lz import *
 import lz
 import torch
 
-np.random.seed(1)
-torch.manual_seed(1)
+# np.random.seed(1)
+# torch.manual_seed(1)
 
 from exps.opts import get_parser
 from torch import nn
@@ -41,24 +41,25 @@ def run(args):
           optimizer: sgd  
           embed: concat
           mode: rand
-          resume: '../work/logs.siamese.concat/model_best.pth'
-          # resume: ''
+          # resume: '../work/logs.siamese.concat/model_best.pth'
+          resume: ''
           restart: True
           evaluate: False
           export_config: False
           dropout: 0 
-          lr: 0.002
+          lr: 0.01
           steps: [100,150,160]
           decay: 0.5
-          epochs: 51
-          freeze: 'embed'
-          logs_dir: siamese.tri.dbg
+          epochs: 165
+          freeze: ''
+          logs_dir: siamese.tri.rand
           start_save: 0
           log_start: False
           log_middle: True
-          need_second: False
-          batch_size: 12
-          gpu: [3, ]
+          log_at: [1,5,50,100,150,163,164]
+          need_second: True
+          batch_size: 100
+          gpu: [0, ]
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
@@ -81,7 +82,6 @@ def run(args):
         proc.join()
 
         # main(args)
-
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=4,
              workers=32, combine_trainval=True, return_vis=False):
@@ -140,36 +140,6 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
             shuffle=False, pin_memory=True
         )
 
-
-def load_state_dict(model, state_dict):
-    own_state = model.state_dict()
-    success = []
-    for name, param in state_dict.items():
-        if 'base_model.' + name in own_state:
-            name = 'base_model.' + name
-        if 'module.' + name in own_state:
-            name = 'module.' + name
-        if name not in own_state:
-            print('ignore key "{}" in his state_dict'.format(name))
-            continue
-
-        if isinstance(param, nn.Parameter):
-            param = param.data
-
-        if own_state[name].size() == param.size():
-            own_state[name].copy_(param)
-            # print('{} {} is ok '.format(name, param.size()))
-            success.append(name)
-        else:
-            lz.logging.error('dimension mismatch for param "{}", in the model are {}'
-                             ' and in the checkpoint are {}, ...'.format(
-                name, own_state[name].size(), param.size()))
-
-    missing = set(own_state.keys()) - set(success)
-    if len(missing) > 0:
-        print('missing keys in my state_dict: "{}"'.format(missing))
-
-
 def main(args):
     lz.init_dev(args.gpu)
     lz.logging.info('config is {}'.format(vars(args)))
@@ -215,7 +185,7 @@ def main(args):
         EltwiseSubEmbed(args.features, args.num_classes)
     tranform = Transform(mode=args.mode)
 
-    model = SiameseNet2(base_model, tranform, embed_model, )
+    model = SiameseNet2(base_model, tranform, embed_model)
     # print(model)
 
     # Load from checkpoint
@@ -293,9 +263,7 @@ def main(args):
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
-    # Trainer
-    trainer = VerfTrainer(model, criterion, freeze=args.freeze)
-    if args.log_start:
+    def train_log():
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False,
                                        need_second=args.need_second)
         writer.add_scalars('train/top-1', {'stage1': acc1,
@@ -306,7 +274,14 @@ def main(args):
                                        need_second=args.need_second)
         writer.add_scalars('test/top-1', {'stage1': acc1,
                                           'stage2': acc}, 0)
+
+        return acc
+    # Trainer
+    trainer = VerfTrainer(model, criterion, freeze=args.freeze)
+
     # Start training
+    if args.log_start:
+        train_log()
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
@@ -317,28 +292,13 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 10 != 0:
-            continue
-        elif epoch < args.epochs - 5 and epoch % 5 != 0:
+        if epoch not in args.log_at:
             continue
 
-        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False,
-                                       need_second=args.need_second)
-        writer.add_scalars('train/top-1', {'stage1': acc1,
-                                           'stage2': acc}, epoch)
-
-        # if args.combine_trainval:
-        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False,
-                                       need_second=args.need_second)
-        writer.add_scalars('test/top-1', {'stage1': acc1,
-                                          'stage2': acc}, epoch)
-
-        top1 = acc
+        top1 = train_log()
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
-        # is_best = True
-        # top1 = 0
         save_checkpoint({
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,

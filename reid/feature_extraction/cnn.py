@@ -12,6 +12,7 @@ def extract_cnn_feature(model, inputs, modules=None):
     model.eval()
     inputs = to_torch(inputs)
     inputs = Variable(inputs, volatile=True).cuda()
+    # inputs.cuda()
     if modules is None:
         outputs = model(inputs)
         outputs = outputs.data.cpu()
@@ -36,10 +37,10 @@ def extract_cnn_embeddings(model, inputs, modules=None):
 
     for ind, inp in enumerate(inputs):
         inputs[ind] = to_torch(inp)
-    inputs = [Variable(x, volatile=True) for x in inputs]
+    inputs = [Variable(x, volatile=True).cuda() for x in inputs]
 
     assert modules is None
 
     outputs = model(*inputs)
-    outputs = outputs.data
+    outputs = outputs.data.cpu()
     return outputs

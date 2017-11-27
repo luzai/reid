@@ -84,4 +84,7 @@ def get_parser():
     parser.add_argument('--config', metavar='PATH', default='')
     parser.add_argument('--export-config', action='store_true', default=False)
     parser.add_argument('--need-second', action='store_true',default=True)
+    parser.add_argument('--log-freq',type=list,default=[10,5])
+    parser.add_argument('--log-at',type=list,default=[0,1,2])
+
     return parser

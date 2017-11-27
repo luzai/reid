@@ -8,6 +8,7 @@ from tensorboardX import SummaryWriter
 import subprocess
 from lz import *
 
+
 class Transform(nn.Module):
     def __init__(self, mode='hard', **kwargs):
         super(Transform, self).__init__()
@@ -17,22 +18,27 @@ class Transform(nn.Module):
         # self.db = Database('./dbg.hard.h5','w')
         self.iter = 0
 
-    def forward(self, inputs, targets, info=None):
+    def forward(self, inputs, targets, info=None, distmat =None ):
         n = inputs.size(0)
-        all_ind = Variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False).cuda()
+        all_ind = Variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False,volatile=True).cuda()
 
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
 
         # # Compute pairwise distance, replace by the official when merged
         inputs_flat = inputs.view(inputs.size(0), -1)
-        dist = torch.pow(inputs_flat, 2).sum(dim=1, keepdim=True).expand(n, n)
-        dist = dist + dist.t()
-        dist.addmm_(1, -2, inputs_flat, inputs_flat.t())
-        dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+        if distmat is not None:
+            dist = torch.pow(inputs_flat, 2).sum(dim=1, keepdim=True).expand(n, n)
+            dist = dist + dist.t()
+            dist.addmm_(1, -2, inputs_flat, inputs_flat.t())
+            dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+        else:
+            dist = distmat
 
         pair1, pair2 = [], []
         pair2_ind = []
-        # self.mode='rand'
+
+        # def get_hard_ind():
+
         if self.mode == 'hard':
             for i in range(n):
                 pair1.append(inputs[i, :])
@@ -67,11 +73,14 @@ class Transform(nn.Module):
                 pair2_ind.append(int(negp_ind.data.cpu().numpy()))
                 negp = inputs[negp_ind, :]
                 pair2.append(negp)
+
         pair1, pair2 = torch.stack(pair1), torch.cat(pair2)
         pair1.size(), pair2.size()
         y = torch.from_numpy(np.concatenate((
             np.ones((n,)),
-            np.zeros((n,))
+            np.zeros((n,)),
+            # np.ones((n,)),
+            # np.zeros((n,))
         )))
         if info is not None:
             info['inds2'] = pair2_ind

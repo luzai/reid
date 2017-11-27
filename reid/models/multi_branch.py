@@ -1,6 +1,8 @@
 from torch import nn
-from lz import Database
 from lz import *
+from torch.utils.data import DataLoader
+from reid.utils.data.preprocessor import IndValuePreprocessor
+from reid.utils import to_torch
 
 
 class SiameseNet(nn.Module):
@@ -22,8 +24,6 @@ class SiameseNet2(nn.Module):
         self.base_model = base_model
         self.transform = tranform
         self.embed_model = embed_model
-        # self.iter = 0
-        # self.fid = Database('dbg.h5','a')
 
     def forward(self, x1, y1, info=None):
         batch = self.base_model(x1)
@@ -37,35 +37,76 @@ class SiameseNet2(nn.Module):
         pair1, pair2, y2, info = self.transform(batch, y1, info)
         y2 = y2.type_as(y1.data)
 
+        pred = self.embed_model(pair1, pair2)
+        if info is not None:
+            info['y2'] = y2.data.cpu().numpy().tolist()
+            info['pred0'] = pred[:, 0].data.cpu().numpy().tolist()
+            info['pred1'] = pred[:, 1].data.cpu().numpy().tolist()
+
+        return pred, y2, info
+
+
+def extract_cnn_embeddings(model, inputs, modules=None):
+
+    model.eval()
+    for ind, inp in enumerate(inputs):
+        inputs[ind] = to_torch(inp)
+    inputs = [Variable(x, volatile=True).cuda() for x in inputs]
+
+    assert modules is None
+
+    outputs = model(*inputs)
+    outputs = outputs.data.cpu()
+    return outputs
+
+
+class SiameseNet3(nn.Module):
+    def __init__(self, base_model, tranform, embed_model):
+        super(SiameseNet3, self).__init__()
+        self.base_model = base_model
+        self.transform = tranform
+        self.embed_model = embed_model
+
+    def forward(self, x1, y1, info=None):
+        batch = self.base_model(x1)
+
+        if info is not None:
+            batch_np = batch.data.cpu().numpy()
+            batch_np = batch_np.reshape((batch_np.shape[0], -1))
+            batch_np = np.concatenate([batch_np, batch_np])
+            info['features'] = batch_np.tolist()
+
+        pair_samples = []
+        for i in range(batch.size(0)):
+            for j in range(batch.size(0)):
+                pair_samples.append((i, j))
+
+        data_loader = DataLoader(
+            IndValuePreprocessor(batch.data.cpu()),
+            sampler=pair_samples,
+            batch_size=1024,
+            num_workers=4, pin_memory=False
+        )
+
+        embeddings = []
+        for i, inputs in enumerate(data_loader):
+            outpus = extract_cnn_embeddings(self.embed_model, inputs)
+            embeddings.append(outpus)
+
+        embeddings = torch.cat(embeddings)
+        embeddings = F.softmax(Variable(embeddings[:, 0],volatile=True), dim=0)
+        embeddings = embeddings.view(batch.size(0), batch.size(0))
+
+        pair1, pair2, y2, info = self.transform(batch, y1, info, embeddings)
+        y2 = y2.type_as(y1.data)
 
         pred = self.embed_model(pair1, pair2)
         if info is not None:
             info['y2'] = y2.data.cpu().numpy().tolist()
-
             info['pred0'] = pred[:, 0].data.cpu().numpy().tolist()
             info['pred1'] = pred[:, 1].data.cpu().numpy().tolist()
 
-        # def save(k,v):
-        #     self.fid[k]=v.data.cpu().numpy()
-        #
-        # save('x1',x1)
-        # save('batch',batch)
-        # save('pair1',pair1)
-        # save('pair2',pair2)
-        # save('pred', pred)
-        #
-        # save('y1',y1)
-        # save('y2',y2)
-        # self.fid.close()
-        # exit(0)
-
         return pred, y2, info
-        # x.size(), y.size(), outputs.size()
-        # pair1.size(), pred.size()
-        # outputs[:,12,7,3]
-        # pair1[:,12,7,3]
-        # pair2[:,12,7,3]
-        # y2
 
 
 class TripletNet(nn.Module):

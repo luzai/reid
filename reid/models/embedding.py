@@ -54,6 +54,11 @@ class ConcatEmbed(nn.Module):
 
     def forward(self, x1, x2):
         x = torch.cat([x1, x2], dim=1)
+        # self.conv1[1].eval()
+        # self.conv2[1].eval()
+        # self.fc1[1].eval()
+        # self.fc2[1].eval()
+
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.pool(x)

@@ -3,10 +3,6 @@ import os.path as osp
 
 from PIL import Image
 
-class Preprecessor_combine(object):
-    def __init__(self,dataset, tranform=None):
-        pass
-
 class Preprocessor(object):
     def __init__(self, dataset, root=None, transform=None):
         super(Preprocessor, self).__init__()
@@ -43,4 +39,16 @@ class KeyValuePreprocessor(object):
     def __getitem__(self, keys):
         if isinstance(keys, (tuple, list)):
             return [self.dataset[key] for key in keys]
+        return self.dataset[keys]
+
+class IndValuePreprocessor(object):
+    def __init__(self,dataset):
+        self.dataset = dataset
+
+    def __len__(self):
+        return self.dataset.size(0)
+
+    def __getitem__(self, keys):
+        if isinstance(keys,(tuple,list)):
+            return [ self.dataset[key,:] for key in keys ]
         return self.dataset[keys]

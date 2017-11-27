@@ -273,7 +273,7 @@ class CascadeEvaluator(object):
             sampler=pair_samples,
             batch_size=min(len(gallery) * rerank_topk, 4096),
             num_workers=4, pin_memory=False)
-
+        # features.values().__iter__().__next__()
         # Extract embeddings of each pair
         embeddings = extract_embeddings(self.embed_model, data_loader)
         if self.embed_dist_fn is not None:
