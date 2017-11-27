@@ -28,6 +28,75 @@ import torchvision
 from tensorboardX import SummaryWriter
 
 
+def run(args):
+    configs_str = '''
+        - arch: resnet50
+          dataset: cuhk03
+          # resume: ''
+          resume: '../work/logs.siamese/model_best.pth'
+          restart: True
+          evaluate: False
+          optimizer: sgd        
+          embed: concat
+          log_start: True
+          log_middle: True
+          dropout: 0 
+          freeze: embed
+          lr: 0.005
+          start_save: 0
+          steps: [100,150,160]
+          epochs: 165
+          logs_dir: logs.siamese.concat.freezeembed
+          batch_size: 32
+          gpu: [0,]
+          log_start: False
+          log_middle: True
+          log_at: [1,5,50,100,150,163,164]
+          need_second: True
+          
+        - arch: resnet50
+          dataset: cuhk03
+          # resume: ''
+          resume: '../work/logs.siamese/model_best.pth'
+          restart: True
+          evaluate: False
+          optimizer: sgd        
+          embed: concat
+          log_start: True
+          log_middle: True
+          dropout: 0 
+          freeze: ''
+          lr: 0.005
+          start_save: 0
+          steps: [100,150,160]
+          epochs: 170
+          logs_dir: logs.siamese.concat
+          batch_size: 32
+          gpu: [0,]
+
+        '''
+    for config in yaml.load(configs_str):
+        for k, v in config.items():
+            if k not in vars(args):
+                raise ValueError('{} {}'.format(k, v))
+            setattr(args, k, v)
+        args.logs_dir = '../work/' + args.logs_dir
+        args.gpu = lz.get_dev(n=len(args.gpu), ok=(0, 1, 2, 3), mem=[0.5, 0.8])
+        if isinstance(args.gpu, int):
+            args.gpu = [args.gpu]
+        if args.export_config:
+            lz.mypickle((args), './conf.pkl')
+            exit(0)
+        if not args.evaluate:
+            lz.mkdir_p(args.logs_dir, delete=True)
+            lz.write_json(vars(args), args.logs_dir + '/conf.json')
+
+        proc = lz.mp.Process(target=main, args=(args,))
+        proc.start()
+        proc.join()
+
+        # main(args)
+
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=None,
              workers=32, combine_trainval=True, return_vis=False):
     root = osp.join(data_dir, name)
@@ -200,17 +269,21 @@ def main(args):
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
-    # Trainer
-    trainer = SiameseTrainer(model, criterion,freeze=args.freeze)
-    if args.log_start:
-        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+    def train_log():
+        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False,
+                                       need_second=args.need_second)
         writer.add_scalars('train/top-1', {'stage1': acc1,
                                            'stage2': acc}, 0)
 
         # if args.combine_trainval:
-        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
+        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False,
+                                       need_second=args.need_second)
         writer.add_scalars('test/top-1', {'stage1': acc1,
                                           'stage2': acc}, 0)
+    # Trainer
+    trainer = SiameseTrainer(model, criterion,freeze=args.freeze)
+    if args.log_start:
+       train_log()
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
@@ -222,26 +295,13 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 25 != 0:
-            continue
-        elif epoch < args.epochs-5 and epoch % 20 != 0:
+        if epoch not in args.log_at:
             continue
 
-        acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
-        writer.add_scalars('train/top-1', {'stage1': acc1,
-                                           'stage2': acc}, epoch)
-
-        # if args.combine_trainval:
-        acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
-        writer.add_scalars('test/top-1', {'stage1': acc1,
-                                          'stage2': acc}, epoch)
-
-        top1 = acc
+        top1 = train_log()
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
-        # is_best = True
-        # top1 = 0
         save_checkpoint({
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
@@ -252,87 +312,17 @@ def main(args):
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    print('Test with best model:')
-    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
-    model.module.load_state_dict(checkpoint['state_dict'])
-    metric.train(model, train_loader)
-    acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
-    lz.logging.info('final rank1 is {}'.format(acc))
+    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
+        print('Test with best model:')
+        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
+        model.module.load_state_dict(checkpoint['state_dict'])
+        metric.train(model, train_loader)
+        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
+        lz.logging.info('final rank1 is {}'.format(acc))
 
 
 if __name__ == '__main__':
     parser = get_parser()
-    configs_str = '''
-    - arch: resnet50
-      dataset: cuhk03
-      # resume: ''
-      resume: '../work/logs.siamese/model_best.pth'
-      restart: True
-      evaluate: False
-      optimizer: sgd        
-      embed: concat
-      log_start: True
-      log_middle: True
-      dropout: 0 
-      freeze: embed
-      lr: 0.005
-      start_save: 0
-      steps: [100,150,160]
-      epochs: 165
-      logs_dir: logs.siamese.concat.freezeembed
-      batch_size: 32
-      gpu: [0,]
-      
-    - arch: resnet50
-      dataset: cuhk03
-      # resume: ''
-      resume: '../work/logs.siamese/model_best.pth'
-      restart: True
-      evaluate: False
-      optimizer: sgd        
-      embed: concat
-      log_start: True
-      log_middle: True
-      dropout: 0 
-      freeze: ''
-      lr: 0.005
-      start_save: 0
-      steps: [100,150,160]
-      epochs: 170
-      logs_dir: logs.siamese.concat
-      batch_size: 32
-      gpu: [0,]
-      
-    '''
 
-    dbg = False
     args = parser.parse_args()
-
-    for config in yaml.load(configs_str):
-        for k, v in config.items():
-            if k not in vars(args):
-                raise ValueError('{} {}'.format(k, v))
-            setattr(args, k, v)
-        args.logs_dir = '../work/' + args.logs_dir
-        # lz.get_dev(ok=(0, 1,))
-        if dbg:
-            args.gpu = [0]
-            args.epochs = 150
-            args.workers = 4
-            args.batch_size = 32
-            args.logs_dir += '.dbg'
-        if len(args.gpu) == 1:
-            lz.init_dev(args.gpu)
-
-        if args.export_config:
-            lz.mypickle((args), './conf.pkl')
-            exit(0)
-        if not args.evaluate:
-            lz.mkdir_p(args.logs_dir, delete=True)
-            lz.write_json(vars(args), args.logs_dir + '/conf.json')
-
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
-        proc.join()
-
-        # main(args)
+    run(args)

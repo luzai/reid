@@ -74,6 +74,7 @@ def run(args):
             lz.mypickle((args), './conf.pkl')
             exit(0)
         if not args.evaluate:
+            assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
             lz.write_json(vars(args), args.logs_dir + '/conf.json')
 

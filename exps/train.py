@@ -22,11 +22,67 @@ from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
 from reid.utils.logging import Logger
-from reid.utils.serialization import load_checkpoint, save_checkpoint
+from reid.utils.serialization import *
 
 import torchvision
 from tensorboardX import SummaryWriter
 
+def run(args):
+    configs_str = '''    
+        - arch: resnet50
+
+          dataset: ['cuhk03', 'cuhk01', 'viper','market1501','dukemtmc']
+          workers: 4
+          resume: '../work/logs.resnet50/model_best.pth'
+          # resume: ''
+
+          restart: True
+          evaluate: False
+
+          optimizer: sgd
+          normalize: True
+          dropout: 0 
+          features: 512
+          num_classes: 128 
+          lr: 0.01
+          decay: 0.5
+          steps: [100,150,160 ]
+          epochs: 170
+          start_save: 0
+          log_start: False
+          log_middle: True
+          log_at: [1,5,50,100,150,163,164]
+          need_second: True
+          start_save: 0      
+          log_start: False 
+          log_middle: True
+          logs_dir: logs.resnet50.comb
+          batch_size: 100
+          gpu: [0]
+          pin_mem: True
+        '''
+    for config in yaml.load(configs_str):
+        for k, v in config.items():
+            if k not in vars(args):
+                raise ValueError('{} {}'.format(k, v))
+            setattr(args, k, v)
+        args.logs_dir = '../work/' + args.logs_dir
+        args.gpu = lz.get_dev(n=len(args.gpu), ok=(0, 1, 2, 3), mem=[0.5, 0.8])
+        if isinstance(args.gpu, int):
+            args.gpu = [args.gpu]
+        if args.export_config:
+            lz.mypickle((args), './conf.pkl')
+            exit(0)
+        if not args.evaluate:
+            assert args.logs_dir != args.resume
+            lz.mkdir_p(args.logs_dir, delete=True)
+            lz.write_json(vars(args), args.logs_dir + '/conf.json')
+
+        proc = lz.mp.Process(target=main, args=(args,))
+        proc.start()
+        proc.join()
+
+        # main(args)
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
              workers, combine_trainval, return_vis=False, pin_memory=True):
@@ -90,45 +146,15 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
             shuffle=False, pin_memory=pin_memory
         )
 
-
-def load_state_dict(model, state_dict):
-    own_state = model.state_dict()
-    success = []
-    for name, param in state_dict.items():
-        if 'base_model.' + name in own_state:
-            name = 'base_model.' + name
-        if 'module.' + name in own_state:
-            name = 'module.' + name
-        if name not in own_state:
-            print('ignore key "{}" in his state_dict'.format(name))
-            continue
-
-        if isinstance(param, nn.Parameter):
-            param = param.data
-
-        if own_state[name].size() == param.size():
-            own_state[name].copy_(param)
-            # print('{} {} is ok '.format(name, param.size()))
-            success.append(name)
-        else:
-            lz.logging.error('dimension mismatch for param "{}", in the model are {}'
-                             ' and in the checkpoint are {}, ...'.format(
-                name, own_state[name].size(), param.size()))
-
-    missing = set(own_state.keys()) - set(success)
-    if len(missing) > 0:
-        print('missing keys in my state_dict: "{}"'.format(missing))
-
-
 def main(args):
-    # torch.cuda.set_device(args.gpu[0])
     lz.init_dev(args.gpu)
     lz.logging.info('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
     cudnn.benchmark = True
-    writer = SummaryWriter(args.logs_dir)
+    if not args.evaluate:
+        writer = SummaryWriter(args.logs_dir)
 
     # Redirect print to both console and log file
     if not args.evaluate:
@@ -168,7 +194,6 @@ def main(args):
             best_top1 = checkpoint['best_top1']
             print("=> Start epoch {}  best top1 {:.1%}"
                   .format(start_epoch, best_top1))
-    # model = model.cuda()
     if len(args.gpu) == 1:
         model = nn.DataParallel(model).cuda()
     else:
@@ -225,9 +250,7 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch < args.epochs // 2 and epoch % 25 != 0:
-            continue
-        elif epoch < args.epochs - 5 and epoch % 20 != 0:
+        if epoch not in args.log_at:
             continue
 
         acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, return_all=True)
@@ -261,67 +284,17 @@ def main(args):
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    print('Test with best model:')
-    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
-    model.module.load_state_dict(checkpoint['state_dict'])
-    metric.train(model, train_loader)
-    acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-    lz.logging.info('final rank1 is {}'.format(acc))
+    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
+        print('Test with best model:')
+        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
+        model.module.load_state_dict(checkpoint['state_dict'])
+        metric.train(model, train_loader)
+        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        lz.logging.info('final rank1 is {}'.format(acc))
 
 
 if __name__ == '__main__':
     parser = get_parser()
-    configs_str = '''    
-    - arch: resnet50
-      
-      dataset: ['cuhk03', 'cuhk01', 'viper','market1501','dukemtmc']
-      workers: 4
-      resume: '../work/logs.resnet50/model_best.pth'
-      # resume: ''
-      
-      restart: True
-      evaluate: False
-      
-      optimizer: sgd
-      normalize: True
-      dropout: 0 
-      features: 512
-      num_classes: 128 
-      lr: 0.01
-      decay: 0.5
-      steps: [100,150,160 ]
-      epochs: 170
-      
-      start_save: 0      
-      log_start: False 
-      log_middle: True
-      logs_dir: logs.resnet50.comb
-      batch_size: 100
-      gpu: [0]
-      pin_mem: True
-    '''
 
     args = parser.parse_args()
-
-    for config in yaml.load(configs_str):
-        for k, v in config.items():
-            if k not in vars(args):
-                raise ValueError('{} {}'.format(k, v))
-            setattr(args, k, v)
-        args.logs_dir = '../work/' + args.logs_dir
-
-        lz.get_dev(ok=args.gpu, sleep=2, mem=[0.5, 0.9])
-
-        if args.export_config:
-            lz.mypickle((args), './conf.pkl')
-            exit(0)
-        if not args.evaluate:
-            assert args.logs_dir != args.resume
-            lz.mkdir_p(args.logs_dir, delete=True)
-            lz.write_json(vars(args), args.logs_dir + '/conf.json')
-
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
-        proc.join()
-
-        # main(args)
+    run(args)
