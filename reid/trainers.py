@@ -92,12 +92,12 @@ class VerfTrainer(BaseTrainer):
             # self.model.module.base_model.eval()
             self.model.module.embed_model.eval()
         pred, y, info = self.model(inputs[0], targets, info)
-
-        # write_df(info, 'dbg.hard.h5')
-        # print(
-        #    np.array(((pred.data[:, 1] > pred.data[:, 0]).type_as(y.data) == y.data).cpu().numpy()).mean()
-        # )
-        # exit(0)
+        if info is not None:
+            write_df(info, 'dbg.hard.h5')
+            print(
+               np.array(((pred.data[:, 1] > pred.data[:, 0]).type_as(y.data) == y.data).cpu().numpy()).mean()
+            )
+            exit(0)
         loss = self.criterion(pred, y)
         prec1, = accuracy(pred.data, y.data)
         # ((pred.data[:,1] > pred.data[:,0]).type_as(y.data) == y.data).cpu().numpy()

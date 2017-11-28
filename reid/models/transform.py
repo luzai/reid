@@ -26,13 +26,13 @@ class Transform(nn.Module):
 
         # # Compute pairwise distance, replace by the official when merged
         inputs_flat = inputs.view(inputs.size(0), -1)
-        if distmat is not None:
+        if distmat is None:
             dist = torch.pow(inputs_flat, 2).sum(dim=1, keepdim=True).expand(n, n)
             dist = dist + dist.t()
             dist.addmm_(1, -2, inputs_flat, inputs_flat.t())
             dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
         else:
-            dist = distmat
+            dist = distmat.cuda()
 
         pair1, pair2 = [], []
         pair2_ind = []

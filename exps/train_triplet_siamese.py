@@ -36,27 +36,30 @@ from tensorboardX import SummaryWriter
 def run(args):
     configs_str = '''        
           
-        - arch: resnet50          
+        - arch: resnet50 
+          # seed: 2         
           dataset: cuhk03
-          optimizer: sgd  
+          optimizer: adam
           embed: concat
-          mode: rand
-          # resume: '../work/logs.siamese.concat/model_best.pth'
-          resume: ''
+          mode: hard
+          num_instances: 4
+          resume: '../work/logs.siamese.concat/model_best.pth'
+          # resume: '../work/siamese.tri.hard.bak1/checkpoint.50.pth'
           restart: True
           evaluate: False
           export_config: False
           dropout: 0 
-          lr: 0.01
+          lr: 0.0005
           steps: [100,150,160]
           decay: 0.5
           epochs: 165
           freeze: ''
-          logs_dir: siamese.tri.rand
+          logs_dir: siamese.tri.hard.smalllr
           start_save: 0
           log_start: False
           log_middle: True
-          log_at: [1,5,50,100,150,163,164]
+          # log_at: [1,5,50,100,150,163,164]
+          log_at: [50,100,150,163,164]
           need_second: True
           batch_size: 100
           gpu: [0, ]
@@ -186,7 +189,7 @@ def main(args):
         EltwiseSubEmbed(args.features, args.num_classes)
     tranform = Transform(mode=args.mode)
 
-    model = SiameseNet2(base_model, tranform, embed_model)
+    model = SiameseNet3(base_model, tranform, embed_model)
     # print(model)
 
     # Load from checkpoint
@@ -227,15 +230,15 @@ def main(args):
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False)
         lz.logging.info('final rank1 is {}'.format(acc))
-        # db = lz.Database('distmat.h5', 'a')
-        # db['ohmn_match/1'] = evaluator.distmat1
-        # db['ohmn_match/2'] = evaluator.distmat2
+        db = lz.Database('distmat.h5', 'w')
+        db['ohmn_match/1'] = evaluator.distmat1
+        db['ohmn_match/2'] = evaluator.distmat2
 
-        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
-        print('val rank1', acc)
+        # acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False)
+        # print('val rank1', acc)
         # db['ohmn_match/val/1'] = evaluator.distmat1
         # db['ohmn_match/val/2'] = evaluator.distmat2
-        # db.close()
+        db.close()
 
         return 0
 
@@ -247,11 +250,15 @@ def main(args):
     # param_groups = [
     #     {'params': model.module.model.base.parameters(), 'lr_mult': 0.1},
     #     {'params': new_params, 'lr_mult': 1.0}]
-    param_groups = model.parameters()
-    optimizer = torch.optim.SGD(param_groups, lr=args.lr,
-                                momentum=0.9,
-                                weight_decay=args.weight_decay,
-                                nesterov=True)
+    # param_groups = model.parameters()
+
+    if args.optimizer == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
+                                     weight_decay=args.weight_decay)
+    elif args.optimizer == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
+                                    weight_decay=args.weight_decay, momentum=0.9,
+                                    nesterov=True)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -264,17 +271,17 @@ def main(args):
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
-    def train_log():
+    def train_log(epoch):
         acc1, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=False,
                                        need_second=args.need_second)
         writer.add_scalars('train/top-1', {'stage1': acc1,
-                                           'stage2': acc}, 0)
+                                           'stage2': acc}, epoch)
 
         # if args.combine_trainval:
         acc1, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, return_all=False,
                                        need_second=args.need_second)
         writer.add_scalars('test/top-1', {'stage1': acc1,
-                                          'stage2': acc}, 0)
+                                          'stage2': acc}, epoch)
 
         return acc
     # Trainer
@@ -282,7 +289,7 @@ def main(args):
 
     # Start training
     if args.log_start:
-        train_log()
+        train_log(epoch)
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
@@ -296,7 +303,7 @@ def main(args):
         if epoch not in args.log_at:
             continue
 
-        top1 = train_log()
+        top1 = train_log(epoch)
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
