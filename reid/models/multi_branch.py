@@ -84,7 +84,7 @@ class SiameseNet3(nn.Module):
         data_loader = DataLoader(
             IndValuePreprocessor(batch.data.cpu()),
             sampler=pair_samples,
-            batch_size=1024,
+            batch_size=600,
             num_workers=4, pin_memory=False
         )
 

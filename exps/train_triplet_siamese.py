@@ -43,25 +43,27 @@ def run(args):
           embed: concat
           mode: hard
           num_instances: 4
-          resume: '../work/logs.siamese.concat/model_best.pth'
-          # resume: '../work/siamese.tri.hard.bak1/checkpoint.50.pth'
+          # resume: '../work/logs.siamese.concat/model_best.pth'
+          # resume: '../work/siamese.tri.hard.stage1/checkpoint.164.pth'
+          # resume: '../work/siamese.tri.hard.adam.lr.0.0001/model_best.pth'
+          resume: '../work/siamese.tri.adam.longer/model_best.pth'
           restart: True
           evaluate: False
           export_config: False
           dropout: 0 
-          lr: 0.0005
-          steps: [100,150,160]
+          lr: 0.00005
+          steps: [150,200,220]
           decay: 0.5
-          epochs: 165
+          epochs: 50
           freeze: ''
-          logs_dir: siamese.tri.hard.smalllr
+          logs_dir: siamese.tri.adam.longer.bigger.continue
           start_save: 0
           log_start: False
           log_middle: True
           # log_at: [1,5,50,100,150,163,164]
-          log_at: [50,100,150,163,164]
+          log_at: [1,5,10,20,30,40,46,47,48,49, 50,100,150,202,203,204]
           need_second: True
-          batch_size: 100
+          batch_size: 120
           gpu: [0, ]
         '''
     for config in yaml.load(configs_str):

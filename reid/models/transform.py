@@ -33,6 +33,14 @@ class Transform(nn.Module):
             dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
         else:
             dist = distmat.cuda()
+        if info is not None:
+            mypickle(dist.data.cpu().numpy(), 'dbg.stage2.pkl')
+            dist = torch.pow(inputs_flat, 2).sum(dim=1, keepdim=True).expand(n, n)
+            dist = dist + dist.t()
+            dist.addmm_(1, -2, inputs_flat, inputs_flat.t())
+            dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+            mypickle(dist.data.cpu().numpy(), 'dbg.stage1.pkl')
+            dist = distmat.cuda()
 
         pair1, pair2 = [], []
         pair2_ind = []
@@ -84,6 +92,7 @@ class Transform(nn.Module):
         )))
         if info is not None:
             info['inds2'] = pair2_ind
+
         y = y.type_as(pair1.data)
         # y.resize_as_()
         y = Variable(y, requires_grad=False)

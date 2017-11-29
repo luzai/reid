@@ -26,47 +26,13 @@ from reid.utils.serialization import *
 
 import torchvision
 from tensorboardX import SummaryWriter
+from torchpack import *
 
-def run(args):
-    configs_str = '''    
-        - arch: resnet50
+def run(_):
+    cfgs= load_cfg('./conf/trihard.py')
 
-          dataset: ['cuhk03', 'cuhk01', 'viper','market1501','dukemtmc']
-          workers: 4
-          resume: '../work/logs.resnet50/model_best.pth'
-          # resume: ''
-
-          restart: True
-          evaluate: False
-
-          optimizer: sgd
-          normalize: True
-          dropout: 0 
-          features: 512
-          num_classes: 128 
-          lr: 0.01
-          decay: 0.5
-          steps: [100,150,160 ]
-          epochs: 170
-          start_save: 0
-          log_start: False
-          log_middle: True
-          log_at: [1,5,50,100,150,163,164]
-          need_second: True
-          start_save: 0      
-          log_start: False 
-          log_middle: True
-          logs_dir: logs.resnet50.comb
-          batch_size: 100
-          gpu: [0]
-          pin_mem: True
-        '''
-    for config in yaml.load(configs_str):
-        for k, v in config.items():
-            if k not in vars(args):
-                raise ValueError('{} {}'.format(k, v))
-            setattr(args, k, v)
-        args.logs_dir = '../work/' + args.logs_dir
+    for args in cfgs.cfgs:
+        args.logs_dir= 'work/' + args.logs_dir
         args.gpu = lz.get_dev(n=len(args.gpu), ok=(0, 1, 2, 3), mem=[0.5, 0.8])
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -76,7 +42,7 @@ def run(args):
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
-            lz.write_json(vars(args), args.logs_dir + '/conf.json')
+            cvb.dump(vars(args), args.logs_dir + '/conf.pkl')
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
@@ -84,9 +50,10 @@ def run(args):
 
         # main(args)
 
+
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
              workers, combine_trainval, return_vis=False, pin_memory=True):
-    if isinstance(name, list):
+    if isinstance(name, list) and len(name) != 1:
         names = name
         root = '/home/xinglu/.torch/data/'
         roots = [root + name_ for name_ in names]
@@ -129,10 +96,15 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         shuffle=False, pin_memory=pin_memory)
 
     test_loader = DataLoader(
-        Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
-                     root=dataset.images_dir, transform=test_transformer),
+        Preprocessor(np.concatenate([
+            np.asarray(dataset.query).reshape(-1,3),
+            np.asarray(list(set(dataset.gallery)-set(dataset.query))  ).reshape(-1,3)
+        ]).tolist(),
+                     root=dataset.images_dir,
+                     transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
+
     if not return_vis:
         return dataset, num_classes, train_loader, val_loader, test_loader
     else:
@@ -145,6 +117,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
             batch_size=batch_size, num_workers=workers,
             shuffle=False, pin_memory=pin_memory
         )
+
 
 def main(args):
     lz.init_dev(args.gpu)
@@ -253,24 +226,13 @@ def main(args):
         if epoch not in args.log_at:
             continue
 
-        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, return_all=True)
-        acc = {'top-1': acc['cuhk03'][0],
-               # 'top-5': acc['cuhk03'][4],
-               # 'top-10': acc['cuhk03'][9]
-               }
-        writer.add_scalars('train', acc, epoch)
+        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        writer.add_scalar('train/top-1', acc, epoch)
 
-        # if args.combine_trainval:
-        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, return_all=True)
-        # else:
-        #     top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, return_all=True)
-        acc = {'top-1': acc['cuhk03'][0],
-               # 'top-5': acc['cuhk03'][4],
-               # 'top-10': acc['cuhk03'][9]
-               }
-        writer.add_scalars('test', acc, epoch)
+        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        writer.add_scalar('test/top-1', acc, epoch)
 
-        top1 = acc['top-1']
+        top1 = acc
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
@@ -294,7 +256,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = get_parser()
-
-    args = parser.parse_args()
-    run(args)
+    run('')
