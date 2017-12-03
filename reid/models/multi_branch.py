@@ -4,6 +4,23 @@ from torch.utils.data import DataLoader
 from reid.utils.data.preprocessor import IndValuePreprocessor
 from reid.utils import to_torch
 
+class SingleNet(nn.Module):
+    def __init__(self,base_model, global_model =None, local_model=None,concat_model=None):
+        super(SingleNet, self).__init__( )
+        self.base_model = base_model
+        self.global_model = global_model
+        self.local_model=local_model
+        self.concat_model =concat_model
+
+    def forward(self, x):
+        x=self.base_model(x)
+        x_l=[]
+        if self.global_model is not None:
+            x_l.append(self.global_model(x))
+        if self.local_model is not None:
+            x_l.append(self.local_model(x))
+        x= self.concat_model(x_l)
+        return x
 
 class SiameseNet(nn.Module):
     def __init__(self, base_model, embed_model):

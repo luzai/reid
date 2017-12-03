@@ -27,11 +27,12 @@ import torchvision
 from tensorboardX import SummaryWriter
 import torchpack
 
+
 def run(_):
-    cfgs= torchpack.load_cfg('./conf/trihard.py')
+    cfgs = torchpack.load_cfg('./conf/trihard.py')
     procs = []
     for args in cfgs.cfgs:
-        args.logs_dir= 'work/' + args.logs_dir
+        args.logs_dir = 'work/' + args.logs_dir
         args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.05, 0.05])
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -74,7 +75,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
 
     train_set = dataset.trainval if combine_trainval else dataset.train
     num_classes = (dataset.num_trainval_ids if combine_trainval
-                   else dataset.num_train_ids)
+    else dataset.num_train_ids)
 
     train_transformer = T.Compose([
         T.RandomSizedRectCrop(height, width),
@@ -102,8 +103,8 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
     query_ga = np.concatenate([
-            np.asarray(dataset.query).reshape(-1,3),
-            np.asarray(list(set(dataset.gallery)-set(dataset.query))  ).reshape(-1,3)
+        np.asarray(dataset.query).reshape(-1, 3),
+        np.asarray(list(set(dataset.gallery) - set(dataset.query))).reshape(-1, 3)
     ])
     query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
                                  names=['fnames', 'pids', 'cids']).tolist()
@@ -114,28 +115,28 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
 
-    query, gallery = dataset.query.copy(), dataset.gallery.copy()
-    query_ids = [pid for _, pid, _ in query]
-    gallery_ids = [pid for _, pid, _ in gallery]
-    query_ids_u = np.unique(query_ids)
-    residual = np.setdiff1d(np.unique(gallery_ids), query_ids_u)
-    limit = np.random.choice(query_ids_u, min(100, query_ids_u.shape[0]), replace=False)
-    limit = np.concatenate((residual, limit))
-    query = limit_dataset(query, limit)
-    gallery = limit_dataset(gallery, limit)
-    query_ga = np.concatenate([
-        np.asarray(query).reshape(-1, 3),
-        np.asarray(list(set(gallery) - set(query))).reshape(-1, 3)
-    ])
-    query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
-                                 names=['fnames', 'pids', 'cids']).tolist()
-    test_loader_limit = DataLoader(
-        Preprocessor(query_ga,
-                     root=dataset.images_dir,
-                     transform=test_transformer),
-        batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=pin_memory)
-    # todo
+    # query, gallery = dataset.query.copy(), dataset.gallery.copy()
+    # query_ids = [pid for _, pid, _ in query]
+    # gallery_ids = [pid for _, pid, _ in gallery]
+    # query_ids_u = np.unique(query_ids)
+    # residual = np.setdiff1d(np.unique(gallery_ids), query_ids_u)
+    # limit = np.random.choice(query_ids_u, min(100, query_ids_u.shape[0]), replace=False)
+    # limit = np.concatenate((residual, limit))
+    # query = limit_dataset(query, limit)
+    # gallery = limit_dataset(gallery, limit)
+
+    # query_ga = np.concatenate([
+    #     np.asarray(query).reshape(-1, 3),
+    #     np.asarray(list(set(gallery) - set(query))).reshape(-1, 3)
+    # ])
+    # query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
+    #                              names=['fnames', 'pids', 'cids']).tolist()
+    # test_loader_limit = DataLoader(
+    #     Preprocessor(query_ga,
+    #                  root=dataset.images_dir,
+    #                  transform=test_transformer),
+    #     batch_size=batch_size, num_workers=workers,
+    #     shuffle=False, pin_memory=pin_memory)
     if not return_vis:
         return dataset, num_classes, train_loader, val_loader, test_loader
     else:
@@ -185,9 +186,29 @@ def main(args):
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
-    model = models.create(args.arch, num_features=args.features,
-                          dropout=args.dropout, num_classes=args.num_classes,
-                          pretrained=args.pretrained)
+
+    base_model = models.create(args.arch,
+                               dropout=args.dropout,
+                               pretrained=args.pretrained,
+                               cut_at_pooling=True
+                               )
+    if args.branchs * args.branch_dim != 0:
+        local_model = Mask(2048, args.branchs, args.branch_dim,
+                           height=args.height // 32,
+                           width=args.width // 32,
+                           dopout=args.dropout
+                           )
+    else:
+        local_model = None
+    if args.global_dim != 0:
+        global_model = Global(2048, args.global_dim, dropout=args.dropout)
+    else:
+        global_model = None
+    concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
+                                args.num_classes)
+
+    model = SingleNet(base_model, global_model, local_model, concat_model)
+
     print(model)
 
     # Load from checkpoint
@@ -271,10 +292,10 @@ def main(args):
         # acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
         # writer.add_scalar('test/top-1', acc, epoch)
 
-        # top1 = acc
-        # is_best = top1 > best_top1
-        top1 = 0
-        is_best = True
+        top1 = acc
+        is_best = top1 > best_top1
+        # top1 = 0
+        # is_best = True
 
         best_top1 = max(top1, best_top1)
         save_checkpoint({

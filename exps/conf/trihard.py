@@ -4,25 +4,22 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         dataset='market1501',
-        arch='inception_v3',
+        arch='resnet50',
         optimizer='adam',
-        lr=1.5e-4,
-        logs_dir='inceptionv3',
-        steps=[150, 200, 210],
-        epochs=215,
+        lr=2e-4,
+        logs_dir='dbg',
+        steps=[100, 150, 160],
+        epochs=165,
         log_at=np.concatenate([
             range(0, 100, 49),
-            range(100, 210, 100),
-            range(212, 215, 1)
+            range(150, 165, 1)
         ]),
-        batch_size=96,
-        gpu=range(8),
-        height=256, width=128,
+        batch_size=100,
+        gpu=range(1),
     )),
-
 ]
 
-cfgs_done= [
+cfgs_done = [
     EasyDict(dict(
         dataset='market1501',
         arch='inception_v3',
@@ -55,7 +52,7 @@ cfgs_done= [
             range(212, 215, 1)
         ]),
         batch_size=100,
-        gpu=[0, 1,2,3],
+        gpu=[0, 1, 2, 3],
         height=256, width=128,
     )),
 
@@ -122,15 +119,10 @@ base = EasyDict(
         dbg=False,
         data_dir='/home/xinglu/.torch/data',
         restart=True,
-        workers=8,
-        split=0,
-        height=256,
-        width=128,
-        combine_trainval=True,
+        workers=8,split=0,height=256,width=128,combine_trainval=True,
         num_instances=4,
         # model
         evaluate=False,
-        features=128,
         dropout=0,  # 0.5
         # loss
         margin=0.5,
@@ -148,9 +140,10 @@ base = EasyDict(
         # metric learning
         dist_metric='euclidean',
 
-        branchs=8,
+        branchs=0,
         branch_dim=64,
-        use_global=False,
+        global_dim=1024,
+        num_classes=128,
 
         loss='triplet',
         mode='hard',
@@ -168,7 +161,6 @@ base = EasyDict(
         embed="concat",
         optimizer='adam',
         normalize=True,
-        num_classes=128,
         decay=0.1,
         export_config=False,
         need_second=True,

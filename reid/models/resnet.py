@@ -60,7 +60,7 @@ class ResNet(nn.Module):
 
             # Append new layers
             if self.has_embedding:
-                self.feat = nn.Linear(512, self.num_features)
+                self.feat = nn.Linear(2048, self.num_features)
                 self.feat_bn = nn.BatchNorm1d(self.num_features)
                 init.kaiming_normal(self.feat.weight, mode='fan_out')
                 init.constant(self.feat.bias, 0)
@@ -84,7 +84,7 @@ class ResNet(nn.Module):
             if name == 'avgpool':
                 break
             x = module(x)
-        x=self.conv1(x)
+        # x=self.conv1(x)
         if self.cut_at_pooling:
             return x
 

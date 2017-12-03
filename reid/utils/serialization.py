@@ -48,6 +48,8 @@ def load_state_dict(model, state_dict):
             name = 'base_model.' + name
         if 'module.' + name in own_state:
             name = 'module.' + name
+        if 'base_model.base_model.' +name in own_state:
+            name='base_model.base_model.' +name
         if name not in own_state:
             print('ignore key "{}" in his state_dict'.format(name))
             continue
