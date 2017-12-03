@@ -12,7 +12,7 @@ from .feature_extraction import *
 from .utils.meters import AverageMeter
 
 
-def extract_features(model, data_loader, print_freq=10, metric=None, output_file=None):
+def extract_features(model, data_loader, print_freq=10, limit=None):
     model.eval()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -26,6 +26,8 @@ def extract_features(model, data_loader, print_freq=10, metric=None, output_file
 
         outputs = extract_cnn_feature(model, imgs)
         for fname, output, pid in zip(fnames, outputs, pids):
+            if limit is not None and int(pid) not in limit.tolist():
+                continue
             features[fname] = output
             labels[fname] = pid
 
@@ -94,6 +96,16 @@ def pairwise_distance(features, query=None, gallery=None, metric=None):
     dist.addmm_(1, -2, x, y.t())
     return dist
 
+
+def limit_dataset(query, limit):
+    res_l = []
+    for pid_, df_ in pd.DataFrame(data=query, columns=['fnames', 'pids', 'cids']).groupby('pids'):
+        if pid_ not in limit: continue
+        res_l.append(df_)
+    res = pd.concat(res_l)
+    return res.to_records(index=False).tolist()
+
+
 class Evaluator(object):
     def __init__(self, model):
         super(Evaluator, self).__init__()
@@ -101,52 +113,62 @@ class Evaluator(object):
         self.distmat = None
 
     def evaluate(self, data_loader, query, gallery, metric=None, final=False):
+        timer = cvb.Timer()
+        timer.start()
         self.model.eval()
-        features, _ = extract_features(self.model, data_loader)
-
-        data_loader.__iter__().__next__()[1][:5]
-        len(query)
-        len(gallery)
-
-        # if not final and len(query) > 200:
-        #     choice = np.random.choice(len(query), 200)
-        #     query = np.array(query)[choice]
-        #     gallery = np.array(gallery)[choice]
-
-        distmat = pairwise_distance(features, query, gallery, metric=metric)
-        self.distmat = distmat.cpu().numpy()
-
         query_ids = [pid for _, pid, _ in query]
         gallery_ids = [pid for _, pid, _ in gallery]
         query_cams = [cam for _, _, cam in query]
         gallery_cams = [cam for _, _, cam in gallery]
 
-        np.asarray(query_ids)
-        np.asarray(gallery_ids)
-        np.unique(query_ids).shape
-        np.unique(gallery_ids).shape
+        query_ids_u = np.unique(query_ids)
+        residual = np.setdiff1d(np.unique(gallery_ids), query_ids_u)
+        limit = None
+        # if not final and query_ids_u.shape[0] > 100:
+        #     # if True:
+        #     limit = np.random.choice(query_ids_u, 100)
+        #     limit = np.concatenate((residual, limit))
+        #
+        #     query = limit_dataset(query, limit)
+        #     gallery = limit_dataset(gallery, limit)
+        #     query_ids = [pid for _, pid, _ in query]
+        #     gallery_ids = [pid for _, pid, _ in gallery]
+        #     query_cams = [cam for _, _, cam in query]
+        #     gallery_cams = [cam for _, _, cam in gallery]
+
+        features, _ = extract_features(self.model, data_loader, limit=limit)
+        assert len(features) != 0
+        list(features.keys())
+        distmat = pairwise_distance(features, query, gallery, metric=metric)
+        self.distmat = distmat.cpu().numpy()
 
         mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
         print('Mean AP: {:4.1%}'.format(mAP))
 
         if not final:
-            cmc_configs = {'cuhk03': dict(separate_camera_set=True,
-                               single_gallery_shot=True,
-                               first_match_break=False)}
+            cmc_configs = {
+                # 'cuhk03': dict(separate_camera_set=True,
+                #                single_gallery_shot=True,
+                #                first_match_break=False),
+                'market1501': dict(separate_camera_set=False,  # hard
+                                   single_gallery_shot=False,  # hard
+                                   first_match_break=True)
+            }
+
             cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
                                     query_cams, gallery_cams, **params)
                           for name, params in cmc_configs.items()}
-            print('cmc-1 ' + str(cmc_scores['cuhk03'][0]))
-            return cmc_scores['cuhk03'][0]
+            print('cmc-1 cuhk03' + str(cmc_scores['market1501'][0]))
+            return cmc_scores['market1501'][0]
         else:
             # Compute all kinds of CMC scores
             cmc_configs = {
-                'allshots': dict(separate_camera_set=False,  # hard
-                                 single_gallery_shot=False,  # hard
-                                 first_match_break=False),
-                'cuhk03': dict(separate_camera_set=True,
-                               single_gallery_shot=True,
-                               first_match_break=False),
+                # 'allshots': dict(separate_camera_set=False,  # hard
+                #                  single_gallery_shot=False,  # hard
+                #                  first_match_break=False),
+                # 'cuhk03': dict(separate_camera_set=True,
+                #                single_gallery_shot=True,
+                #                first_match_break=False),
                 'market1501': dict(separate_camera_set=False,  # hard
                                    single_gallery_shot=False,  # hard
                                    first_match_break=True)}
@@ -154,17 +176,20 @@ class Evaluator(object):
                                     query_cams, gallery_cams, **params)
                           for name, params in cmc_configs.items()}
 
-            print('CMC Scores|{:>12}|{:>12}|{:>12}'
-                  .format('allshots', 'cuhk03', 'market1501'))
-            print('--|--|--|--')
-            for k in (1,5,10):
-                print('  top-{:<4}|{:12.1%}|{:12.1%}|{:12.1%}'
-                      .format(k, cmc_scores['allshots'][k - 1],
-                              cmc_scores['cuhk03'][k - 1],
-                              cmc_scores['market1501'][k - 1]))
+            # print('CMC Scores|{:>12}|{:>12}|{:>12}'
+            #       .format('allshots', 'cuhk03', 'market1501'))
+            # print('--|--|--|--')
+            # for k in (1, 5, 10):
+            #     print('  top-{:<4}|{:12.1%}|{:12.1%}|{:12.1%}'
+            #           .format(k, cmc_scores['allshots'][k - 1],
+            #                   cmc_scores['cuhk03'][k - 1],
+            #                   cmc_scores['market1501'][k - 1]))
+            # print('cmc-1 cuhk03' + str(cmc_scores['cuhk03'][0]))
+            print('cmc-1 market1501' + str(cmc_scores['market1501'][0]))
 
-            # Use the allshots cmc top-1 score for validation criterion
-            return cmc_scores['cuhk03'][0]
+            logging.info('evaluate takes time {}'.format(timer.since_start()))
+            # return cmc_scores['cuhk03'][0]
+            return cmc_scores['market1501'][0]
 
 
 class CascadeEvaluator(object):
@@ -175,7 +200,7 @@ class CascadeEvaluator(object):
         self.embed_dist_fn = embed_dist_fn
         self.distmat1 = self.distmat2 = None
 
-    def evaluate(self, data_loader, query, gallery, cache_file=None,
+    def evaluate(self, data_loader, query, gallery,
                  rerank_topk=100, return_all=False, cmc_topk=(1, 5, 10),
                  one_stage=True, need_second=True):
         self.base_model.eval()
@@ -184,7 +209,7 @@ class CascadeEvaluator(object):
             rerank_topk = len(gallery)
         # Extract features image by image
         features, _ = extract_features(self.base_model, data_loader,
-                                       output_file=cache_file)
+                                       )
 
         # Compute pairwise distance and evaluate for the first stage
         distmat = pairwise_distance(features, query, gallery)

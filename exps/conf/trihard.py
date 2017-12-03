@@ -3,43 +3,122 @@ from easydict import EasyDict
 
 cfgs = [
     EasyDict(dict(
-        dataset='cuhk03',
-        lr=1e-4,
-        logs_dir='cuhk03',
-        # log_at=np.concatenate([
-        #     range(0, 100, 19),
-        #     range(100, 150, 19),
-        #     range(155, 165, 1)
-        # ]),
-        step=[100, 150, 160],
-        epochs=165,
+        dataset='market1501',
+        arch='inception_v3',
+        optimizer='adam',
+        lr=1.5e-4,
+        logs_dir='inceptionv3',
+        steps=[150, 200, 210],
+        epochs=215,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 210, 100),
+            range(212, 215, 1)
+        ]),
+        batch_size=96,
+        gpu=range(8),
+        height=256, width=128,
     )),
-    # EasyDict(dict(
-    #     dataset='market1501',
-    #     lr=2e-3,
-    #     logs_dir='market',
-    #     # log_at=np.concatenate([
-    #     #     range(0, 100, 19),
-    #     #     range(100, 150, 19),
-    #     #     range(155, 165, 1)
-    #     # ]),
-    #     step=[150, 180, 190],
-    #     epochs=195,
-    # ))
 
 ]
 
-# for k, v in enumerate(cfgs):
-#     if v.log_dir == '':
-#         v.log_dir = '../work/'
-#         for kk, vv in v.items():
-#             # v.log_dir+= (str(vv)[:3] + '_' + str(hash(str(vv)))[:3])
-#             # v.log_dir+='.'
-#             v.log_dir += str(vv)
-#         v.log_dir.rstrip('.')
+cfgs_done= [
+    EasyDict(dict(
+        dataset='market1501',
+        arch='inception_v3',
+        optimizer='adam',
+        pretrained=False,
+        lr=1.5e-4,
+        logs_dir='inceptionv3.pretrainfalse',
+        steps=[150, 200, 210],
+        epochs=215,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 210, 100),
+            range(212, 215, 1)
+        ]),
+        batch_size=100,
+        gpu=range(8),
+        height=256, width=128,
+    )),
+    EasyDict(dict(
+        dataset='market1501',
+        arch='inception',
+        optimizer='adam',
+        lr=1.5e-4,
+        logs_dir='inception',
+        steps=[150, 200, 210],
+        epochs=215,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 210, 100),
+            range(212, 215, 1)
+        ]),
+        batch_size=100,
+        gpu=[0, 1,2,3],
+        height=256, width=128,
+    )),
+
+    EasyDict(dict(
+        dataset=['market1501', 'cuhk03'],
+        dataset_val='cuhk03',
+        optimizer='adam',
+        lr=2.1e-4,
+        logs_dir='cuhk03.external',
+        steps=[150, 200, 210],
+        epochs=215,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 210, 100),
+            range(212, 215, 1)
+        ]),
+    )),
+    EasyDict(dict(
+        dataset=['market1501', 'cuhk03'],
+        dataset_val='market1501',
+        optimizer='adam',
+        lr=2.1e-4,
+        logs_dir='mk.train.dbg',
+        steps=[150, 200, 210],
+        epochs=215,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 210, 100),
+            range(212, 215, 1)
+        ]),
+    )),
+
+]
+
+# meta = EasyDict(dict(
+#     dataset='cuhk03',
+#     optimizer='adam',
+#     lr=0.01,
+#     logs_dir='',
+#     steps=[100, 150, 160],
+#     epochs=5,
+# ))
+#
+# for lr in np.logspace(-4, -3, 4):
+#     meta.lr = lr
+#     meta.logs_dir = 'cuhk03.adam.' + str(float(lr))
+#     cfgs.append(meta.copy())
+#
+# meta = EasyDict(dict(
+#     dataset='market1501',
+#     optimizer='adam',
+#     steps=[100, 150, 160],
+#     epochs=5,
+# ))
+#
+# for lr in np.logspace(-4, -3, 4):
+#     meta.lr = lr
+#     meta.logs_dir = 'mk.adam.' + str(float(lr))
+#     cfgs.append(meta.copy())
 
 base = EasyDict(
     dict(
+        pretrained=True,
         dbg=False,
         data_dir='/home/xinglu/.torch/data',
         restart=True,
@@ -82,6 +161,7 @@ base = EasyDict(
         freeze='',
         # tuning
         dataset='cuhk03',
+        dataset_val='',
         batch_size=100,
         logs_dir='',
         arch='resnet50',
@@ -90,7 +170,6 @@ base = EasyDict(
         normalize=True,
         num_classes=128,
         decay=0.1,
-        config='',
         export_config=False,
         need_second=True,
         log_at=[100, 150],
@@ -98,5 +177,10 @@ base = EasyDict(
 )
 
 for k, v in enumerate(cfgs):
-    v = dict_concat((base, v))
+    v = dict_update(base, v)
     cfgs[k] = EasyDict(v)
+
+if __name__ == '__main__':
+    # print(cfgs)
+    for cfg in cfgs:
+        print(cfg.logs_dir)

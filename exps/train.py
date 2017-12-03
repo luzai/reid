@@ -4,7 +4,6 @@ sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 
 from lz import *
 import lz
-from exps.opts import get_parser
 import torch
 from torch import nn
 from torch.backends import cudnn
@@ -17,7 +16,7 @@ from reid.dist_metric import DistanceMetric
 from reid.loss import *
 from reid.trainers import *
 from reid.evaluators import *
-from reid.mining import mine_hard_pairs
+# from reid.mining import mine_hard_pairs
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
@@ -26,14 +25,14 @@ from reid.utils.serialization import *
 
 import torchvision
 from tensorboardX import SummaryWriter
-from torchpack import *
+import torchpack
 
 def run(_):
-    cfgs= load_cfg('./conf/trihard.py')
-
+    cfgs= torchpack.load_cfg('./conf/trihard.py')
+    procs = []
     for args in cfgs.cfgs:
         args.logs_dir= 'work/' + args.logs_dir
-        args.gpu = lz.get_dev(n=len(args.gpu), ok=(0, 1, 2, 3), mem=[0.5, 0.8])
+        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.05, 0.05])
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if args.export_config:
@@ -42,17 +41,18 @@ def run(_):
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
-            cvb.dump(vars(args), args.logs_dir + '/conf.pkl')
+            cvb.dump(args, args.logs_dir + '/conf.pkl')
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
+        time.sleep(15)
+        procs.append(proc)
+        # for proc in procs:
         proc.join()
-
-        # main(args)
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
-             workers, combine_trainval, return_vis=False, pin_memory=True):
+             workers, combine_trainval, return_vis=False, pin_memory=True, name_val=''):
     if isinstance(name, list) and len(name) != 1:
         names = name
         root = '/home/xinglu/.torch/data/'
@@ -61,6 +61,13 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     else:
         root = osp.join(data_dir, name)
         dataset = datasets.create(name, root, split_id=split_id)
+
+    if name_val != '':
+        assert isinstance(name_val, str)
+        root = osp.join(data_dir, name_val)
+        dataset_val = datasets.create(name_val, root, split_id=split_id)
+        dataset.qurey = dataset_val.query
+        dataset.gallery = dataset_val.gallery
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -94,22 +101,46 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
-
-    test_loader = DataLoader(
-        Preprocessor(np.concatenate([
+    query_ga = np.concatenate([
             np.asarray(dataset.query).reshape(-1,3),
             np.asarray(list(set(dataset.gallery)-set(dataset.query))  ).reshape(-1,3)
-        ]).tolist(),
-                     root=dataset.images_dir,
+    ])
+    query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
+                                 names=['fnames', 'pids', 'cids']).tolist()
+    test_loader = DataLoader(
+        Preprocessor(query_ga,
+                     root='/home/xinglu/.torch/data/market1501/images/',  # dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
 
+    query, gallery = dataset.query.copy(), dataset.gallery.copy()
+    query_ids = [pid for _, pid, _ in query]
+    gallery_ids = [pid for _, pid, _ in gallery]
+    query_ids_u = np.unique(query_ids)
+    residual = np.setdiff1d(np.unique(gallery_ids), query_ids_u)
+    limit = np.random.choice(query_ids_u, min(100, query_ids_u.shape[0]), replace=False)
+    limit = np.concatenate((residual, limit))
+    query = limit_dataset(query, limit)
+    gallery = limit_dataset(gallery, limit)
+    query_ga = np.concatenate([
+        np.asarray(query).reshape(-1, 3),
+        np.asarray(list(set(gallery) - set(query))).reshape(-1, 3)
+    ])
+    query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
+                                 names=['fnames', 'pids', 'cids']).tolist()
+    test_loader_limit = DataLoader(
+        Preprocessor(query_ga,
+                     root=dataset.images_dir,
+                     transform=test_transformer),
+        batch_size=batch_size, num_workers=workers,
+        shuffle=False, pin_memory=pin_memory)
+    # todo
     if not return_vis:
         return dataset, num_classes, train_loader, val_loader, test_loader
     else:
-        return dataset, num_classes, train_loader, val_loader, test_loader, DataLoader(
-            Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
+        vis_loader = DataLoader(
+            Preprocessor(query_ga,
                          root=dataset.images_dir, transform=T.Compose([
                     T.RectScale(height, width),
                     T.ToTensor(),
@@ -117,21 +148,28 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
             batch_size=batch_size, num_workers=workers,
             shuffle=False, pin_memory=pin_memory
         )
+        return dataset, num_classes, train_loader, val_loader, test_loader, vis_loader
+
+
+def limit_dataset(query, limit):
+    res_l = []
+    for pid_, df_ in pd.DataFrame(data=query, columns=['fnames', 'pids', 'cids']).groupby('pids'):
+        if pid_ not in limit: continue
+        res_l.append(df_)
+    res = pd.concat(res_l)
+    return res.to_records(index=False).tolist()
 
 
 def main(args):
+    sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
     lz.init_dev(args.gpu)
-    lz.logging.info('config is {}'.format(vars(args)))
+    print('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
     cudnn.benchmark = True
     if not args.evaluate:
         writer = SummaryWriter(args.logs_dir)
-
-    # Redirect print to both console and log file
-    if not args.evaluate:
-        sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
     # Create data loaders
     assert args.num_instances > 1, "num_instances should be greater than 1"
@@ -143,12 +181,13 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
-                 args.combine_trainval, pin_memory=args.pin_mem)
+                 args.combine_trainval, pin_memory=args.pin_mem, name_val=args.dataset_val)
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
     model = models.create(args.arch, num_features=args.features,
-                          dropout=args.dropout, num_classes=args.num_classes)
+                          dropout=args.dropout, num_classes=args.num_classes,
+                          pretrained=args.pretrained)
     print(model)
 
     # Load from checkpoint
@@ -179,10 +218,10 @@ def main(args):
     evaluator = Evaluator(model)
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        lz.logging.info('final rank1 is {}'.format(acc))
-        db = lz.Database('distmat.h5', 'a')
-        db['ohnm'] = evaluator.distmat
-        db.close()
+        lz.logging.info('eval cmc-1 is {}'.format(acc))
+        # db = lz.Database('distmat.h5', 'a')
+        # db['ohnm'] = evaluator.distmat
+        # db.close()
         return 0
 
     # Criterion
@@ -229,12 +268,14 @@ def main(args):
         acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
         writer.add_scalar('train/top-1', acc, epoch)
 
-        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        writer.add_scalar('test/top-1', acc, epoch)
+        # acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        # writer.add_scalar('test/top-1', acc, epoch)
 
-        top1 = acc
+        # top1 = acc
+        # is_best = top1 > best_top1
+        top1 = 0
+        is_best = True
 
-        is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
         save_checkpoint({
             'state_dict': model.module.state_dict(),
