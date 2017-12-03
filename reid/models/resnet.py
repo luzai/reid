@@ -75,7 +75,7 @@ class ResNet(nn.Module):
                 self.classifier = nn.Linear(self.num_features, self.num_classes)
                 init.normal(self.classifier.weight, std=0.001)
                 init.constant(self.classifier.bias, 0)
-        self.conv1 = _make_conv(out_planes, 512, kernel_size=1, stride=1, padding=0, with_relu=True)
+        # self.conv1 = _make_conv(out_planes, 512, kernel_size=1, stride=1, padding=0, with_relu=True)
         if not self.pretrained:
             self.reset_params()
 

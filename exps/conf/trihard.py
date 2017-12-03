@@ -2,21 +2,84 @@ from lz import *
 from easydict import EasyDict
 
 cfgs = [
-    EasyDict(dict(
-        dataset='market1501',
-        arch='resnet50',
-        optimizer='adam',
+EasyDict(dict(
         lr=2e-4,
-        logs_dir='dbg',
-        steps=[100, 150, 160],
-        epochs=165,
-        log_at=np.concatenate([
-            range(0, 100, 49),
-            range(150, 165, 1)
-        ]),
+        logs_dir='global',
+
         batch_size=100,
         gpu=range(1),
+        branchs=0,
+        branch_dim=128,
+        global_dim=1024,
+        num_classes=128,
     )),
+    EasyDict(dict(
+        lr=2e-4,
+        logs_dir='gllo.8.128',
+
+        batch_size=100,
+        gpu=range(1),
+        branchs=8,
+        branch_dim=128,
+        global_dim=1024,
+        num_classes=128,
+    )),
+    EasyDict(dict(
+        lr=2e-4,
+        logs_dir='gllo.4.256',
+
+        batch_size=100,
+        gpu=range(1),
+        branchs=4,
+        branch_dim=256,
+        global_dim=1024,
+        num_classes=128,
+    )),
+    EasyDict(dict(
+        lr=2e-4,
+        logs_dir='local.8.128',
+
+        batch_size=100,
+        gpu=range(1),
+        branchs=8,
+        branch_dim=128,
+        global_dim=0,
+        num_classes=128,
+    )),
+    EasyDict(dict(
+        lr=2e-4,
+        logs_dir='local.8.256',
+
+        batch_size=100,
+        gpu=range(1),
+        branchs=8,
+        branch_dim=256,
+        global_dim=0,
+        num_classes=128,
+    )),
+    EasyDict(dict(
+        lr=2e-4,
+        logs_dir='local.4.256',
+
+        batch_size=100,
+        gpu=range(1),
+        branchs=4,
+        branch_dim=256,
+        global_dim=0,
+        num_classes=128,
+    )),
+    EasyDict(dict(
+        lr=2e-4,
+        logs_dir='local.4.512',
+
+        batch_size=100,
+        gpu=range(1),
+        branchs=4,
+        branch_dim=512,
+        global_dim=0,
+        num_classes=128,
+    )),
+
 ]
 
 cfgs_done = [
@@ -119,7 +182,7 @@ base = EasyDict(
         dbg=False,
         data_dir='/home/xinglu/.torch/data',
         restart=True,
-        workers=8,split=0,height=256,width=128,combine_trainval=True,
+        workers=8, split=0, height=256, width=128, combine_trainval=True,
         num_instances=4,
         # model
         evaluate=False,
@@ -127,18 +190,20 @@ base = EasyDict(
         # loss
         margin=0.5,
         # optimizer
-        lr=0.002,
-        steps=[50, 100, 150],
-        epochs=160,
+
+        lr=2e-4,
+        steps=[150, 200, 210],
+        epochs=220,
+        log_at=np.concatenate([
+            range(0, 150, 9),
+            range(150, 200, 5),
+            range(200, 220, 1)
+        ]),
 
         weight_decay=5e-4,
-        # training configs
         resume='',
         start_save=0,
-        seed=1,
-        print_freq=5,
-        # metric learning
-        dist_metric='euclidean',
+        seed=1, print_freq=5, dist_metric='euclidean',
 
         branchs=0,
         branch_dim=64,
@@ -153,7 +218,7 @@ base = EasyDict(
         log_middle=True,
         freeze='',
         # tuning
-        dataset='cuhk03',
+        dataset='market1501',
         dataset_val='',
         batch_size=100,
         logs_dir='',
@@ -164,7 +229,6 @@ base = EasyDict(
         decay=0.1,
         export_config=False,
         need_second=True,
-        log_at=[100, 150],
     )
 )
 

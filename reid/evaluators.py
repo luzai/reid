@@ -158,7 +158,7 @@ class Evaluator(object):
             cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
                                     query_cams, gallery_cams, **params)
                           for name, params in cmc_configs.items()}
-            print('cmc-1 cuhk03' + str(cmc_scores['market1501'][0]))
+            print('cmc-1 market1501 ' + str(cmc_scores['market1501'][0]))
             return cmc_scores['market1501'][0]
         else:
             # Compute all kinds of CMC scores
@@ -185,7 +185,7 @@ class Evaluator(object):
             #                   cmc_scores['cuhk03'][k - 1],
             #                   cmc_scores['market1501'][k - 1]))
             # print('cmc-1 cuhk03' + str(cmc_scores['cuhk03'][0]))
-            print('cmc-1 market1501' + str(cmc_scores['market1501'][0]))
+            print('cmc-1 market1501 ' + str(cmc_scores['market1501'][0]))
 
             logging.info('evaluate takes time {}'.format(timer.since_start()))
             # return cmc_scores['cuhk03'][0]

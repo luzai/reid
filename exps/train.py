@@ -48,7 +48,7 @@ def run(_):
         proc.start()
         time.sleep(15)
         procs.append(proc)
-        # for proc in procs:
+    for proc in procs:
         proc.join()
 
 
@@ -205,7 +205,7 @@ def main(args):
     else:
         global_model = None
     concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
-                                args.num_classes)
+                                args.num_classes,dropout=0)
 
     model = SingleNet(base_model, global_model, local_model, concat_model)
 

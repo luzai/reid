@@ -81,21 +81,25 @@ class Global(nn.Module):
 
     def forward(self, x):
         x = F.avg_pool2d(x, x.size()[2:])
-        x=x.view(x.size(0),-1)
+        x = x.view(x.size(0), -1)
         x = self.fc(x)
         return x
 
 
 class ConcatReduce(nn.Module):
-    def __init__(self, in_planes, out_planes, dropout=0.3, normalize=True):
+    def __init__(self, in_planes, out_planes, dropout=0, normalize=True):
         super(ConcatReduce, self).__init__()
         self.normalize = normalize
+        self.bn = nn.BatchNorm1d(in_planes)
         self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
 
     def forward(self, *input):
-        x = torch.cat(input, dim=1)
-        # if self.normalize:
+        if len(input) > 1:
+            x = torch.cat(input, dim=1)
+        else:
+            x = input[0]
+        x = self.bn(x)
         x = F.normalize(x)
         x = self.fc(x)
-        x = F.normalize(x)
+
         return x

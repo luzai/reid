@@ -19,7 +19,7 @@ class SingleNet(nn.Module):
             x_l.append(self.global_model(x))
         if self.local_model is not None:
             x_l.append(self.local_model(x))
-        x= self.concat_model(x_l)
+        x= self.concat_model(*x_l)
         return x
 
 class SiameseNet(nn.Module):
