@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from reid.models.inception import inception_v3
 from .inception import *
 from .resnet import *
 from .attention import *
@@ -9,12 +10,12 @@ from .embedding import *
 
 __factory = {
     'inception': inception,
+    'inception_v3': inception_v3,
     'resnet18': resnet18,
     'resnet34': resnet34,
     'resnet50': resnet50,
     'resnet101': resnet101,
     'resnet152': resnet152,
-    'attention50':attention50
 }
 
 

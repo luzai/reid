@@ -4,18 +4,30 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.nn import init
-
+import torchvision
+from torch.utils import model_zoo
+from reid.utils.serialization import load_state_dict
 
 __all__ = ['InceptionNet', 'inception']
 
 
 def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
-               bias=False):
+               bias=False, with_relu=True):
     conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
                      stride=stride, padding=padding, bias=bias)
+    init.kaiming_normal(conv.weight, mode='fan_out')
+    if bias:
+        init.constant(conv.bias, 0)
+
     bn = nn.BatchNorm2d(out_planes)
-    relu = nn.ReLU(inplace=True)
-    return nn.Sequential(conv, bn, relu)
+    # init.constant(bn.bias, 0)
+    # init.constant(bn.weight, 1)
+
+    if with_relu:
+        relu = nn.ReLU(inplace=True)
+        return nn.Sequential(conv, bn, relu)
+    else:
+        return nn.Sequential(conv, bn)
 
 
 class Block(nn.Module):
@@ -121,7 +133,7 @@ class InceptionNet(nn.Module):
     def _make_inception(self, out_planes, pool_method, stride):
         block = Block(self.in_planes, out_planes, pool_method, stride)
         self.in_planes = (out_planes * 4 if pool_method == 'Avg' else
-                          out_planes * 2 + self.in_planes)
+        out_planes * 2 + self.in_planes)
         return block
 
     def reset_params(self):
@@ -139,5 +151,79 @@ class InceptionNet(nn.Module):
                     init.constant(m.bias, 0)
 
 
+class InceptionV3(nn.Module):
+    def __init__(self, depth=None, pretrained=True, cut_at_pooling=False,
+                 num_features=0, norm=False, dropout=0, num_classes=0, **kwargs):
+        super(InceptionV3, self).__init__()
+
+        self.cut_at_pooling = cut_at_pooling
+
+        self.base = torchvision.models.inception_v3(pretrained=False, aux_logits=False)
+        if pretrained:
+            pretrained_model = model_zoo.load_url(
+                'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth')
+            load_state_dict(self.base, pretrained_model)
+        out_planes = self.base.fc.in_features
+
+        if not self.cut_at_pooling:
+            self.num_features = num_features
+            self.norm = norm
+            self.dropout = dropout
+            self.has_embedding = num_features > 0
+            self.num_classes = num_classes
+
+            # Append new layers
+            if self.has_embedding:
+                self.feat = nn.Linear(512, self.num_features)
+                self.feat_bn = nn.BatchNorm1d(self.num_features)
+                init.kaiming_normal(self.feat.weight, mode='fan_out')
+                init.constant(self.feat.bias, 0)
+                init.constant(self.feat_bn.weight, 1)
+                init.constant(self.feat_bn.bias, 0)
+            else:
+                # Change the num_features to CNN output channels
+                self.num_features = out_planes
+            if self.dropout > 0:
+                self.drop = nn.Dropout(self.dropout)
+            if self.num_classes > 0:
+                self.classifier = nn.Linear(self.num_features, self.num_classes)
+                init.normal(self.classifier.weight, std=0.001)
+                init.constant(self.classifier.bias, 0)
+        self.conv1 = _make_conv(out_planes, 512, kernel_size=1, stride=1, padding=0, with_relu=True)
+
+    def forward(self, x):
+        for name, module in self.base._modules.items():
+            x = module(x)
+            if name == 'Mixed_7c':
+                break
+        x = self.conv1(x)
+        if self.cut_at_pooling:
+            return x
+
+        x = F.avg_pool2d(x, x.size()[2:])
+        x = x.view(x.size(0), -1)
+
+        if self.has_embedding:
+            x = self.feat(x)
+            x = self.feat_bn(x)
+        if self.norm:
+            x = F.normalize(x)
+        elif self.has_embedding:
+            x = F.relu(x)
+        if self.dropout > 0:
+            x = self.drop(x)
+        if self.num_classes > 0:
+            x = self.classifier(x)
+        return x
+
+
 def inception(**kwargs):
     return InceptionNet(**kwargs)
+
+
+def inception_v3(**kwargs):
+    return InceptionV3(**kwargs)
+
+
+if __name__ == '__main__':
+    InceptionV3()
