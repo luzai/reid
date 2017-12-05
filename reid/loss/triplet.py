@@ -77,7 +77,7 @@ class TripletLoss(nn.Module):
         if not dbg:
             return loss, prec
         else:
-            return loss,prec ,dist, dist_ap, dist_an
+            return loss, prec, dist, dist_ap, dist_an
 
 
 def stat(tensor):

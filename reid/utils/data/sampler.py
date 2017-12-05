@@ -1,12 +1,13 @@
 from __future__ import absolute_import
 from collections import defaultdict
-
 import itertools
 import numpy as np
 import torch
 from torch.utils.data.sampler import (
     Sampler, SequentialSampler, RandomSampler, SubsetRandomSampler,
     WeightedRandomSampler)
+import queue
+import pandas as pd
 
 
 class RandomIdentitySampler(Sampler):
@@ -16,77 +17,94 @@ class RandomIdentitySampler(Sampler):
 
         self.data_source = data_source
         self.num_instances = num_instances
-        self.index_dic = defaultdict(list)
-        for index, (_, pid, _) in enumerate(data_source):
-            self.index_dic[pid].append(index)
-        self.pids = list(self.index_dic.keys())
-        self.num_samples = len(self.pids)
+
+        pids = np.asarray(data_source)[:, 1].astype(int)
+        inds = np.arange(pids.shape[0], dtype=int)
+
+        self.info = pd.DataFrame.from_items([
+            ('pids', pids),
+            ('inds', inds)
+        ])
+        self.num_samples = np.unique(pids).shape[0]
+
         self.shuffle = shuffle
+        self.queue = queue.Queue()
 
     def __len__(self):
         return self.num_samples * self.num_instances
 
     def __iter__(self):
         indices = torch.randperm(self.num_samples)
-        ret = []
-        ret_t = []
-        for pid in indices:
-            t = self.index_dic[pid]
-            if len(t) >= self.num_instances:
-                t = np.random.choice(t, size=self.num_instances, replace=False)
+        ind_ind = 0
+        grouped = self.info.groupby('pids')
+        while ind_ind < self.num_samples:
+            if not self.queue.empty():
+                yield self.queue.get()
             else:
-                t = np.random.choice(t, size=self.num_instances, replace=True)
-            if not self.shuffle:
-                ret.extend(t)
-                print(len(ret))
-            else:
-                if len(ret_t) < self.batch_size:
-                    ret_t.extend(t)
+                pid = indices[ind_ind]
+                dft = grouped.get_group(pid)
+                t = dft['inds'].tolist()
+                if len(t) >= self.num_instances:
+                    t = np.random.choice(t, size=self.num_instances, replace=False)
                 else:
-                    np.random.shuffle(ret_t)
-                    ret.extend(ret_t)
-                    ret_t = []
-        return iter(ret)
+                    t = np.random.choice(t, size=self.num_instances, replace=True)
+                [self.queue.put(t_) for t_ in t]
+                ind_ind += 1
+                yield self.queue.get()
 
 
+# todo
 class RandomIdentityWeightedSampler(Sampler):
-    def __init__(self, data_source, num_instances=4, batch_size=160, shuffle=False):
+    def __init__(self, data_source, num_instances=4, batch_size=100, weights=None):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
 
         self.data_source = data_source
         self.num_instances = num_instances
-        self.pid2ind = defaultdict(list)
-        for index, (_, pid, _) in enumerate(data_source):
-            self.pid2ind[pid].append(index)
-        self.pids = list(self.pid2ind.keys())
-        self.num_pids = len(self.pids)
-        self.shuffle = shuffle
+
+        pids = np.asarray(data_source)[:, 1].astype(int)
+        inds = np.arange(pids.shape[0], dtype=int)
+        if weights is None:
+            weights = np.ones_like(inds, dtype=float)
+            weights = weights / weights.sum()
+
+        self.info = pd.DataFrame.from_items([
+            ('pids', pids),
+            ('inds', inds),
+            ('probs', weights)
+        ])
+        self.num_pids = np.unique(pids).shape[0]
+        self.num_inds=self.info.shape[0]
+        self.queue = queue.Queue()
 
     def __len__(self):
         return self.num_pids * self.num_instances
 
     def __iter__(self):
-        indices = torch.randperm(self.num_pids)
-        ret = []
-        ret_t = []
-        for i in indices:
-            pid = self.pids[i]
-            t = self.pid2ind[pid]
-            if len(t) >= self.num_instances:
-                t = np.random.choice(t, size=self.num_instances, replace=False)
+        ind_ind = 0
+        grouped = self.info.groupby('pids')
+        while ind_ind < self.num_pids:
+            if not self.queue.empty():
+                yield self.queue.get()
             else:
-                t = np.random.choice(t, size=self.num_instances, replace=True)
-            if not self.shuffle:
-                ret.extend(t)
-            else:
-                if len(ret_t) < self.batch_size:
-                    ret_t.extend(t)
+                probs = grouped.sum()['probs']
+                pid = np.random.choice(probs.index, p=probs)
+                pid = int(pid)
+                dft = grouped.get_group(pid)
+                t = dft['inds'].tolist()
+                probs_probs = np.asarray(dft['probs'], dtype=float)
+                probs_probs = probs_probs / probs_probs.sum()
+                if len(t) >= self.num_instances:
+                    t = np.random.choice(t, size=self.num_instances, replace=False, p=probs_probs)
                 else:
-                    np.random.shuffle(ret_t)
-                    ret.extend(ret_t)
-                    ret_t = []
-        return iter(ret)
+                    t = np.random.choice(t, size=self.num_instances, replace=True, p=probs_probs)
+                [self.queue.put(t_) for t_ in t]
+                ind_ind += 1
+                yield self.queue.get()
+
+    def update_weight(self, weights):
+
+        self.info['probs']=weights
 
 
 def _choose_from(start, end, excluding=None, size=1, replace=False):

@@ -9,7 +9,7 @@ from .loss import OIMLoss, TripletLoss, TupletLoss
 from .utils.meters import AverageMeter
 from lz import *
 from tensorboardX import SummaryWriter
-from reid.utils import to_numpy,to_torch
+from reid.utils import to_numpy, to_torch
 
 
 class BaseTrainer(object):
@@ -128,6 +128,15 @@ class SiameseTrainer(BaseTrainer):
         return loss, prec1[0]
 
 
+def stat_(writer, tag, tensor, iter):
+    writer.add_scalars('groups/' + tag, {
+        'mean': torch.mean(tensor),
+        'media': torch.median(tensor),
+        'min': torch.min(tensor),
+        'max': torch.max(tensor)
+    }, iter)
+
+
 class Trainer(BaseTrainer):
     def _parse_data(self, inputs):
         imgs, _, pids, _ = inputs
@@ -137,9 +146,9 @@ class Trainer(BaseTrainer):
 
     def _forward(self, inputs, targets):
         outputs = self.model(*inputs)
-        if self.dbg and self.iter % 100 == 0:
-            self.writer.add_histogram('input', inputs[0], self.iter)
-            self.writer.add_histogram('feature', outputs, self.iter)
+        if self.dbg and self.iter % 1000 == 0:
+            self.writer.add_histogram('1_input', inputs[0], self.iter)
+            self.writer.add_histogram('2_feature', outputs, self.iter)
             x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
@@ -154,7 +163,12 @@ class Trainer(BaseTrainer):
         elif isinstance(self.criterion, TripletLoss):
             if self.dbg and self.iter % 10 == 0:
                 loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
-                self.writer.add_scalar('vis/loss', loss,self.iter)
+                diff = dist_an - dist_ap
+                self.writer.add_histogram('an-ap', diff, self.iter)
+                self.writer.add_histogram('an-ap/auto', diff, self.iter, 'auto')
+
+                stat_(self.writer, 'an-ap', diff, self.iter)
+                self.writer.add_scalar('vis/loss', loss, self.iter)
                 self.writer.add_scalar('vis/prec', prec, self.iter)
                 self.writer.add_histogram('dist', dist, self.iter)
                 self.writer.add_histogram('ap', dist_ap, self.iter)

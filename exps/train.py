@@ -287,9 +287,9 @@ def main(args):
         writer.add_scalar('train/top-1', acc, epoch)
         writer.add_scalar('train/mAP', mAP, epoch)
 
-        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        writer.add_scalar('test/top-1', acc, epoch)
-        writer.add_scalar('test/mAP', mAP, epoch)
+        # mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        # writer.add_scalar('test/top-1', acc, epoch)
+        # writer.add_scalar('test/mAP', mAP, epoch)
 
         top1 = acc
         is_best = top1 > best_top1

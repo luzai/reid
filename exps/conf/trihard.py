@@ -4,8 +4,8 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=2e-4,
-        logs_dir='dbg',
-        batch_size=12,
+        logs_dir='analyze.2',
+        batch_size=120,
         gpu=range(1),
         branchs=0,
         branch_dim=128,
