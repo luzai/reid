@@ -33,7 +33,7 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
         args.logs_dir = 'work/' + args.logs_dir
-        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.05, 0.05])
+        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.1, 0.2])
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if args.export_config:
@@ -48,7 +48,7 @@ def run(_):
         proc.start()
         time.sleep(15)
         procs.append(proc)
-    for proc in procs:
+        # for proc in procs:
         proc.join()
 
 
@@ -187,27 +187,35 @@ def main(args):
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
 
-    base_model = models.create(args.arch,
-                               dropout=args.dropout,
-                               pretrained=args.pretrained,
-                               cut_at_pooling=True
-                               )
-    if args.branchs * args.branch_dim != 0:
-        local_model = Mask(2048, args.branchs, args.branch_dim,
-                           height=args.height // 32,
-                           width=args.width // 32,
-                           dopout=args.dropout
-                           )
-    else:
-        local_model = None
-    if args.global_dim != 0:
-        global_model = Global(2048, args.global_dim, dropout=args.dropout)
-    else:
-        global_model = None
-    concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
-                                args.num_classes,dropout=0)
+    # base_model = models.create(args.arch,
+    #                            dropout=args.dropout,
+    #                            pretrained=args.pretrained,
+    #                            cut_at_pooling=True
+    #                            )
+    # if args.branchs * args.branch_dim != 0:
+    #     local_model = Mask(2048, args.branchs, args.branch_dim,
+    #                        height=args.height // 32,
+    #                        width=args.width // 32,
+    #                        dopout=args.dropout
+    #                        )
+    # else:
+    #     local_model = None
+    # if args.global_dim != 0:
+    #     global_model = Global(2048, args.global_dim, dropout=args.dropout)
+    # else:
+    #     global_model = None
+    # concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
+    #                             args.num_classes,dropout=0)
+    #
+    # model = SingleNet(base_model, global_model, local_model, concat_model)
 
-    model = SingleNet(base_model, global_model, local_model, concat_model)
+    model = models.create(args.arch,
+                          pretrained=args.pretrained,
+                          dropout=args.dropout,
+                          norm=args.normalize,
+                          num_features=args.global_dim,
+                          num_classes=args.num_classes
+                          )
 
     print(model)
 
@@ -259,7 +267,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion)
+    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis')
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -286,16 +294,16 @@ def main(args):
         if epoch not in args.log_at:
             continue
 
-        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
         writer.add_scalar('train/top-1', acc, epoch)
+        writer.add_scalar('train/mAP', mAP, epoch)
 
-        # acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        # writer.add_scalar('test/top-1', acc, epoch)
+        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        writer.add_scalar('test/top-1', acc, epoch)
+        writer.add_scalar('test/mAP', mAP, epoch)
 
         top1 = acc
         is_best = top1 > best_top1
-        # top1 = 0
-        # is_best = True
 
         best_top1 = max(top1, best_top1)
         save_checkpoint({
@@ -313,7 +321,9 @@ def main(args):
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
         model.module.load_state_dict(checkpoint['state_dict'])
         metric.train(model, train_loader)
-        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        writer.add_scalar('test/top-1', acc, args.epochs + 1)
+        writer.add_scalar('test/mAP', mAP, args.epochs + 1)
         lz.logging.info('final rank1 is {}'.format(acc))
 
 

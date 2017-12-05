@@ -29,6 +29,7 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
 def _make_fc(in_, out_, dp_=0., with_relu=True):
     fc = nn.Linear(in_, out_)
     init.normal(fc.weight, std=0.001)
+    # init.kaiming_normal(fc.weight, mode='fan_out')
     init.constant(fc.bias, 0)
     dp = nn.Dropout(dp_)
     relu = nn.ReLU(inplace=True)
@@ -51,7 +52,7 @@ class MaskBranch(nn.Module):
             nn.Sigmoid()
         )
         self.pool = nn.AvgPool2d((self.height, self.width))
-        self.fc = _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
+        self.fc = _make_fc(in_planes, branch_dim, with_relu=True, dp_=dopout)
 
     def forward(self, x):
         x_left = self.branch_left(x)
@@ -77,7 +78,7 @@ class Mask(nn.Module):
 class Global(nn.Module):
     def __init__(self, in_planes, out_planes, dropout=0.3):
         super(Global, self).__init__()
-        self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
+        self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=True)
 
     def forward(self, x):
         x = F.avg_pool2d(x, x.size()[2:])
@@ -91,6 +92,8 @@ class ConcatReduce(nn.Module):
         super(ConcatReduce, self).__init__()
         self.normalize = normalize
         self.bn = nn.BatchNorm1d(in_planes)
+        init.constant(self.bn.weight, 1)
+        init.constant(self.bn.bias, 0)
         self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
 
     def forward(self, *input):
@@ -99,7 +102,8 @@ class ConcatReduce(nn.Module):
         else:
             x = input[0]
         x = self.bn(x)
-        x = F.normalize(x)
+        # x = F.normalize(x)
+        x = F.relu(x)
         x = self.fc(x)
 
         return x

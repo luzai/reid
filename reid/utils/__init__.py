@@ -4,6 +4,8 @@ import torch
 
 
 def to_numpy(tensor):
+    if isinstance(tensor,torch.autograd.Variable):
+        tensor = tensor.data
     if torch.is_tensor(tensor):
         return tensor.cpu().numpy()
     elif type(tensor).__module__ != 'numpy':
@@ -13,6 +15,8 @@ def to_numpy(tensor):
 
 
 def to_torch(ndarray):
+    if isinstance(ndarray,torch.autograd.Variable):
+        ndarray = ndarray.data
     if type(ndarray).__module__ == 'numpy':
         return torch.from_numpy(ndarray)
     elif not torch.is_tensor(ndarray):

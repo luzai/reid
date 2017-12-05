@@ -60,7 +60,7 @@ class ResNet(nn.Module):
 
             # Append new layers
             if self.has_embedding:
-                self.feat = nn.Linear(2048, self.num_features)
+                self.feat = nn.Linear(out_planes, self.num_features)
                 self.feat_bn = nn.BatchNorm1d(self.num_features)
                 init.kaiming_normal(self.feat.weight, mode='fan_out')
                 init.constant(self.feat.bias, 0)
@@ -94,9 +94,9 @@ class ResNet(nn.Module):
         if self.has_embedding:
             x = self.feat(x)
             x = self.feat_bn(x)
-        if self.norm:
-            x = F.normalize(x)
-        elif self.has_embedding:
+        # if self.norm:
+        #     x = F.normalize(x)
+        # elif self.has_embedding:
             x = F.relu(x)
         if self.dropout > 0:
             x = self.drop(x)

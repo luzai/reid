@@ -159,7 +159,7 @@ class Evaluator(object):
                                     query_cams, gallery_cams, **params)
                           for name, params in cmc_configs.items()}
             print('cmc-1 market1501 ' + str(cmc_scores['market1501'][0]))
-            return cmc_scores['market1501'][0]
+            return mAP,cmc_scores['market1501'][0]
         else:
             # Compute all kinds of CMC scores
             cmc_configs = {
@@ -189,7 +189,7 @@ class Evaluator(object):
 
             logging.info('evaluate takes time {}'.format(timer.since_start()))
             # return cmc_scores['cuhk03'][0]
-            return cmc_scores['market1501'][0]
+            return mAP,cmc_scores['market1501'][0]
 
 
 class CascadeEvaluator(object):

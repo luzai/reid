@@ -3,19 +3,25 @@ import time, collections
 
 import torch
 from torch.autograd import Variable
-
+import torchvision.utils as vutils
 from .evaluation_metrics import accuracy
 from .loss import OIMLoss, TripletLoss, TupletLoss
 from .utils.meters import AverageMeter
 from lz import *
+from tensorboardX import SummaryWriter
+from reid.utils import to_numpy,to_torch
 
 
 class BaseTrainer(object):
-    def __init__(self, model, criterion, freeze=''):
+    def __init__(self, model, criterion, dbg=False, logs_at='work/vis'):
         super(BaseTrainer, self).__init__()
         self.model = model
         self.criterion = criterion
-        self.freeze = freeze
+        self.dbg = dbg
+        if dbg:
+            mkdir_p(logs_at, delete=True)
+            self.writer = SummaryWriter(logs_at)
+            self.iter = 0
 
     def train(self, epoch, data_loader, optimizer, print_freq=1):
         self.model.train()
@@ -32,7 +38,7 @@ class BaseTrainer(object):
             inputs, targets = self._parse_data(inputs)
             loss, prec1 = self._forward(inputs, targets)
             if isinstance(targets, tuple):
-                targets,_ = targets
+                targets, _ = targets
             losses.update(loss.data[0], targets.size(0))
             precisions.update(prec1, targets.size(0))
 
@@ -95,7 +101,7 @@ class VerfTrainer(BaseTrainer):
         if info is not None:
             write_df(info, 'dbg.hard.h5')
             print(
-               np.array(((pred.data[:, 1] > pred.data[:, 0]).type_as(y.data) == y.data).cpu().numpy()).mean()
+                np.array(((pred.data[:, 1] > pred.data[:, 0]).type_as(y.data) == y.data).cpu().numpy()).mean()
             )
             exit(0)
         loss = self.criterion(pred, y)
@@ -131,6 +137,12 @@ class Trainer(BaseTrainer):
 
     def _forward(self, inputs, targets):
         outputs = self.model(*inputs)
+        if self.dbg and self.iter % 100 == 0:
+            self.writer.add_histogram('input', inputs[0], self.iter)
+            self.writer.add_histogram('feature', outputs, self.iter)
+            x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
+            self.writer.add_image('input', x, self.iter)
+
         if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
             loss = self.criterion(outputs, targets)
             prec, = accuracy(outputs.data, targets.data)
@@ -140,9 +152,19 @@ class Trainer(BaseTrainer):
             prec, = accuracy(outputs.data, targets.data)
             prec = prec[0]
         elif isinstance(self.criterion, TripletLoss):
-            loss, prec = self.criterion(outputs, targets)
+            if self.dbg and self.iter % 10 == 0:
+                loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
+                self.writer.add_scalar('vis/loss', loss,self.iter)
+                self.writer.add_scalar('vis/prec', prec, self.iter)
+                self.writer.add_histogram('dist', dist, self.iter)
+                self.writer.add_histogram('ap', dist_ap, self.iter)
+                self.writer.add_histogram('an', dist_an, self.iter)
+            else:
+                loss, prec = self.criterion(outputs, targets, dbg=False)
+
         elif isinstance(self.criterion, TupletLoss):
             loss, prec = self.criterion(outputs, targets)
         else:
             raise ValueError("Unsupported loss:", self.criterion)
+        self.iter += 1
         return loss, prec

@@ -14,11 +14,8 @@ class TripletLoss(nn.Module):
         self.margin = margin
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
         self.mode = mode
-        # subprocess.call(('rm -rf exps/dbg').split())
-        # self.writer = SummaryWriter('./exps/dbg')
-        # self.iter = 0
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs, targets, dbg=False):
         n = inputs.size(0)
 
         # Compute pairwise distance, replace by the official when merged
@@ -67,11 +64,6 @@ class TripletLoss(nn.Module):
                     dist_ap.extend(posp_)
                     dist_an.extend(negp_)
 
-                    # posp.size()
-                    # len(dist_an)
-                    # negp.size()
-                    # posp.size(0)
-                    # negp.size(0)
         dist_ap = torch.cat(dist_ap)
         dist_an = torch.cat(dist_an)
         # Compute ranking hinge loss
@@ -82,15 +74,10 @@ class TripletLoss(nn.Module):
         loss = self.ranking_loss(dist_an, dist_ap, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
-        # if self.iter % 10 == 0:
-        #     self.writer.add_histogram('features', inputs, self.iter)
-        #     self.writer.add_histogram('dist', dist, self.iter)
-        #     self.writer.add_histogram('ap', dist_ap, self.iter)
-        #     self.writer.add_histogram('an', dist_an, self.iter)
-        #
-        # self.iter += 1
-
-        return loss, prec
+        if not dbg:
+            return loss, prec
+        else:
+            return loss,prec ,dist, dist_ap, dist_an
 
 
 def stat(tensor):
