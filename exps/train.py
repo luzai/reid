@@ -53,7 +53,7 @@ def run(_):
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
-             workers, combine_trainval, return_vis=False, pin_memory=True, name_val=''):
+             workers, combine_trainval, pin_memory=True, name_val=''):
     if isinstance(name, list) and len(name) != 1:
         names = name
         root = '/home/xinglu/.torch/data/'
@@ -94,7 +94,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        sampler=RandomIdentitySampler(train_set, num_instances),
+        sampler=RandomIdentitySampler(train_set, num_instances,batch_size=batch_size),
         pin_memory=pin_memory, drop_last=True)
 
     val_loader = DataLoader(
@@ -137,19 +137,8 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     #                  transform=test_transformer),
     #     batch_size=batch_size, num_workers=workers,
     #     shuffle=False, pin_memory=pin_memory)
-    if not return_vis:
-        return dataset, num_classes, train_loader, val_loader, test_loader
-    else:
-        vis_loader = DataLoader(
-            Preprocessor(query_ga,
-                         root=dataset.images_dir, transform=T.Compose([
-                    T.RectScale(height, width),
-                    T.ToTensor(),
-                ])),
-            batch_size=batch_size, num_workers=workers,
-            shuffle=False, pin_memory=pin_memory
-        )
-        return dataset, num_classes, train_loader, val_loader, test_loader, vis_loader
+    ## todo not support vis anymore
+    return dataset, num_classes, train_loader, val_loader, test_loader
 
 
 def limit_dataset(query, limit):

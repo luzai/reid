@@ -10,7 +10,7 @@ from torch.utils.data.sampler import (
 
 
 class RandomIdentitySampler(Sampler):
-    def __init__(self, data_source, num_instances=4, batch_size=160,shuffle=False):
+    def __init__(self, data_source, num_instances=4, batch_size=160, shuffle=True):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
 
@@ -30,9 +30,49 @@ class RandomIdentitySampler(Sampler):
         indices = torch.randperm(self.num_samples)
         ret = []
         ret_t = []
+        for pid in indices:
+            t = self.index_dic[pid]
+            if len(t) >= self.num_instances:
+                t = np.random.choice(t, size=self.num_instances, replace=False)
+            else:
+                t = np.random.choice(t, size=self.num_instances, replace=True)
+            if not self.shuffle:
+                ret.extend(t)
+                print(len(ret))
+            else:
+                if len(ret_t) < self.batch_size:
+                    ret_t.extend(t)
+                else:
+                    np.random.shuffle(ret_t)
+                    ret.extend(ret_t)
+                    ret_t = []
+        return iter(ret)
+
+
+class RandomIdentityWeightedSampler(Sampler):
+    def __init__(self, data_source, num_instances=4, batch_size=160, shuffle=False):
+        assert batch_size % num_instances == 0
+        self.batch_size = batch_size
+
+        self.data_source = data_source
+        self.num_instances = num_instances
+        self.pid2ind = defaultdict(list)
+        for index, (_, pid, _) in enumerate(data_source):
+            self.pid2ind[pid].append(index)
+        self.pids = list(self.pid2ind.keys())
+        self.num_pids = len(self.pids)
+        self.shuffle = shuffle
+
+    def __len__(self):
+        return self.num_pids * self.num_instances
+
+    def __iter__(self):
+        indices = torch.randperm(self.num_pids)
+        ret = []
+        ret_t = []
         for i in indices:
             pid = self.pids[i]
-            t = self.index_dic[pid]
+            t = self.pid2ind[pid]
             if len(t) >= self.num_instances:
                 t = np.random.choice(t, size=self.num_instances, replace=False)
             else:

@@ -31,4 +31,4 @@ if __name__ == '__main__':
 
     y = model(x1, x2)
 
-    print y.size()
+    print(y.size())
