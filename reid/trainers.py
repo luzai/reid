@@ -139,10 +139,10 @@ def stat_(writer, tag, tensor, iter):
 
 class Trainer(BaseTrainer):
     def _parse_data(self, inputs):
-        imgs, _, pids, _ = inputs
+        imgs, fnames, pids, _ = inputs
         inputs = [Variable(imgs.cuda(), requires_grad=False)]
         targets = Variable(pids.cuda(), requires_grad=False)
-        return inputs, targets
+        return inputs, targets, fnames
 
     def _forward(self, inputs, targets):
         outputs = self.model(*inputs)
@@ -162,10 +162,10 @@ class Trainer(BaseTrainer):
             prec = prec[0]
         elif isinstance(self.criterion, TripletLoss):
             if self.dbg and self.iter % 10 == 0:
-                loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
+                loss, prec, replay_ind, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
                 diff = dist_an - dist_ap
                 self.writer.add_histogram('an-ap', diff, self.iter)
-                self.writer.add_histogram('an-ap/auto', diff, self.iter, 'auto')
+                # self.writer.add_histogram('an-ap/auto', diff, self.iter, 'auto')
 
                 stat_(self.writer, 'an-ap', diff, self.iter)
                 self.writer.add_scalar('vis/loss', loss, self.iter)
@@ -174,11 +174,63 @@ class Trainer(BaseTrainer):
                 self.writer.add_histogram('ap', dist_ap, self.iter)
                 self.writer.add_histogram('an', dist_an, self.iter)
             else:
-                loss, prec = self.criterion(outputs, targets, dbg=False)
+                loss, prec, replay_ind = self.criterion(outputs, targets, dbg=False)
 
         elif isinstance(self.criterion, TupletLoss):
             loss, prec = self.criterion(outputs, targets)
         else:
             raise ValueError("Unsupported loss:", self.criterion)
         self.iter += 1
-        return loss, prec
+        return loss, prec, replay_ind
+
+    def train(self, epoch, data_loader, optimizer, print_freq=1):
+        self.model.train()
+
+        batch_time = AverageMeter()
+        data_time = AverageMeter()
+        losses = AverageMeter()
+        precisions = AverageMeter()
+
+        end = time.time()
+        for i, inputs in enumerate(data_loader):
+            data_time.update(time.time() - end)
+            inputs, targets, fnames = self._parse_data(inputs)
+            global_inds = [data_loader.fname2ind[fn] for fn in fnames]
+            loss, prec1, replay_ind = self._forward(inputs, targets)
+            if isinstance(targets, tuple):
+                targets, _ = targets
+            losses.update(loss.data[0], targets.size(0))
+            precisions.update(prec1, targets.size(0))
+
+            sampler = data_loader.sampler
+            probs = np.array(sampler.info.probs)
+            alpha=0.9
+            probs *= alpha
+            for ind_, prob_ in zip(global_inds, replay_ind):
+                probs[ind_] = probs[ind_] + (1-alpha) * prob_
+            sampler.info['probs'] = probs
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if (i + 1) % print_freq == 0:
+                print('Epoch: [{}][{}/{}]\t'
+                      'Time {:.3f} ({:.3f})\t'
+                      'Data {:.3f} ({:.3f})\t'
+                      'Loss {:.3f} ({:.3f})\t'
+                      'Prec {:.2%} ({:.2%})\t'
+                      .format(epoch, i + 1, len(data_loader),
+                              batch_time.val, batch_time.avg,
+                              data_time.val, data_time.avg,
+                              losses.val, losses.avg,
+                              precisions.val, precisions.avg))
+        return collections.OrderedDict({
+            'ttl-time': batch_time.avg,
+            'data-time': data_time.avg,
+            'loss': losses.avg,
+            'prec': precisions.avg
+        })

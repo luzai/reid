@@ -53,7 +53,6 @@ class RandomIdentitySampler(Sampler):
                 yield self.queue.get()
 
 
-# todo
 class RandomIdentityWeightedSampler(Sampler):
     def __init__(self, data_source, num_instances=4, batch_size=100, weights=None):
         assert batch_size % num_instances == 0
@@ -74,19 +73,30 @@ class RandomIdentityWeightedSampler(Sampler):
             ('probs', weights)
         ])
         self.num_pids = np.unique(pids).shape[0]
-        self.num_inds=self.info.shape[0]
+        self.num_inds = self.info.shape[0]
         self.queue = queue.Queue()
+        self.cache_ind = []
 
     def __len__(self):
         return self.num_pids * self.num_instances
+
+    def get_cache(self):
+        cache_ind = self.cache_ind.copy()
+        self.cache_ind = []
+        return cache_ind
 
     def __iter__(self):
         ind_ind = 0
         grouped = self.info.groupby('pids')
         while ind_ind < self.num_pids:
+            # print(self.queue.qsize(), ' with ', list(self.queue.queue))
             if not self.queue.empty():
-                yield self.queue.get()
+                tobe = self.queue.get()
+                self.cache_ind.append(tobe)
+                yield tobe
             else:
+                if np.random.rand(1) < 0.005:
+                    print('global probs ', np.asarray(self.info['probs']))
                 probs = grouped.sum()['probs']
                 pid = np.random.choice(probs.index, p=probs)
                 pid = int(pid)
@@ -98,13 +108,12 @@ class RandomIdentityWeightedSampler(Sampler):
                     t = np.random.choice(t, size=self.num_instances, replace=False, p=probs_probs)
                 else:
                     t = np.random.choice(t, size=self.num_instances, replace=True, p=probs_probs)
+                # with self.queue.mutex:
                 [self.queue.put(t_) for t_ in t]
                 ind_ind += 1
-                yield self.queue.get()
 
     def update_weight(self, weights):
-
-        self.info['probs']=weights
+        self.info['probs'] = weights
 
 
 def _choose_from(start, end, excluding=None, size=1, replace=False):

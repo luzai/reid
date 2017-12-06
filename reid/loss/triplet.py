@@ -6,6 +6,7 @@ from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 import subprocess
 import numpy as np, numpy
+import lz
 
 
 class TripletLoss(nn.Module):
@@ -26,20 +27,26 @@ class TripletLoss(nn.Module):
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         dist_ap, dist_an = [], []
+        all_ind = Variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False, volatile=True).cuda()
+        posp_inds, negp_inds = [], []
+
         for i in range(n):
             if self.mode == 'hard':
-                posp = dist[i][mask[i]]
-                _, posp_ind = posp.max(0)
-                posp_ind = Variable(posp_ind.data, requires_grad=False)
-                posp_max = posp[posp_ind]
-                dist_ap.append(posp_max)  # dist[i][mask[i]].max()
+                some_ind = all_ind[mask[i]]
+                some_pos = dist[i][mask[i]]
+                _, ind4some_ind = some_pos.max(0)
+                global_ind = some_ind[ind4some_ind]
+                global_ind = Variable(global_ind.data, requires_grad=False)
+                posp_inds.append(global_ind)
+                dist_ap.append(some_pos[ind4some_ind])
 
-                negp = dist[i][mask[i] == 0]
-                _, negp_ind = negp.min(0)
-                negp_ind = Variable(negp_ind.data, requires_grad=False)
-                negp_min = negp[negp_ind]
-
-                dist_an.append(negp_min)  # dist[i][mask[i] == 0].min()
+                some_ind  = all_ind[mask[i] == 0]
+                some_neg = dist[i][mask[i]==0]
+                _, ind4some_ind= some_neg.min(0)
+                global_ind = some_ind[ind4some_ind]
+                global_ind = Variable(global_ind.data, requires_grad=False)
+                negp_inds.append(global_ind)
+                dist_an.append(some_neg[ind4some_ind])  # dist[i][mask[i] == 0].min()
 
             elif self.mode == 'rand':
                 posp = dist[i][mask[i]]
@@ -74,11 +81,34 @@ class TripletLoss(nn.Module):
         loss = self.ranking_loss(dist_an, dist_ap, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
+        posp_inds, negp_inds = torch.cat(posp_inds), torch.cat(negp_inds)
+        replay_ind = get_replay_ind(posp_inds, negp_inds, dist_an - dist_ap)
         if not dbg:
-            return loss, prec
+            return loss, prec, replay_ind
         else:
-            return loss, prec, dist, dist_ap, dist_an
+            return loss, prec, replay_ind,  dist, dist_ap, dist_an
 
 
-def stat(tensor):
-    return tensor.min(), tensor.mean(), tensor.max(), tensor.std(), tensor.size()
+def get_replay_ind(posp_inds, negp_inds, diff):
+    batch_size=diff.size(0)
+    pinds = lz.to_numpy(posp_inds)
+    ninds = lz.to_numpy(negp_inds)
+    diff = lz.to_numpy(diff)
+
+    # db = lz.Database('tmp.h5', 'w')
+    # db['pinds'] = pinds
+    # db['ninds'] = ninds
+    # db['diff'] = diff
+    # db.close()
+
+    thresh1 = np.percentile(diff, 45)
+    thresh2 = np.percentile(diff, 95)
+
+    sel_ind = np.nonzero(np.logical_and(diff > thresh1, diff < thresh2))[0]
+    sel=np.concatenate(
+        (pinds[sel_ind], ninds[sel_ind], sel_ind)
+    )
+    bins, _ = np.histogram(sel, bins=batch_size, range=(0, batch_size))
+    bins = bins / bins.sum()
+    return bins
+
