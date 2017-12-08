@@ -143,7 +143,7 @@ class Trainer(BaseTrainer):
 
     def _forward(self, inputs, targets):
         outputs = self.model(*inputs)
-        if self.dbg and self.iter % 1000 == 0:
+        if self.dbg and self.iter % 200 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', outputs, self.iter)
             x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)

@@ -5,6 +5,7 @@ from torch.nn import functional as F
 from torch.nn import init
 import torchvision
 import torch
+from lz import *
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
@@ -43,17 +44,81 @@ def _make_fc(in_, out_, dp_=0., with_relu=True):
     return nn.Sequential(*res)
 
 
-class TSN(nn.Module):
+class STN(nn.Module):
     def __init__(self, ):
-        super(TSN, self).__init__()
-        self.loc = torchvision.models.resnet18(pretrained=True, num_classes=6)
+        super(STN, self).__init__()
+        self.loc = torchvision.models.resnet18(pretrained=True)
 
         self.fc = nn.Linear(self.loc.fc.in_features, 6)
-        init.constant(self.fc.weight, 0)
-        init.constant(self.fc.bias, [1, 0, 0, 0, 1, 0])
+        # init.constant(self.fc.weight, 0)
+        # self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
 
     def forward(self, input):
-        xs = self.loc(input)
+        xs = input
+        for name, module in self.loc._modules.items():
+            if name == 'avgpool':
+                break
+            xs = module(xs)
+        xs = F.avg_pool2d(xs, xs.size()[2:])
+        xs = xs.view(xs.size(0), -1)
+        theta = self.fc(xs)
+        theta = theta.view(-1, 2, 3)
+
+        grid = F.affine_grid(theta, input.size())
+        x = F.grid_sample(input, grid)
+        return x
+
+
+# class STN2(nn.Module):
+#     def __init__(self, ):
+#         super(STN2, self).__init__()
+#         self.loc = nn.Sequential(
+#             nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
+#                       bias=False),
+#             nn.BatchNorm2d(64),
+#             nn.ReLU(inplace=True),
+#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+#             _make_conv(64, 128),
+#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+#             _make_conv(128, 256),
+#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+#             _make_conv(256, 512),
+#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+#             _make_conv(512, 1024),
+#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+#         )
+#
+#         self.fc = nn.Linear(1024, 6)
+#         init.constant(self.fc.weight, 0)
+#         self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
+#
+#     def forward(self, input):
+#         xs = input
+#         xs = self.loc(xs)
+#         xs = F.avg_pool2d(xs, xs.size()[2:])
+#         xs = xs.view(xs.size(0), -1)
+#         theta = self.fc(xs)
+#         theta = theta.view(-1, 2, 3)
+#
+#         grid = F.affine_grid(theta, input.size())
+#         x = F.grid_sample(input, grid)
+#         return x
+
+
+class STN3(nn.Module):
+    def __init__(self, ):
+        super(STN3, self).__init__()
+        self.loc = nn.Sequential(
+            _make_conv(3, 64, kernel_size=7, stride=8, padding=0),
+            _make_conv(64, 128, kernel_size=7, stride=4, padding=2),
+        )
+        self.fc = nn.Linear(128, 6)
+        # init.constant(self.fc.weight, 0)
+        # self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
+
+    def forward(self, input):
+        xs = input
+        xs = self.loc(xs)
         xs = F.avg_pool2d(xs, xs.size()[2:])
         xs = xs.view(xs.size(0), -1)
         theta = self.fc(xs)
@@ -81,7 +146,7 @@ class ResNet(nn.Module):
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
 
-        self.tsn = TSN()
+        self.stn = STN()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:
@@ -117,7 +182,7 @@ class ResNet(nn.Module):
             self.reset_params()
 
     def forward(self, x):
-        x = self.tsn(x)
+        # x = self.stn(x)
 
         for name, module in self.base._modules.items():
             if name == 'avgpool':

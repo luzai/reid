@@ -32,9 +32,9 @@ def run(_):
     cfgs = torchpack.load_cfg('./conf/trihard.py')
     procs = []
     for args in cfgs.cfgs:
-        
+
         args.logs_dir = 'work/' + args.logs_dir
-        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.9,0.9])
+        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.9, 0.9])
         # args.gpu = [3,]
 
         if isinstance(args.gpu, int):
@@ -104,7 +104,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
 
     fnames = np.asarray(train_set)[:, 0]
     fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
-    setattr(train_loader, 'fname2ind',fname2ind)
+    setattr(train_loader, 'fname2ind', fname2ind)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
@@ -256,8 +256,9 @@ def main(args):
     criterion = TripletLoss(margin=args.margin).cuda()
 
     # Optimizer
+    # filter(lambda p: p.requires_grad, model.parameters())
     if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, # module.stn
                                      weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
@@ -297,9 +298,9 @@ def main(args):
         writer.add_scalar('train/top-1', acc, epoch)
         writer.add_scalar('train/mAP', mAP, epoch)
 
-        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        writer.add_scalar('test/top-1', acc, epoch)
-        writer.add_scalar('test/mAP', mAP, epoch)
+        # mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        # writer.add_scalar('test/top-1', acc, epoch)
+        # writer.add_scalar('test/mAP', mAP, epoch)
 
         top1 = acc
         is_best = top1 > best_top1
