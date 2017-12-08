@@ -1,8 +1,4 @@
 from __future__ import print_function, absolute_import
-import time, collections
-
-import torch
-from torch.autograd import Variable
 import torchvision.utils as vutils
 from .evaluation_metrics import accuracy
 from .loss import OIMLoss, TripletLoss, TupletLoss
@@ -10,6 +6,7 @@ from .utils.meters import AverageMeter
 from lz import *
 from tensorboardX import SummaryWriter
 from reid.utils import to_numpy, to_torch
+from reid.mining import mine_hard_triplets
 
 
 class BaseTrainer(object):
@@ -183,8 +180,7 @@ class Trainer(BaseTrainer):
         self.iter += 1
         return loss, prec, replay_ind
 
-    def train(self, epoch, data_loader, optimizer, print_freq=1):
-        self.model.train()
+    def train(self, epoch, data_loader, optimizer, print_freq=5):
 
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -192,10 +188,33 @@ class Trainer(BaseTrainer):
         precisions = AverageMeter()
 
         end = time.time()
+
+        # triplets = mine_hard_triplets(self.model, data_loader, margin=0.5)
+        # al_ind = np.asarray(triplets).flatten()
+        # bins, _ = np.histogram(al_ind, bins=data_loader.sampler.info.shape[0],
+        #                        range=(0, data_loader.sampler.info.shape[0]))
+        # bins += 1
+        # bins = bins / bins.sum()
+        # data_loader.sampler.update_weight(bins)
+
+        # if np.random.rand(1) < 0.005:
+        #     print('global probs ', np.asarray(data_loader.sampler.info['probs']))
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
             inputs, targets, fnames = self._parse_data(inputs)
+
             global_inds = [data_loader.fname2ind[fn] for fn in fnames]
+
+            # triplets = mine_hard_triplets(self.model, data_loader, margin=0.5)
+            # al_ind = np.asarray(triplets).flatten()
+            # bins, divs = np.histogram(al_ind, bins=data_loader.sampler.info.shape[0],
+            #                        range=(0, data_loader.sampler.info.shape[0]))
+            # bins += 1
+            # bins = bins / bins.sum()
+            # data_loader.sampler.update_weight(bins)
+            # print('global probs ', np.asarray(data_loader.sampler.info['probs']))
+
+            self.model.train()
             loss, prec1, replay_ind = self._forward(inputs, targets)
             if isinstance(targets, tuple):
                 targets, _ = targets
@@ -204,10 +223,11 @@ class Trainer(BaseTrainer):
 
             sampler = data_loader.sampler
             probs = np.array(sampler.info.probs)
-            alpha=0.9
+            # alpha = 1 - 1e-3
+            alpha = 1
             probs *= alpha
             for ind_, prob_ in zip(global_inds, replay_ind):
-                probs[ind_] = probs[ind_] + (1-alpha) * prob_
+                probs[ind_] = probs[ind_] + (1 - alpha) * prob_
             sampler.info['probs'] = probs
 
             optimizer.zero_grad()

@@ -29,6 +29,41 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
         return nn.Sequential(conv, bn)
 
 
+def _make_fc(in_, out_, dp_=0., with_relu=True):
+    fc = nn.Linear(in_, out_)
+    init.normal(fc.weight, std=0.001)
+    init.constant(fc.bias, 0)
+    dp = nn.Dropout(dp_)
+    relu = nn.ReLU(inplace=True)
+    res = [fc, ]
+    if dp_ != 0:
+        res.append(dp)
+    if with_relu:
+        res.append(relu)
+    return nn.Sequential(*res)
+
+
+class TSN(nn.Module):
+    def __init__(self, ):
+        super(TSN, self).__init__()
+        self.loc = torchvision.models.resnet18(pretrained=True, num_classes=6)
+
+        self.fc = nn.Linear(self.loc.fc.in_features, 6)
+        init.constant(self.fc.weight, 0)
+        init.constant(self.fc.bias, [1, 0, 0, 0, 1, 0])
+
+    def forward(self, input):
+        xs = self.loc(input)
+        xs = F.avg_pool2d(xs, xs.size()[2:])
+        xs = xs.view(xs.size(0), -1)
+        theta = self.fc(xs)
+        theta = theta.view(-1, 2, 3)
+
+        grid = F.affine_grid(theta, input.size())
+        x = F.grid_sample(input, grid)
+        return x
+
+
 class ResNet(nn.Module):
     __factory = {
         18: torchvision.models.resnet18,
@@ -45,6 +80,8 @@ class ResNet(nn.Module):
         self.depth = depth
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
+
+        self.tsn = TSN()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:
@@ -80,6 +117,8 @@ class ResNet(nn.Module):
             self.reset_params()
 
     def forward(self, x):
+        x = self.tsn(x)
+
         for name, module in self.base._modules.items():
             if name == 'avgpool':
                 break
@@ -94,9 +133,9 @@ class ResNet(nn.Module):
         if self.has_embedding:
             x = self.feat(x)
             x = self.feat_bn(x)
-        # if self.norm:
-        #     x = F.normalize(x)
-        # elif self.has_embedding:
+            # if self.norm:
+            #     x = F.normalize(x)
+            # elif self.has_embedding:
             x = F.relu(x)
         if self.dropout > 0:
             x = self.drop(x)

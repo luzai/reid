@@ -95,8 +95,7 @@ class RandomIdentityWeightedSampler(Sampler):
                 self.cache_ind.append(tobe)
                 yield tobe
             else:
-                if np.random.rand(1) < 0.005:
-                    print('global probs ', np.asarray(self.info['probs']))
+
                 probs = grouped.sum()['probs']
                 pid = np.random.choice(probs.index, p=probs)
                 pid = int(pid)

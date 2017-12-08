@@ -101,8 +101,8 @@ def get_replay_ind(posp_inds, negp_inds, diff):
     # db['diff'] = diff
     # db.close()
 
-    thresh1 = np.percentile(diff, 45)
-    thresh2 = np.percentile(diff, 95)
+    thresh1 = np.percentile(diff, 1)
+    thresh2 = np.percentile(diff, 99)
 
     sel_ind = np.nonzero(np.logical_and(diff > thresh1, diff < thresh2))[0]
     sel=np.concatenate(

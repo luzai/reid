@@ -32,8 +32,11 @@ def run(_):
     cfgs = torchpack.load_cfg('./conf/trihard.py')
     procs = []
     for args in cfgs.cfgs:
+        
         args.logs_dir = 'work/' + args.logs_dir
-        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.03, 0.05])
+        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.9,0.9])
+        # args.gpu = [3,]
+
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if args.export_config:
@@ -43,12 +46,15 @@ def run(_):
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
             cvb.dump(args, args.logs_dir + '/conf.pkl')
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
-        # time.sleep(30)
-        procs.append(proc)
-        # for proc in procs:
-        proc.join()
+
+        main(args)
+
+        # proc = lz.mp.Process(target=main, args=(args,))
+        # proc.start()
+        # # time.sleep(30)
+        # procs.append(proc)
+        # # for proc in procs:
+        # proc.join()
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
@@ -88,13 +94,14 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         T.ToTensor(),
         normalizer,
     ])
-    sampler = RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size)
+
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        sampler=sampler,
+        sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
         pin_memory=pin_memory, drop_last=True)
+
     fnames = np.asarray(train_set)[:, 0]
     fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
     setattr(train_loader, 'fname2ind',fname2ind)
@@ -290,9 +297,9 @@ def main(args):
         writer.add_scalar('train/top-1', acc, epoch)
         writer.add_scalar('train/mAP', mAP, epoch)
 
-        # mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        # writer.add_scalar('test/top-1', acc, epoch)
-        # writer.add_scalar('test/mAP', mAP, epoch)
+        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        writer.add_scalar('test/top-1', acc, epoch)
+        writer.add_scalar('test/mAP', mAP, epoch)
 
         top1 = acc
         is_best = top1 > best_top1

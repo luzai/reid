@@ -3,19 +3,8 @@ from easydict import EasyDict
 
 cfgs = [
     EasyDict(dict(
-        lr=2e-4,
-        logs_dir='replay.9',
-        batch_size=100,
-        gpu=range(1),
-        branchs=0,
-        branch_dim=128,
-        global_dim=1024,
-        num_classes=128,
-        workers=8,
-    )),
-    EasyDict(dict(
-        lr=2e-4,
-        logs_dir='replay.9.worker0',
+        lr=3e-4,
+        logs_dir='dbg2',
         batch_size=100,
         gpu=range(1),
         branchs=0,
@@ -23,6 +12,14 @@ cfgs = [
         global_dim=1024,
         num_classes=128,
         workers=0,
+        # resume='/data1/xinglu/prj/open-reid/work/replay/replay.1e-4.worker0/model_best.pth',
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(155, 165, 1),
+            [0, 1, 2, 3, 4, 5, 6]
+        ]),
+        epochs=6,
     )),
 
 ]
@@ -56,7 +53,7 @@ base = EasyDict(
         log_at=np.concatenate([
             range(0, 100, 49),
             range(100, 150, 19),
-            range(155, 165, 1)
+            range(155, 165, 1),
         ]),
 
         weight_decay=5e-4,

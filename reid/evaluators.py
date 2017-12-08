@@ -138,7 +138,7 @@ class Evaluator(object):
 
         features, _ = extract_features(self.model, data_loader, limit=limit)
         assert len(features) != 0
-        list(features.keys())
+        # list(features.keys())
         distmat = pairwise_distance(features, query, gallery, metric=metric)
         self.distmat = distmat.cpu().numpy()
 

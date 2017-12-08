@@ -3,6 +3,7 @@ import os.path as osp
 
 from PIL import Image
 
+
 class Preprocessor(object):
     def __init__(self, dataset, root=None, transform=None):
         super(Preprocessor, self).__init__()
@@ -21,12 +22,13 @@ class Preprocessor(object):
     def _get_single_item(self, index):
         fname, pid, camid = self.dataset[index]
         fpath = fname
-        if not osp.exists(fpath) and self.root is not None :
+        if not osp.exists(fpath) and self.root is not None:
             fpath = osp.join(self.root, fname)
         img = Image.open(fpath).convert('RGB')
         if self.transform is not None:
             img = self.transform(img)
         return img, fname, pid, camid
+
 
 class KeyValuePreprocessor(object):
     def __init__(self, dataset):
@@ -41,14 +43,15 @@ class KeyValuePreprocessor(object):
             return [self.dataset[key] for key in keys]
         return self.dataset[keys]
 
+
 class IndValuePreprocessor(object):
-    def __init__(self,dataset):
+    def __init__(self, dataset):
         self.dataset = dataset
 
     def __len__(self):
         return self.dataset.size(0)
 
     def __getitem__(self, keys):
-        if isinstance(keys,(tuple,list)):
-            return [ self.dataset[key,:] for key in keys ]
+        if isinstance(keys, (tuple, list)):
+            return [self.dataset[key, :] for key in keys]
         return self.dataset[keys]
