@@ -81,7 +81,7 @@ class ResNet(nn.Module):
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
 
-        self.tsn = TSN()
+        # self.tsn = TSN()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:
@@ -112,12 +112,11 @@ class ResNet(nn.Module):
                 self.classifier = nn.Linear(self.num_features, self.num_classes)
                 init.normal(self.classifier.weight, std=0.001)
                 init.constant(self.classifier.bias, 0)
-        # self.conv1 = _make_conv(out_planes, 512, kernel_size=1, stride=1, padding=0, with_relu=True)
         if not self.pretrained:
             self.reset_params()
 
     def forward(self, x):
-        x = self.tsn(x)
+        # x = self.tsn(x)
 
         for name, module in self.base._modules.items():
             if name == 'avgpool':

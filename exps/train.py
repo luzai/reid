@@ -99,8 +99,8 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
-        pin_memory=pin_memory, drop_last=True)
+        # sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
+        pin_memory=pin_memory, drop_last=False)
 
     fnames = np.asarray(train_set)[:, 0]
     fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
@@ -246,6 +246,8 @@ def main(args):
     evaluator = Evaluator(model)
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        # acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, final=True)
+        # acc = evaluator.evaluate(train_loader, dataset.trainval, dataset.trainval, metric, final=True)
         lz.logging.info('eval cmc-1 is {}'.format(acc))
         # db = lz.Database('distmat.h5', 'a')
         # db['ohnm'] = evaluator.distmat
