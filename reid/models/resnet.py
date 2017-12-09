@@ -103,7 +103,7 @@ class STN_shallow(nn.Module):
 
         grid = F.affine_grid(theta, input.size())
         x = F.grid_sample(input, grid)
-        loss = 5e-2 * loss_div
+        loss = 1e-1 * loss_div
         return x, loss
 
 
@@ -139,8 +139,8 @@ class STN_TPS(nn.Module):
     def __init__(self):
         super(STN_TPS, self).__init__()
         r1 = r2 = 0.9
-        self.grid_height = grid_height = 16
-        self.grid_width = grid_width = 8
+        self.grid_height = grid_height = 8
+        self.grid_width = grid_width = 4
         target_control_points = torch.Tensor(list(itertools.product(
             np.arange(-r1, r1 + 0.00001, 2.0 * r1 / (grid_height - 1)),
             np.arange(-r2, r2 + 0.00001, 2.0 * r2 / (grid_width - 1)),
@@ -178,6 +178,8 @@ class ResNet(nn.Module):
         self.cut_at_pooling = cut_at_pooling
 
         self.stn = STN_TPS()
+        # self.stn = STN_res18()
+        # self.stn = STN_shallow()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:

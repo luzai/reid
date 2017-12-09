@@ -4,7 +4,7 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=2e-4,
-        logs_dir='tps',
+        logs_dir='tps.2',
         # arch='resnet34',
         batch_size=100,
         gpu=range(1),
@@ -13,12 +13,13 @@ cfgs = [
         global_dim=1024,
         num_classes=128,
         workers=0,
-        resume='/data1/xinglu/prj/open-reid/exps/work/base/model_best.pth',
+        # resume='/data1/xinglu/prj/open-reid/exps/work/base/model_best.pth',
         log_at=np.concatenate([
-            range(10, 100, 39),
-            range(100, 150, 19),
-            range(155, 165, 1),
+            # range(10, 100, 39),
+            # range(100, 150, 19),
+            # range(155, 165, 1),
             # [0, 1, 2, 3, 4, 5, 6]
+            range(0, 165, 5),
         ]),
         steps=[100, 150, 160],
         epochs=165,
