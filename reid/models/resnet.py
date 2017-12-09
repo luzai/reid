@@ -59,8 +59,8 @@ class STN_res18(nn.Module):
         self.loc = torchvision.models.resnet18(pretrained=True)
 
         self.fc = nn.Linear(self.loc.fc.in_features, 6)
-        init.constant(self.fc.weight, 0)
-        self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
+        # init.constant(self.fc.weight, 0)
+        self.fc.bias.data = self.fc.bias.data + torch.FloatTensor([1, 0, 0, 0, 1, 0])
 
     def forward(self, input):
         xs = input
@@ -77,44 +77,9 @@ class STN_res18(nn.Module):
         grid = F.affine_grid(theta, input.size())
         x = F.grid_sample(input, grid)
         # loss_sim = (x-input).mean()
-        loss = 1e-5 * loss_div
+        loss = 1e-1 * loss_div
         return x, loss
 
-
-# class STN2(nn.Module):
-#     def __init__(self, ):
-#         super(STN2, self).__init__()
-#         self.loc = nn.Sequential(
-#             nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
-#                       bias=False),
-#             nn.BatchNorm2d(64),
-#             nn.ReLU(inplace=True),
-#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-#             _make_conv(64, 128),
-#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-#             _make_conv(128, 256),
-#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-#             _make_conv(256, 512),
-#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-#             _make_conv(512, 1024),
-#             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-#         )
-#
-#         self.fc = nn.Linear(1024, 6)
-#         init.constant(self.fc.weight, 0)
-#         self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
-#
-#     def forward(self, input):
-#         xs = input
-#         xs = self.loc(xs)
-#         xs = F.avg_pool2d(xs, xs.size()[2:])
-#         xs = xs.view(xs.size(0), -1)
-#         theta = self.fc(xs)
-#         theta = theta.view(-1, 2, 3)
-#
-#         grid = F.affine_grid(theta, input.size())
-#         x = F.grid_sample(input, grid)
-#         return x
 
 class STN_shallow(nn.Module):
     def __init__(self, ):
@@ -124,8 +89,8 @@ class STN_shallow(nn.Module):
             _make_conv(64, 128, kernel_size=7, stride=4, padding=2),
         )
         self.fc = nn.Linear(128, 6)
-        init.constant(self.fc.weight, 0)
-        self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
+        # init.constant(self.fc.weight, 0)
+        self.fc.bias.data = self.fc.bias.data + torch.FloatTensor([1, 0, 0, 0, 1, 0])
 
     def forward(self, input):
         xs = input
@@ -138,8 +103,61 @@ class STN_shallow(nn.Module):
 
         grid = F.affine_grid(theta, input.size())
         x = F.grid_sample(input, grid)
-        loss = 1e-5 * loss_div
+        loss = 5e-2 * loss_div
         return x, loss
+
+
+from tps_grid_gen import TPSGridGen
+from grid_sample import grid_sample
+
+
+class UnBoundedGridLocNet(nn.Module):
+
+    def __init__(self, grid_height, grid_width, target_control_points):
+        super(UnBoundedGridLocNet, self).__init__()
+        self.conv = nn.Sequential(
+            _make_conv(3, 64, kernel_size=7, stride=4, padding=2),
+            _make_conv(64, 128, kernel_size=7, stride=4, padding=2),
+            _make_conv(128, 256, kernel_size=3, stride=2, padding=1),
+        )
+        self.fc = nn.Linear(256, grid_height * grid_width * 2)
+
+        bias = target_control_points.view(-1)
+        self.fc.bias.data.copy_(bias)
+        # self.fc.weight.data.zero_()
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        x = self.conv(x)
+        x = F.avg_pool2d(x, x.size()[2:])
+        x = x.view(x.size(0), -1)
+        points = self.fc(x)
+        return points.view(batch_size, -1, 2)
+
+
+class STN_TPS(nn.Module):
+    def __init__(self):
+        super(STN_TPS, self).__init__()
+        r1 = r2 = 0.9
+        self.grid_height = grid_height = 16
+        self.grid_width = grid_width = 8
+        target_control_points = torch.Tensor(list(itertools.product(
+            np.arange(-r1, r1 + 0.00001, 2.0 * r1 / (grid_height - 1)),
+            np.arange(-r2, r2 + 0.00001, 2.0 * r2 / (grid_width - 1)),
+        )))
+        Y, X = target_control_points.split(1, dim=1)
+        target_control_points = torch.cat([X, Y], dim=1)
+
+        self.loc_net = UnBoundedGridLocNet(grid_height, grid_width, target_control_points)
+        self.tps = TPSGridGen(256, 128, target_control_points)
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        source_control_points = self.loc_net(x)
+        source_coordinate = self.tps(source_control_points)
+        grid = source_coordinate.view(batch_size, 256, 128, 2)
+        transformed_x = grid_sample(x, grid)
+        return transformed_x, 0
 
 
 class ResNet(nn.Module):
@@ -159,7 +177,7 @@ class ResNet(nn.Module):
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
 
-        self.stn = STN_res18()
+        self.stn = STN_TPS()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:
