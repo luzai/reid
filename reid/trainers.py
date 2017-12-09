@@ -149,36 +149,28 @@ class Trainer(BaseTrainer):
             x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
-        if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
-            loss = self.criterion(outputs, targets)
-            prec, = accuracy(outputs.data, targets.data)
-            prec = prec[0]
-        elif isinstance(self.criterion, OIMLoss):
-            loss, outputs = self.criterion(outputs, targets)
-            prec, = accuracy(outputs.data, targets.data)
-            prec = prec[0]
-        elif isinstance(self.criterion, TripletLoss):
-            if self.dbg and self.iter % 10 == 0:
-                loss, prec, replay_ind, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
-                diff = dist_an - dist_ap
-                self.writer.add_histogram('an-ap', diff, self.iter)
-                # self.writer.add_histogram('an-ap/auto', diff, self.iter, 'auto')
+        if self.dbg and self.iter % 10 == 0:
+            loss, prec, replay_ind, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
+            diff = dist_an - dist_ap
+            self.writer.add_histogram('an-ap', diff, self.iter)
+            # self.writer.add_histogram('an-ap/auto', diff, self.iter, 'auto')
 
-                stat_(self.writer, 'an-ap', diff, self.iter)
-                self.writer.add_scalar('vis/loss', loss, self.iter)
-                self.writer.add_scalar('vis/prec', prec, self.iter)
-                self.writer.add_histogram('dist', dist, self.iter)
-                self.writer.add_histogram('ap', dist_ap, self.iter)
-                self.writer.add_histogram('an', dist_an, self.iter)
-            else:
-                loss, prec, replay_ind = self.criterion(outputs, targets, dbg=False)
-
-        elif isinstance(self.criterion, TupletLoss):
-            loss, prec = self.criterion(outputs, targets)
+            stat_(self.writer, 'an-ap', diff, self.iter)
+            self.writer.add_scalar('vis/loss', loss, self.iter)
+            self.writer.add_scalars('vis/diverse', {
+                'diverse': loss_div,
+                'tri_loss': loss,
+                'ttl': loss_div + loss
+            }, self.iter)
+            self.writer.add_scalar('vis/prec', prec, self.iter)
+            self.writer.add_histogram('dist', dist, self.iter)
+            self.writer.add_histogram('ap', dist_ap, self.iter)
+            self.writer.add_histogram('an', dist_an, self.iter)
         else:
-            raise ValueError("Unsupported loss:", self.criterion)
+            loss, prec, replay_ind = self.criterion(outputs, targets, dbg=False)
+
         self.iter += 1
-        loss +=loss_div
+        loss += loss_div
         return loss, prec, replay_ind
 
     def train(self, epoch, data_loader, optimizer, print_freq=5):

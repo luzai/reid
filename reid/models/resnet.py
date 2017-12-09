@@ -77,7 +77,7 @@ class STN_res18(nn.Module):
         grid = F.affine_grid(theta, input.size())
         x = F.grid_sample(input, grid)
         # loss_sim = (x-input).mean()
-        loss = 1e-1 * loss_div
+        loss = loss_div
         return x, loss
 
 
@@ -177,7 +177,8 @@ class ResNet(nn.Module):
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
 
-        self.stn = STN_TPS()
+        # self.stn = STN_TPS()
+        self.stn=STN_shallow()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:
