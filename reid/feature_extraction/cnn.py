@@ -14,7 +14,9 @@ def extract_cnn_feature(model, inputs, modules=None):
     inputs = Variable(inputs, volatile=True).cuda()
     # inputs.cuda()
     if modules is None:
-        outputs = model(inputs)
+        outputs= model(inputs)
+        if isinstance(outputs,tuple):
+            outputs=outputs[0]
         outputs = outputs.data.cpu()
         return outputs
     # Register forward hook for each module

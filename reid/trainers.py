@@ -142,7 +142,7 @@ class Trainer(BaseTrainer):
         return inputs, targets, fnames
 
     def _forward(self, inputs, targets):
-        outputs = self.model(*inputs)
+        outputs, loss_div = self.model(*inputs)
         if self.dbg and self.iter % 200 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', outputs, self.iter)
@@ -178,6 +178,7 @@ class Trainer(BaseTrainer):
         else:
             raise ValueError("Unsupported loss:", self.criterion)
         self.iter += 1
+        loss +=loss_div
         return loss, prec, replay_ind
 
     def train(self, epoch, data_loader, optimizer, print_freq=5):
@@ -228,7 +229,7 @@ class Trainer(BaseTrainer):
             probs *= alpha
             for ind_, prob_ in zip(global_inds, replay_ind):
                 probs[ind_] = probs[ind_] + (1 - alpha) * prob_
-            sampler.info['probs'] = probs
+            # sampler.info['probs'] = probs
 
             optimizer.zero_grad()
             loss.backward()

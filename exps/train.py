@@ -257,8 +257,15 @@ def main(args):
 
     # Optimizer
     # filter(lambda p: p.requires_grad, model.parameters())
+    for param in itertools.chain(model.module.base.parameters(),
+                                 model.module.feat.parameters(),
+                                 model.module.feat_bn.parameters(),
+                                 model.module.classifier.parameters()
+                                 ):
+        param.requires_grad = False
+
     if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, # module.stn
+        optimizer = torch.optim.Adam(model.module.stn.parameters(), lr=args.lr,  # module.stn
                                      weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,

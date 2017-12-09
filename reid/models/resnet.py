@@ -44,14 +44,23 @@ def _make_fc(in_, out_, dp_=0., with_relu=True):
     return nn.Sequential(*res)
 
 
-class STN(nn.Module):
+def get_loss_div(theta):
+    norm = theta.norm(p=2, dim=1, keepdim=True)
+    theta = theta / norm
+    mat = torch.matmul(theta, theta.transpose(1, 0))
+    batch_size = mat.size(0)
+    loss = (mat.sum() - mat.diag().sum()) / (batch_size * (batch_size - 1))
+    return loss
+
+
+class STN_res18(nn.Module):
     def __init__(self, ):
-        super(STN, self).__init__()
+        super(STN_res18, self).__init__()
         self.loc = torchvision.models.resnet18(pretrained=True)
 
         self.fc = nn.Linear(self.loc.fc.in_features, 6)
-        # init.constant(self.fc.weight, 0)
-        # self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
+        init.constant(self.fc.weight, 0)
+        self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
 
     def forward(self, input):
         xs = input
@@ -62,11 +71,14 @@ class STN(nn.Module):
         xs = F.avg_pool2d(xs, xs.size()[2:])
         xs = xs.view(xs.size(0), -1)
         theta = self.fc(xs)
-        theta = theta.view(-1, 2, 3)
+        loss_div = get_loss_div(theta)
 
+        theta = theta.view(-1, 2, 3)
         grid = F.affine_grid(theta, input.size())
         x = F.grid_sample(input, grid)
-        return x
+        # loss_sim = (x-input).mean()
+        loss = 1e-5 * loss_div
+        return x, loss
 
 
 # class STN2(nn.Module):
@@ -104,17 +116,16 @@ class STN(nn.Module):
 #         x = F.grid_sample(input, grid)
 #         return x
 
-
-class STN3(nn.Module):
+class STN_shallow(nn.Module):
     def __init__(self, ):
-        super(STN3, self).__init__()
+        super(STN_shallow, self).__init__()
         self.loc = nn.Sequential(
             _make_conv(3, 64, kernel_size=7, stride=8, padding=0),
             _make_conv(64, 128, kernel_size=7, stride=4, padding=2),
         )
         self.fc = nn.Linear(128, 6)
-        # init.constant(self.fc.weight, 0)
-        # self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
+        init.constant(self.fc.weight, 0)
+        self.fc.bias.data = torch.FloatTensor([1, 0, 0, 0, 1, 0])
 
     def forward(self, input):
         xs = input
@@ -122,11 +133,13 @@ class STN3(nn.Module):
         xs = F.avg_pool2d(xs, xs.size()[2:])
         xs = xs.view(xs.size(0), -1)
         theta = self.fc(xs)
+        loss_div = get_loss_div(theta)
         theta = theta.view(-1, 2, 3)
 
         grid = F.affine_grid(theta, input.size())
         x = F.grid_sample(input, grid)
-        return x
+        loss = 1e-5 * loss_div
+        return x, loss
 
 
 class ResNet(nn.Module):
@@ -146,7 +159,7 @@ class ResNet(nn.Module):
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
 
-        self.stn = STN()
+        self.stn = STN_res18()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:
@@ -182,13 +195,12 @@ class ResNet(nn.Module):
             self.reset_params()
 
     def forward(self, x):
-        # x = self.stn(x)
+        x, loss = self.stn(x)
 
         for name, module in self.base._modules.items():
             if name == 'avgpool':
                 break
             x = module(x)
-        # x=self.conv1(x)
         if self.cut_at_pooling:
             return x
 
@@ -206,7 +218,7 @@ class ResNet(nn.Module):
             x = self.drop(x)
         if self.num_classes > 0:
             x = self.classifier(x)
-        return x
+        return x, loss
 
     def reset_params(self):
         for m in self.modules():

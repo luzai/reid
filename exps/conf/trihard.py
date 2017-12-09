@@ -4,7 +4,7 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=2e-4,
-        logs_dir='res18.randfc',
+        logs_dir='res18.1e-5',
         # arch='resnet34',
         batch_size=100,
         gpu=range(1),
