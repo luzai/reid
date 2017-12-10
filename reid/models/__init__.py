@@ -6,6 +6,7 @@ from .transform import Transform
 from .multi_branch import *
 from .embedding import *
 from .darknet import  *
+from .mobilenet import  *
 
 __factory = {
     'inception': inception,

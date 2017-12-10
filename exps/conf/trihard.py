@@ -4,8 +4,9 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='darknet',
+        logs_dir='mobilenet',
         batch_size=100,
+        num_instances=4,
         gpu=range(1),
         branchs=0,
         branch_dim=128,

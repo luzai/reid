@@ -216,7 +216,10 @@ def main(args):
     #                       num_classes=args.num_classes
     #                       )
 
-    model = DarkNet(num_features=args.global_dim,
+    # model = DarkNet(num_features=args.global_dim,
+    #                 num_classes=args.num_classes)
+
+    model = MobileNet(num_features=args.global_dim,
                     num_classes=args.num_classes)
 
     print(model)

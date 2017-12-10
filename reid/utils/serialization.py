@@ -40,7 +40,7 @@ def load_checkpoint(fpath):
 
 
 
-def load_state_dict(model, state_dict):
+def load_state_dict(model, state_dict, own_prefix ='', own_de_prefix=''):
     own_state = model.state_dict()
     success = []
     for name, param in state_dict.items():
@@ -50,6 +50,10 @@ def load_state_dict(model, state_dict):
             name = 'module.' + name
         if 'base_model.base_model.' +name in own_state:
             name='base_model.base_model.' +name
+
+        if name.replace(own_de_prefix,'') in own_state:
+            name=name.replace(own_de_prefix,'')
+
         if name not in own_state:
             print('ignore key "{}" in his state_dict'.format(name))
             continue
