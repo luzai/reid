@@ -30,9 +30,9 @@ def save_checkpoint(state, is_best, fpath='checkpoint.pth'):
         shutil.copy(fpath, dest )
 
 
-def load_checkpoint(fpath):
+def load_checkpoint(fpath,map_location=None):
     if osp.isfile(fpath):
-        checkpoint = torch.load(fpath)
+        checkpoint = torch.load(fpath,map_location=map_location)
         print("=> Loaded checkpoint '{}'".format(fpath))
         return checkpoint
     else:

@@ -32,15 +32,15 @@ def run(_):
     cfgs = torchpack.load_cfg('./conf/trihard.py')
     procs = []
     for args in cfgs.cfgs:
-        
+
         args.logs_dir = 'work/' + args.logs_dir
-        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.9,0.9])
+        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.9, 0.9])
         # args.gpu = [3,]
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if args.export_config:
-            lz.mypickle((args), './conf.pkl')
+            lz.mypickle(args, './conf.pkl')
             exit(0)
         if not args.evaluate:
             assert args.logs_dir != args.resume
@@ -94,17 +94,19 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         T.ToTensor(),
         normalizer,
     ])
-
+    # limit = lz.unpickle('tmp.pkl')
+    # train_set = [(fname,pid,cid) for fname , pid,cid in train_set if fname in limit]
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
         sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
+        shuffle=True,
         pin_memory=pin_memory, drop_last=True)
 
     fnames = np.asarray(train_set)[:, 0]
     fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
-    setattr(train_loader, 'fname2ind',fname2ind)
+    setattr(train_loader, 'fname2ind', fname2ind)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
@@ -208,19 +210,19 @@ def main(args):
     #
     # model = SingleNet(base_model, global_model, local_model, concat_model)
 
-    # model = models.create(args.arch,
-    #                       pretrained=args.pretrained,
-    #                       dropout=args.dropout,
-    #                       norm=args.normalize,
-    #                       num_features=args.global_dim,
-    #                       num_classes=args.num_classes
-    #                       )
+    model = models.create(args.arch,
+                          pretrained=args.pretrained,
+                          dropout=args.dropout,
+                          norm=args.normalize,
+                          num_features=args.global_dim,
+                          num_classes=args.num_classes
+                          )
 
     # model = DarkNet(num_features=args.global_dim,
     #                 num_classes=args.num_classes)
 
-    model = MobileNet(num_features=args.global_dim,
-                    num_classes=args.num_classes)
+    # model = MobileNet(num_features=args.global_dim,
+    #                 num_classes=args.num_classes)
 
     print(model)
 
@@ -274,7 +276,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis')
+    trainer = Trainer(model, criterion, dbg=False, logs_at=args.logs_dir + '/vis')
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

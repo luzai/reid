@@ -15,10 +15,11 @@ class BaseTrainer(object):
         self.model = model
         self.criterion = criterion
         self.dbg = dbg
+        self.iter = 0
+
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
-            self.iter = 0
 
     def train(self, epoch, data_loader, optimizer, print_freq=1):
         self.model.train()
@@ -159,7 +160,7 @@ class Trainer(BaseTrainer):
             prec = prec[0]
         elif isinstance(self.criterion, TripletLoss):
             if self.dbg and self.iter % 10 == 0:
-                loss, prec, replay_ind, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
+                loss, prec,  dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
                 diff = dist_an - dist_ap
                 self.writer.add_histogram('an-ap', diff, self.iter)
                 # self.writer.add_histogram('an-ap/auto', diff, self.iter, 'auto')
@@ -171,14 +172,14 @@ class Trainer(BaseTrainer):
                 self.writer.add_histogram('ap', dist_ap, self.iter)
                 self.writer.add_histogram('an', dist_an, self.iter)
             else:
-                loss, prec, replay_ind = self.criterion(outputs, targets, dbg=False)
+                loss, prec  = self.criterion(outputs, targets, dbg=False)
 
         elif isinstance(self.criterion, TupletLoss):
             loss, prec = self.criterion(outputs, targets)
         else:
             raise ValueError("Unsupported loss:", self.criterion)
         self.iter += 1
-        return loss, prec, replay_ind
+        return loss, prec
 
     def train(self, epoch, data_loader, optimizer, print_freq=5):
 
@@ -215,20 +216,11 @@ class Trainer(BaseTrainer):
             # print('global probs ', np.asarray(data_loader.sampler.info['probs']))
 
             self.model.train()
-            loss, prec1, replay_ind = self._forward(inputs, targets)
+            loss, prec1  = self._forward(inputs, targets)
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(loss.data[0], targets.size(0))
             precisions.update(prec1, targets.size(0))
-
-            sampler = data_loader.sampler
-            probs = np.array(sampler.info.probs)
-            # alpha = 1 - 1e-3
-            alpha = 1
-            probs *= alpha
-            for ind_, prob_ in zip(global_inds, replay_ind):
-                probs[ind_] = probs[ind_] + (1 - alpha) * prob_
-            sampler.info['probs'] = probs
 
             optimizer.zero_grad()
             loss.backward()

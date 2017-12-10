@@ -60,6 +60,7 @@ class RandomIdentityWeightedSampler(Sampler):
 
         self.data_source = data_source
         self.num_instances = num_instances
+        self.memory = queue.Queue(maxsize=256)
 
         pids = np.asarray(data_source)[:, 1].astype(int)
         inds = np.arange(pids.shape[0], dtype=int)
@@ -86,6 +87,7 @@ class RandomIdentityWeightedSampler(Sampler):
         return cache_ind
 
     def __iter__(self):
+        # np.random.seed(1)
         ind_ind = 0
         grouped = self.info.groupby('pids')
         while ind_ind < self.num_pids:
@@ -95,7 +97,6 @@ class RandomIdentityWeightedSampler(Sampler):
                 self.cache_ind.append(tobe)
                 yield tobe
             else:
-
                 probs = grouped.sum()['probs']
                 pid = np.random.choice(probs.index, p=probs)
                 pid = int(pid)

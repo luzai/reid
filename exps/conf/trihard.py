@@ -4,15 +4,15 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='mobilenet',
-        batch_size=100,
-        num_instances=4,
+        logs_dir='full.rand',
+        arch='resnet34',
+        batch_size=256,
+        num_instances=8,
         gpu=range(1),
         branchs=0,
         branch_dim=128,
         global_dim=1024,
         num_classes=128,
-        # workers=0,
         # resume='work.12.7/cuhk03/model_best.pth',
         # evaluate=True,
         log_at=np.concatenate([

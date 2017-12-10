@@ -9,6 +9,14 @@ import numpy as np, numpy
 import lz
 
 
+def select(dist, range, descend=True, return_ind=False,global_ind=None):
+    dist, ind = torch.sort(dist, descending=descend)
+    if not return_ind:
+        return dist[range[0]:range[1]]
+    else:
+        return global_ind[dist[range[0]:range[1]]], global_ind[ind[range[0]:range[1]]]
+
+
 class TripletLoss(nn.Module):
     def __init__(self, margin=0, mode='hard'):
         super(TripletLoss, self).__init__()
@@ -32,26 +40,13 @@ class TripletLoss(nn.Module):
 
         for i in range(n):
             if self.mode == 'hard':
-                some_ind = all_ind[mask[i]]
                 some_pos = dist[i][mask[i]]
-                _, ind4some_ind = some_pos.max(0)
-                global_ind = some_ind[ind4some_ind]
-                global_ind = Variable(global_ind.data, requires_grad=False)
-                posp_inds.append(global_ind)
-                dist_ap.append(some_pos[ind4some_ind])
-
-                some_ind = all_ind[mask[i] == 0]
                 some_neg = dist[i][mask[i] == 0]
-                # try:
-                _, ind4some_ind = some_neg.min(0)
-                # except:
-                #     print(some_neg)
-                #     from IPython import  embed
-                #     embed()
-                global_ind = some_ind[ind4some_ind]
-                global_ind = Variable(global_ind.data, requires_grad=False)
-                negp_inds.append(global_ind)
-                dist_an.append(some_neg[ind4some_ind])  # dist[i][mask[i] == 0].min()
+
+                for pos in select(some_pos, (0, 1), descend=True):
+                    for neg in select(some_neg, (0, 1), descend=False):
+                        dist_ap.append(pos)
+                        dist_an.append(neg)
 
             elif self.mode == 'rand':
                 posp = dist[i][mask[i]]
@@ -59,7 +54,7 @@ class TripletLoss(nn.Module):
 
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[numpy.random.randint(0, negp.size(0))])
-            # todo check
+
             elif self.mode == 'lift':
                 negp = dist[i][mask[i] == 0]
                 posp = (dist[i][mask[i]].max()).expand(negp.size(0))
@@ -79,19 +74,17 @@ class TripletLoss(nn.Module):
         dist_ap = torch.cat(dist_ap)
         dist_an = torch.cat(dist_an)
         # Compute ranking hinge loss
-        y = dist_an.data.new()
-        y.resize_as_(dist_an.data)
-        y.fill_(1)
-        y = Variable(y)
+        # y = dist_an.data.new()
+        # y.resize_as_(dist_an.data)
+        # y.fill_(1)
+        y = Variable(lz.to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
         loss = self.ranking_loss(dist_an, dist_ap, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
-        posp_inds, negp_inds = torch.cat(posp_inds), torch.cat(negp_inds)
-        replay_ind = get_replay_ind(posp_inds, negp_inds, dist_an - dist_ap)
         if not dbg:
-            return loss, prec, replay_ind
+            return loss, prec
         else:
-            return loss, prec, replay_ind, dist, dist_ap, dist_an
+            return loss, prec, dist, dist_ap, dist_an
 
 
 def get_replay_ind(posp_inds, negp_inds, diff):
