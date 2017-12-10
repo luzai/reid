@@ -40,9 +40,14 @@ class TripletLoss(nn.Module):
                 posp_inds.append(global_ind)
                 dist_ap.append(some_pos[ind4some_ind])
 
-                some_ind  = all_ind[mask[i] == 0]
-                some_neg = dist[i][mask[i]==0]
-                _, ind4some_ind= some_neg.min(0)
+                some_ind = all_ind[mask[i] == 0]
+                some_neg = dist[i][mask[i] == 0]
+                # try:
+                _, ind4some_ind = some_neg.min(0)
+                # except:
+                #     print(some_neg)
+                #     from IPython import  embed
+                #     embed()
                 global_ind = some_ind[ind4some_ind]
                 global_ind = Variable(global_ind.data, requires_grad=False)
                 negp_inds.append(global_ind)
@@ -86,11 +91,11 @@ class TripletLoss(nn.Module):
         if not dbg:
             return loss, prec, replay_ind
         else:
-            return loss, prec, replay_ind,  dist, dist_ap, dist_an
+            return loss, prec, replay_ind, dist, dist_ap, dist_an
 
 
 def get_replay_ind(posp_inds, negp_inds, diff):
-    batch_size=diff.size(0)
+    batch_size = diff.size(0)
     pinds = lz.to_numpy(posp_inds)
     ninds = lz.to_numpy(negp_inds)
     diff = lz.to_numpy(diff)
@@ -105,10 +110,9 @@ def get_replay_ind(posp_inds, negp_inds, diff):
     thresh2 = np.percentile(diff, 99)
 
     sel_ind = np.nonzero(np.logical_and(diff > thresh1, diff < thresh2))[0]
-    sel=np.concatenate(
+    sel = np.concatenate(
         (pinds[sel_ind], ninds[sel_ind], sel_ind)
     )
     bins, _ = np.histogram(sel, bins=batch_size, range=(0, batch_size))
     bins = bins / bins.sum()
     return bins
-

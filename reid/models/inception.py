@@ -7,28 +7,9 @@ from torch.nn import init
 import torchvision
 from torch.utils import model_zoo
 from reid.utils.serialization import load_state_dict
+from reid.models.common import _make_conv
 
 __all__ = ['InceptionNet', 'inception']
-
-
-def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
-               bias=False, with_relu=True):
-    conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
-                     stride=stride, padding=padding, bias=bias)
-    init.kaiming_normal(conv.weight, mode='fan_out')
-    if bias:
-        init.constant(conv.bias, 0)
-
-    bn = nn.BatchNorm2d(out_planes)
-    # init.constant(bn.bias, 0)
-    # init.constant(bn.weight, 1)
-
-    if with_relu:
-        relu = nn.ReLU(inplace=True)
-        return nn.Sequential(conv, bn, relu)
-    else:
-        return nn.Sequential(conv, bn)
-
 
 class Block(nn.Module):
     def __init__(self, in_planes, out_planes, pool_method, stride):
