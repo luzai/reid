@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from reid.models.inception import inception_v3
 from .inception import *
 from .resnet import *
@@ -7,6 +5,8 @@ from .attention import *
 from .transform import Transform
 from .multi_branch import *
 from .embedding import *
+from .darknet import  *
+from .mobilenet import  *
 
 __factory = {
     'inception': inception,

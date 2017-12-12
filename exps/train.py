@@ -40,7 +40,7 @@ def run(_):
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if args.export_config:
-            lz.mypickle((args), './conf.pkl')
+            lz.mypickle(args, './conf.pkl')
             exit(0)
         if not args.evaluate:
             assert args.logs_dir != args.resume
@@ -94,12 +94,14 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         T.ToTensor(),
         normalizer,
     ])
-
+    # limit = lz.unpickle('tmp.pkl')
+    # train_set = [(fname,pid,cid) for fname , pid,cid in train_set if fname in limit]
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
         sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
+        shuffle=True,
         pin_memory=pin_memory, drop_last=True)
 
     fnames = np.asarray(train_set)[:, 0]
@@ -216,6 +218,12 @@ def main(args):
                           num_classes=args.num_classes
                           )
 
+    # model = DarkNet(num_features=args.global_dim,
+    #                 num_classes=args.num_classes)
+
+    # model = MobileNet(num_features=args.global_dim,
+    #                 num_classes=args.num_classes)
+
     print(model)
 
     # Load from checkpoint
@@ -245,7 +253,9 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model)
     if args.evaluate:
-        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        # acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, final=True)
+        # acc = evaluator.evaluate(train_loader, dataset.trainval, dataset.trainval, metric, final=True)
         lz.logging.info('eval cmc-1 is {}'.format(acc))
         # db = lz.Database('distmat.h5', 'a')
         # db['ohnm'] = evaluator.distmat
@@ -274,7 +284,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis')
+    trainer = Trainer(model, criterion, dbg=False, logs_at=args.logs_dir + '/vis')
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
