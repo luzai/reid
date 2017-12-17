@@ -12,7 +12,7 @@ from .feature_extraction import *
 from .utils.meters import AverageMeter
 
 
-def extract_features(model, data_loader, print_freq=10, limit=None):
+def extract_features(model, data_loader, print_freq=10, limit=None ,gpu =(0,)):
     model.eval()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -24,7 +24,7 @@ def extract_features(model, data_loader, print_freq=10, limit=None):
     for i, (imgs, fnames, pids, _) in enumerate(data_loader):
         data_time.update(time.time() - end)
 
-        outputs = extract_cnn_feature(model, imgs)
+        outputs = extract_cnn_feature(model, imgs, gpu= gpu )
         for fname, output, pid in zip(fnames, outputs, pids):
             if limit is not None and int(pid) not in limit.tolist():
                 continue
@@ -107,12 +107,13 @@ def limit_dataset(query, limit):
 
 
 class Evaluator(object):
-    def __init__(self, model):
+    def __init__(self, model,gpu =(0,) ):
         super(Evaluator, self).__init__()
         self.model = model
+        self.gpu     = gpu
         self.distmat = None
 
-    def evaluate(self, data_loader, query, gallery, metric=None, final=False):
+    def evaluate(self, data_loader, query, gallery, metric=None, final=False, ):
         timer = cvb.Timer()
         timer.start()
         self.model.eval()
@@ -136,7 +137,7 @@ class Evaluator(object):
         #     query_cams = [cam for _, _, cam in query]
         #     gallery_cams = [cam for _, _, cam in gallery]
 
-        features, _ = extract_features(self.model, data_loader, limit=limit)
+        features, _ = extract_features(self.model, data_loader, gpu =self.gpu )
         assert len(features) != 0
         # list(features.keys())
         distmat = pairwise_distance(features, query, gallery, metric=metric)

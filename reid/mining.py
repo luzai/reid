@@ -1,6 +1,7 @@
 import numpy as np
 
 from reid.evaluators import extract_features, pairwise_distance
+from torch.utils.data import DataLoader
 
 
 def mine_hard_pairs(model, data_loader, margin=0.32):
@@ -21,9 +22,6 @@ def mine_hard_pairs(model, data_loader, margin=0.32):
         pairs.extend([(i, p) for p in pos_indices])
         pairs.extend([(i, n) for n in neg_indices if threshold >= d[n]])
     return pairs
-
-
-from torch.utils.data import DataLoader
 
 
 def mine_hard_triplets(model, data_loader, margin=0.5):

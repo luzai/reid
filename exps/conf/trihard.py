@@ -4,11 +4,13 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='dbg',
+        logs_dir='large.1024',
         arch='resnet34',
-        batch_size=256,
-        num_instances=8,
-        gpu=range(1),
+        batch_size=(256 ) * 4,print_freq=1,
+        num_instances=16,
+        gpu=range(4),
+        workers=16,
+        pin_mem=True,
         branchs=8,
         branch_dim=64,
         global_dim=512,

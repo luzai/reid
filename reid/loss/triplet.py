@@ -9,7 +9,7 @@ import numpy as np, numpy
 import lz
 
 
-def select(dist, range, descend=True, return_ind=False,global_ind=None):
+def select(dist, range, descend=True, return_ind=False, global_ind=None):
     dist, ind = torch.sort(dist, descending=descend)
     if not return_ind:
         return dist[range[0]:range[1]]
@@ -35,7 +35,7 @@ class TripletLoss(nn.Module):
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         dist_ap, dist_an = [], []
-        all_ind = Variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False, volatile=True).cuda()
+        # all_ind = Variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False, volatile=True).cuda()
         posp_inds, negp_inds = [], []
 
         for i in range(n):
@@ -77,7 +77,10 @@ class TripletLoss(nn.Module):
         # y = dist_an.data.new()
         # y.resize_as_(dist_an.data)
         # y.fill_(1)
-        y = Variable(lz.to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
+        if torch.cuda.is_available():
+            y = Variable(lz.to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
+        else:
+            y = Variable(lz.to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
         loss = self.ranking_loss(dist_an, dist_ap, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 

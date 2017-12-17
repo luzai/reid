@@ -79,7 +79,7 @@ class RandomIdentityWeightedSampler(Sampler):
         self.cache_ind = []
 
     def __len__(self):
-        return self.num_pids * self.num_instances
+        return self.batch_size*22
 
     def get_cache(self):
         cache_ind = self.cache_ind.copy()
@@ -87,11 +87,9 @@ class RandomIdentityWeightedSampler(Sampler):
         return cache_ind
 
     def __iter__(self):
-        # np.random.seed(1)
         ind_ind = 0
         grouped = self.info.groupby('pids')
-        while ind_ind < self.num_pids:
-            # print(self.queue.qsize(), ' with ', list(self.queue.queue))
+        while ind_ind < len(self) // self.num_instances:
             if not self.queue.empty():
                 tobe = self.queue.get()
                 self.cache_ind.append(tobe)

@@ -8,15 +8,18 @@ from ..utils import to_numpy, to_torch
 import time
 
 
-def extract_cnn_feature(model, inputs, modules=None):
+def extract_cnn_feature(model, inputs, modules=None, gpu=(0,)):
     model.eval()
     inputs = to_torch(inputs)
-    inputs = Variable(inputs, volatile=True).cuda()
-    # inputs.cuda()
+    if not torch.cuda.is_available():
+        inputs = Variable(inputs, volatile=True)
+    else:
+        inputs = Variable(inputs, volatile=True).cuda()
+
     if modules is None:
-        outputs= model(inputs)
-        if isinstance(outputs,tuple):
-            outputs=outputs[0]
+        outputs = model(inputs)
+        if isinstance(outputs, tuple):
+            outputs = outputs[0]
         outputs = outputs.data.cpu()
         return outputs
     # Register forward hook for each module

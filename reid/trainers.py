@@ -7,7 +7,7 @@ from lz import *
 from tensorboardX import SummaryWriter
 from reid.utils import to_numpy, to_torch
 from reid.mining import mine_hard_triplets
-
+import torch
 
 class BaseTrainer(object):
     def __init__(self, model, criterion, dbg=False, logs_at='work/vis'):
@@ -135,11 +135,25 @@ def stat_(writer, tag, tensor, iter):
     }, iter)
 
 
-class Trainer(BaseTrainer):
+class Trainer(object):
+    def __init__(self, model, criterion, dbg=False, logs_at='work/vis', gpu = (0,)):
+        self.model = model
+        self.criterion = criterion
+        self.dbg = dbg
+        self.iter = 0
+        self.gpu = gpu
+        if dbg:
+            mkdir_p(logs_at, delete=True)
+            self.writer = SummaryWriter(logs_at)
+
     def _parse_data(self, inputs):
         imgs, fnames, pids, _ = inputs
-        inputs = [Variable(imgs.cuda(), requires_grad=False)]
-        targets = Variable(pids.cuda(), requires_grad=False)
+        if self.gpu is None:
+            inputs = [Variable(imgs , requires_grad=False)]
+            targets = Variable(pids , requires_grad=False)
+        else:
+            inputs = [Variable(imgs.cuda(), requires_grad=False)]
+            targets = Variable(pids.cuda(), requires_grad=False)
         return inputs, targets, fnames
 
     def _forward(self, inputs, targets):
@@ -225,7 +239,11 @@ class Trainer(BaseTrainer):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            if not torch.cuda.is_available():
+                print('one f!')
+                del inputs, targets, loss, prec1
+                import gc
+                gc.collect()
             batch_time.update(time.time() - end)
             end = time.time()
 

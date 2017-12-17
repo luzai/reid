@@ -16,7 +16,7 @@ from reid.dist_metric import DistanceMetric
 from reid.loss import *
 from reid.trainers import *
 from reid.evaluators import *
-# from reid.mining import mine_hard_pairs
+from reid.mining import mine_hard_pairs
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
@@ -34,8 +34,8 @@ def run(_):
     for args in cfgs.cfgs:
 
         args.logs_dir = 'work/' + args.logs_dir
-        args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.9, 0.9])
-        # args.gpu = [3,]
+        if args.gpu is not None:
+            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.9, 0.9])
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -183,8 +183,6 @@ def main(args):
                  args.width, args.batch_size, args.num_instances, args.workers,
                  args.combine_trainval, pin_memory=args.pin_mem, name_val=args.dataset_val)
     # Create model
-    # Hacking here to let the classifier be the last feature embedding layer
-    # Net structure: avgpool -> FC(1024) -> FC(args.features)
 
     base_model = models.create(args.arch,
                                dropout=args.dropout,
@@ -226,7 +224,9 @@ def main(args):
             best_top1 = checkpoint['best_top1']
             print("=> Start epoch {}  best top1 {:.1%}"
                   .format(start_epoch, best_top1))
-    if len(args.gpu) == 1:
+    if args.gpu is None:
+        model = nn.DataParallel(model)
+    elif len(args.gpu) == 1:
         model = nn.DataParallel(model).cuda()
     else:
         model = nn.DataParallel(model, device_ids=range(len(args.gpu))).cuda()
@@ -235,7 +235,7 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model)
+    evaluator = Evaluator(model, gpu =args.gpu  )
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         # acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, final=True)
@@ -244,7 +244,10 @@ def main(args):
         return 0
 
     # Criterion
-    criterion = TripletLoss(margin=args.margin).cuda()
+    if args.gpu is not None:
+        criterion = TripletLoss(margin=args.margin).cuda()
+    else:
+        criterion = TripletLoss(margin=args.margin)
 
     # Optimizer
     # filter(lambda p: p.requires_grad, model.parameters())
@@ -265,7 +268,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis')
+    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', gpu = args.gpu)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -292,7 +295,7 @@ def main(args):
         if epoch not in args.log_at:
             continue
 
-        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric )
         writer.add_scalar('train/top-1', acc, epoch)
         writer.add_scalar('train/mAP', mAP, epoch)
 
@@ -314,6 +317,9 @@ def main(args):
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
+    mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    writer.add_scalar('test/top-1', acc, args.epochs)
+    writer.add_scalar('test/mAP', mAP, args.epochs)
     if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
         print('Test with best model:')
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
