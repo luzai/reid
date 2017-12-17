@@ -74,6 +74,10 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         dataset_val = datasets.create(name_val, root, split_id=split_id)
         dataset.qurey = dataset_val.query
         dataset.gallery = dataset_val.gallery
+    lim_query = cvb.load(work_path + '/mk.query.pkl')
+    dataset.query = [ds for ds in dataset.query if ds[0] in lim_query]
+    lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
+    dataset.gallery = [ds for ds in dataset.gallery if ds[0] in lim_gallery + lim_query]
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -235,7 +239,7 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu =args.gpu  )
+    evaluator = Evaluator(model, gpu=args.gpu)
     if args.evaluate:
         acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         # acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, final=True)
@@ -268,7 +272,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', gpu = args.gpu)
+    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', gpu=args.gpu)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -295,7 +299,7 @@ def main(args):
         if epoch not in args.log_at:
             continue
 
-        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric )
+        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
         writer.add_scalar('train/top-1', acc, epoch)
         writer.add_scalar('train/mAP', mAP, epoch)
 

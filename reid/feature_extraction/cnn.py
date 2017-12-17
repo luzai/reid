@@ -1,11 +1,8 @@
 from __future__ import absolute_import
 from collections import OrderedDict
 
-from torch.autograd import Variable
-import torch
+from lz import *
 from ..utils.meters import *
-from ..utils import to_numpy, to_torch
-import time
 
 
 def extract_cnn_feature(model, inputs, modules=None, gpu=(0,)):

@@ -1,5 +1,5 @@
 import numpy as np
-
+from lz import *
 from reid.evaluators import extract_features, pairwise_distance
 from torch.utils.data import DataLoader
 
@@ -30,7 +30,7 @@ def mine_hard_triplets(model, data_loader, margin=0.5):
     new_loader = DataLoader(data_loader.dataset,
                             batch_size=256,
                             num_workers=8,
-                            pin_memory=True)
+                            pin_memory=True if torch.cuda.is_available() else False)
 
     features, _ = extract_features(model, new_loader, print_freq=10)
     distmat = pairwise_distance(features)
@@ -41,9 +41,9 @@ def mine_hard_triplets(model, data_loader, margin=0.5):
     pids = np.asarray([pid for _, pid, _ in dataset])
     # Find the hard triplets
 
-    # pids_exp = np.repeat(pids, pids.shape[0]).reshape(pids.shape[0], pids.shape[0])
-    # mask = (pids_exp == pids_exp.T)
-    #
+    pids_exp = np.repeat(pids, pids.shape[0]).reshape(pids.shape[0], pids.shape[0])
+    mask = (pids_exp == pids_exp.T)
+    return distmat, mask
     # distmat = distmat.reshape(-1)
     # mask = mask.reshape(-1)
     #
