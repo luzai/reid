@@ -54,9 +54,9 @@ class Dataset(object):
 
         self.meta = read_json(osp.join(self.root, 'meta.json'))
         identities = self.meta['identities']
-        self.train = _pluck(identities, train_pids, relabel=True)
-        self.val = _pluck(identities, val_pids, relabel=True)
-        self.trainval = _pluck(identities, trainval_pids, relabel=True)
+        self.train = _pluck(identities, train_pids, relabel=False)
+        self.val = _pluck(identities, val_pids, relabel=False)
+        self.trainval = _pluck(identities, trainval_pids, relabel=False)
         self.query = _pluck(identities, self.split['query'])
         self.gallery = _pluck(identities, self.split['gallery'])
         self.num_train_ids = len(train_pids)

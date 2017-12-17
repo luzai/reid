@@ -28,26 +28,26 @@ class CUHK03(Dataset):
     url = 'https://docs.google.com/spreadsheet/viewform?usp=drive_web&formkey=dHRkMkFVSUFvbTJIRkRDLWRwZWpONnc6MA#gid=0'
     md5 = '728939e58ad9f0ff53e521857dd8fb43'
 
-    def _check_integrity(self):
-        return osp.isdir(osp.join(self.root, 'images')) and \
-               osp.isfile(osp.join(self.root, 'meta.json')) and \
-               osp.isfile(osp.join(self.root, 'splits.json'))
+    def _check_integrity(self, mode='label'):
+        return osp.isdir(osp.join(self.root, mode, 'images')) and \
+               osp.isfile(osp.join(self.root, mode, 'meta.json')) and \
+               osp.isfile(osp.join(self.root, mode, 'splits.json'))
 
-    def __init__(self, root, split_id=0, num_val=100, download=True):
+    def __init__(self, root, split_id=0, num_val=100, download=True, mode='label', check_integrity=True):
         super(CUHK03, self).__init__(root, split_id=split_id)
+        self.mode = mode
+        print('use mode ', mode )
         if download:
-            self.download()
+            self.download(check_integrity)
 
         if not self._check_integrity():
             raise RuntimeError("Dataset not found or corrupted. " +
                                "You can use download=True to download it.")
-
+        self.root = osp.join(self.root, self.mode)
         self.load(num_val)
 
-    def download(self):
-        if self._check_integrity():
-            # if False:
-
+    def download(self, check_integrity=True):
+        if check_integrity and self._check_integrity(self.mode):
             print("Files already downloaded and verified")
             return
 
@@ -63,7 +63,7 @@ class CUHK03(Dataset):
         fpath = osp.join(raw_dir, 'cuhk03_release.zip')
 
         if osp.isfile(fpath) and \
-                        hashlib.md5(open(fpath, 'rb').read()).hexdigest() == self.md5:
+                hashlib.md5(open(fpath, 'rb').read()).hexdigest() == self.md5:
             print("Using downloaded file: " + fpath)
         else:
             raise RuntimeError("Please download the dataset manually from {} "
@@ -75,8 +75,8 @@ class CUHK03(Dataset):
             print("Extracting zip file")
             with ZipFile(fpath) as z:
                 z.extractall(path=raw_dir)
-        self.mode = '' # todo
         # Format
+        print('format')
         images_dir = osp.join(self.root, self.mode, 'images')
 
         mkdir_if_missing(images_dir)

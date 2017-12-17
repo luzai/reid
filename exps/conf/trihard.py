@@ -4,10 +4,10 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='dbg.2',
+        logs_dir='dbg.3',
         arch='resnet34',
-        dataset='market1501',
-        dataset_val = 'market1501',
+        dataset='cuhk03',
+        dataset_val = 'cuhk03',
         batch_size=256, print_freq=1,
         num_instances=8,
         gpu=range(1),
