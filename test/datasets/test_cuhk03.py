@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     root, split_id, num_val = '/home/xinglu/.torch/data/cuhk03/', 0, 100
     for mode in ['label','combine','detect']:
-        dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True, mode = mode,check_integrity=True)
+        dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True, mode = mode,check_integrity=False)
     # dataset = CUHK03(root + '/detect', split_id=split_id, num_val=num_val, download=True)
     # dataset = CUHK03(root, split_id=split_id, num_val=num_val, download=True)
 

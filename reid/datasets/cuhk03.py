@@ -44,6 +44,7 @@ class CUHK03(Dataset):
             raise RuntimeError("Dataset not found or corrupted. " +
                                "You can use download=True to download it.")
         self.root = osp.join(self.root, self.mode)
+        self.images_dir = osp.join(self.root,'images')
         self.load(num_val)
 
     def download(self, check_integrity=True):

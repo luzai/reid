@@ -13,7 +13,7 @@ __factory = {
     'viper': VIPeR,
     'cuhk01': CUHK01,
     'cuhk03': CUHK03,  # is 'cuhk03/label' default
-    'cuhk03/label': CUHK03, 'cuhk03/detect': CUHK03, 'cuhk03/combine': CUHK03,
+    # 'cuhk03/label': CUHK03, 'cuhk03/detect': CUHK03, 'cuhk03/combine': CUHK03,
     'market1501': Market1501,
     'dukemtmc': DukeMTMC,
 }
