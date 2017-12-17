@@ -47,7 +47,7 @@ class ResNet(nn.Module):
         self.depth = depth
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
-
+        # self.conv6to3=_make_conv(6,3)
         # self.tsn = TSN()
 
         # Construct base (pretrained) resnet
@@ -55,6 +55,7 @@ class ResNet(nn.Module):
             raise KeyError("Unsupported depth:", depth)
         self.base = ResNet.__factory[depth](pretrained=pretrained)
         out_planes = self.base.fc.in_features
+        self.out_planes = out_planes
         if not self.cut_at_pooling:
             self.num_features = num_features
             self.norm = norm
@@ -66,6 +67,7 @@ class ResNet(nn.Module):
             if self.has_embedding:
                 self.feat = nn.Linear(out_planes, self.num_features)
                 self.feat_bn = nn.BatchNorm1d(self.num_features)
+                self.feat_relu = nn.ReLU()
                 # init.kaiming_normal(self.feat.weight, mode='fan_out')
                 # init.constant(self.feat.bias, 0)
                 # init.constant(self.feat_bn.weight, 1)
@@ -84,12 +86,11 @@ class ResNet(nn.Module):
 
     def forward(self, x):
         # x = self.tsn(x)
-
+        # x=self.conv6to3(x)
         for name, module in self.base._modules.items():
             if name == 'avgpool':
                 break
             x = module(x)
-        # x=self.conv1(x)
         if self.cut_at_pooling:
             return x
 
@@ -99,10 +100,7 @@ class ResNet(nn.Module):
         if self.has_embedding:
             x = self.feat(x)
             x = self.feat_bn(x)
-            # if self.norm:
-            #     x = F.normalize(x)
-            # elif self.has_embedding:
-            x = F.relu(x)
+            x=self.feat_relu(x)
         if self.dropout > 0:
             x = self.drop(x)
         if self.num_classes > 0:

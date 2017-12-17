@@ -4,19 +4,19 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='full.rand',
+        logs_dir='dbg',
         arch='resnet34',
         batch_size=256,
         num_instances=8,
         gpu=range(1),
-        branchs=0,
-        branch_dim=128,
-        global_dim=1024,
+        branchs=8,
+        branch_dim=64,
+        global_dim=512,
         num_classes=128,
         # resume='work.12.7/cuhk03/model_best.pth',
         # evaluate=True,
         log_at=np.concatenate([
-            range(0, 100, 49),
+            range(10, 100, 49),
             range(100, 150, 19),
             range(155, 165, 1),
             # [0, 1, 2, 3, 4, 5, 6]

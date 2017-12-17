@@ -5,7 +5,8 @@ from torch.nn import functional as F
 from torch.nn import init
 import torchvision
 import torch
-from reid.models.common import _make_fc,_make_conv
+from reid.models.common import _make_fc, _make_conv
+
 
 class MaskBranch(nn.Module):
     def __init__(self, in_planes, branch_dim, height, width, dopout=0.3):
@@ -18,7 +19,7 @@ class MaskBranch(nn.Module):
             nn.Sigmoid()
         )
         self.pool = nn.AvgPool2d((self.height, self.width))
-        self.fc = _make_fc(in_planes, branch_dim, with_relu=True, dp_=dopout)
+        self.fc = _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
 
     def forward(self, x):
         x_left = self.branch_left(x)
@@ -44,7 +45,7 @@ class Mask(nn.Module):
 class Global(nn.Module):
     def __init__(self, in_planes, out_planes, dropout=0.3):
         super(Global, self).__init__()
-        self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=True)
+        self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
 
     def forward(self, x):
         x = F.avg_pool2d(x, x.size()[2:])
@@ -60,6 +61,7 @@ class ConcatReduce(nn.Module):
         self.bn = nn.BatchNorm1d(in_planes)
         init.constant(self.bn.weight, 1)
         init.constant(self.bn.bias, 0)
+        self.bn_relu = nn.ReLU()
         self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
 
     def forward(self, *input):
@@ -68,8 +70,7 @@ class ConcatReduce(nn.Module):
         else:
             x = input[0]
         x = self.bn(x)
-        # x = F.normalize(x)
-        x = F.relu(x)
+        x = self.bn_relu(x)
         x = self.fc(x)
 
         return x

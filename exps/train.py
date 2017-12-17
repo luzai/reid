@@ -101,7 +101,6 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
         sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
-        shuffle=True,
         pin_memory=pin_memory, drop_last=True)
 
     fnames = np.asarray(train_set)[:, 0]
@@ -148,7 +147,6 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     #                  transform=test_transformer),
     #     batch_size=batch_size, num_workers=workers,
     #     shuffle=False, pin_memory=pin_memory)
-    ## todo not support vis anymore
     return dataset, num_classes, train_loader, val_loader, test_loader
 
 
@@ -188,41 +186,27 @@ def main(args):
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
 
-    # base_model = models.create(args.arch,
-    #                            dropout=args.dropout,
-    #                            pretrained=args.pretrained,
-    #                            cut_at_pooling=True
-    #                            )
-    # if args.branchs * args.branch_dim != 0:
-    #     local_model = Mask(2048, args.branchs, args.branch_dim,
-    #                        height=args.height // 32,
-    #                        width=args.width // 32,
-    #                        dopout=args.dropout
-    #                        )
-    # else:
-    #     local_model = None
-    # if args.global_dim != 0:
-    #     global_model = Global(2048, args.global_dim, dropout=args.dropout)
-    # else:
-    #     global_model = None
-    # concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
-    #                             args.num_classes,dropout=0)
-    #
-    # model = SingleNet(base_model, global_model, local_model, concat_model)
+    base_model = models.create(args.arch,
+                               dropout=args.dropout,
+                               pretrained=args.pretrained,
+                               cut_at_pooling=True
+                               )
+    if args.branchs * args.branch_dim != 0:
+        local_model = Mask(base_model.out_planes, args.branchs, args.branch_dim,
+                           height=args.height // 32,
+                           width=args.width // 32,
+                           dopout=args.dropout
+                           )
+    else:
+        local_model = None
+    if args.global_dim != 0:
+        global_model = Global(base_model.out_planes, args.global_dim, dropout=args.dropout)
+    else:
+        global_model = None
+    concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
+                                args.num_classes, dropout=0)
 
-    model = models.create(args.arch,
-                          pretrained=args.pretrained,
-                          dropout=args.dropout,
-                          norm=args.normalize,
-                          num_features=args.global_dim,
-                          num_classes=args.num_classes
-                          )
-
-    # model = DarkNet(num_features=args.global_dim,
-    #                 num_classes=args.num_classes)
-
-    # model = MobileNet(num_features=args.global_dim,
-    #                 num_classes=args.num_classes)
+    model = SingleNet(base_model, global_model, local_model, concat_model)
 
     print(model)
 
@@ -253,12 +237,9 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model)
     if args.evaluate:
-        # acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, final=True)
-        # acc = evaluator.evaluate(train_loader, dataset.trainval, dataset.trainval, metric, final=True)
+        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        # acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, final=True)
         lz.logging.info('eval cmc-1 is {}'.format(acc))
-        # db = lz.Database('distmat.h5', 'a')
-        # db['ohnm'] = evaluator.distmat
         # db.close()
         return 0
 
@@ -284,7 +265,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=False, logs_at=args.logs_dir + '/vis')
+    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis')
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

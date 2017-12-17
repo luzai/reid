@@ -12,8 +12,7 @@ from reid import datasets
 
 lz.init_dev((0,))
 
-for path in ['ohmn_match/val/2','ohmn_match/val/1']:
-    #['ohnm' , 'ohmn_match/2', 'ohmn_match/1', 'match/2', 'match/1']:
+for path in ['ohmn_match/val/2', 'ohmn_match/val/1']:
 
     def preprocess(perplexity=30, metric='euclidean'):
         """ Compute pairiwse probabilities for MNIST pixels.
@@ -24,15 +23,15 @@ for path in ['ohmn_match/val/2','ohmn_match/val/1']:
         dataset = datasets.create('cuhk03', '/home/xinglu/.torch/data/cuhk03/', split_id=0)
         if 'val' in path:
             y = np.asarray([
-            pid for fn, pid, cid in dataset.val
-        ])
+                pid for fn, pid, cid in dataset.val
+            ])
         else:
             y = np.asarray([
-            pid for fn, pid, cid in dataset.query
-        ])
-        n_points = min(distmat.shape[0],  y.shape[0])
-        distmat=distmat[:n_points,:n_points]
-        y=y[:n_points]
+                pid for fn, pid, cid in dataset.query
+            ])
+        n_points = min(distmat.shape[0], y.shape[0])
+        distmat = distmat[:n_points, :n_points]
+        y = y[:n_points]
         assert distmat.shape[0] == y.shape[0], '{} {}'.format(distmat.shape, y.shape)
 
         distances2 = distmat

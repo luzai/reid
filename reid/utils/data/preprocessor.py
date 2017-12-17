@@ -2,7 +2,7 @@ from __future__ import absolute_import
 import os.path as osp
 
 from PIL import Image
-
+from lz import *
 
 class Preprocessor(object):
     def __init__(self, dataset, root=None, transform=None):
@@ -21,12 +21,18 @@ class Preprocessor(object):
 
     def _get_single_item(self, index):
         fname, pid, camid = self.dataset[index]
+        fpath2 = '/data1/xinglu/prj/openpose/out/' + fname.split('.')[0]+'_rendered.png'
         fpath = fname
         if not osp.exists(fpath) and self.root is not None:
             fpath = osp.join(self.root, fname)
         img = Image.open(fpath).convert('RGB')
         if self.transform is not None:
             img = self.transform(img)
+        self.transform.transforms[0].use_last=True
+        # self.transform.transforms[1].use_last=True
+        # pose = Image.open(fpath2).convert('RGB')
+        # pose = self.transform(pose)
+        # img = torch.cat([img,pose])
         return img, fname, pid, camid
 
 

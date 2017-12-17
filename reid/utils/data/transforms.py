@@ -23,8 +23,13 @@ class RandomSizedRectCrop(object):
         self.height = height
         self.width = width
         self.interpolation = interpolation
+        self.use_last=False
 
     def __call__(self, img):
+        if self.use_last:
+            img = img.crop(self.last_bbox)
+            self.use_last=False
+            return img.resize((self.width,self.height),self.interpolation)
         for attempt in range(10):
             area = img.size[0] * img.size[1]
             target_area = random.uniform(0.64, 1.0) * area
@@ -39,10 +44,11 @@ class RandomSizedRectCrop(object):
 
                 img = img.crop((x1, y1, x1 + w, y1 + h))
                 assert(img.size == (w, h))
-
+                self.last_bbox=(x1,y1,x1+w,y1+h)
                 return img.resize((self.width, self.height), self.interpolation)
 
         # Fallback
         scale = RectScale(self.height, self.width,
                           interpolation=self.interpolation)
+        self.last_bbox=(0,0,self.height,self.width)
         return scale(img)
