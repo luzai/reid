@@ -220,7 +220,7 @@ class Trainer(object):
 
             global_inds = [data_loader.fname2ind[fn] for fn in fnames]
 
-            triplets = mine_hard_triplets(self.model, data_loader, margin=0.5)
+            # triplets = mine_hard_triplets(self.model, data_loader, margin=0.5)
             # al_ind = np.asarray(triplets).flatten()
             # bins, divs = np.histogram(al_ind, bins=data_loader.sampler.info.shape[0],
             #                        range=(0, data_loader.sampler.info.shape[0]))

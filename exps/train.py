@@ -68,16 +68,16 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         root = osp.join(data_dir, name)
         dataset = datasets.create(name, root, split_id=split_id)
 
-    if name_val != '':
-        assert isinstance(name_val, str)
+    if isinstance(name, list) and len(name) != 1:
+        raise NotImplementedError
+    else:
         root = osp.join(data_dir, name_val)
         dataset_val = datasets.create(name_val, root, split_id=split_id)
-        dataset.qurey = dataset_val.query
-        dataset.gallery = dataset_val.gallery
-    lim_query = cvb.load(work_path + '/mk.query.pkl')
-    dataset.query = [ds for ds in dataset.query if ds[0] in lim_query]
-    lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
-    dataset.gallery = [ds for ds in dataset.gallery if ds[0] in lim_gallery + lim_query]
+        if name_val == 'market1501':
+            lim_query = cvb.load(work_path + '/mk.query.pkl')
+            dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
+            lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
+            dataset_val.gallery = [ds for ds in dataset_val.gallery if ds[0] in lim_gallery + lim_query]
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -98,8 +98,6 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         T.ToTensor(),
         normalizer,
     ])
-    # limit = lz.unpickle('tmp.pkl')
-    # train_set = [(fname,pid,cid) for fname , pid,cid in train_set if fname in limit]
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
@@ -112,45 +110,27 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     setattr(train_loader, 'fname2ind', fname2ind)
 
     val_loader = DataLoader(
-        Preprocessor(dataset.val, root=dataset.images_dir,
+        Preprocessor(dataset_val.val, root=dataset_val.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
     query_ga = np.concatenate([
-        np.asarray(dataset.query).reshape(-1, 3),
-        np.asarray(list(set(dataset.gallery) - set(dataset.query))).reshape(-1, 3)
+        np.asarray(dataset_val.query).reshape(-1, 3),
+        np.asarray(list(set(dataset_val.gallery) - set(dataset_val.query))).reshape(-1, 3)
     ])
     query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
                                  names=['fnames', 'pids', 'cids']).tolist()
     test_loader = DataLoader(
         Preprocessor(query_ga,
-                     root='/home/xinglu/.torch/data/market1501/images/',  # dataset.images_dir,
+                     root=dataset_val.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
-
-    # query, gallery = dataset.query.copy(), dataset.gallery.copy()
-    # query_ids = [pid for _, pid, _ in query]
-    # gallery_ids = [pid for _, pid, _ in gallery]
-    # query_ids_u = np.unique(query_ids)
-    # residual = np.setdiff1d(np.unique(gallery_ids), query_ids_u)
-    # limit = np.random.choice(query_ids_u, min(100, query_ids_u.shape[0]), replace=False)
-    # limit = np.concatenate((residual, limit))
-    # query = limit_dataset(query, limit)
-    # gallery = limit_dataset(gallery, limit)
-
-    # query_ga = np.concatenate([
-    #     np.asarray(query).reshape(-1, 3),
-    #     np.asarray(list(set(gallery) - set(query))).reshape(-1, 3)
-    # ])
-    # query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
-    #                              names=['fnames', 'pids', 'cids']).tolist()
-    # test_loader_limit = DataLoader(
-    #     Preprocessor(query_ga,
-    #                  root=dataset.images_dir,
-    #                  transform=test_transformer),
-    #     batch_size=batch_size, num_workers=workers,
-    #     shuffle=False, pin_memory=pin_memory)
+    dataset.val = dataset_val.val
+    dataset.query=dataset_val.query
+    dataset.gallery = dataset_val.gallery
+    dataset.images_dir = dataset_val.images_dir
+    # dataset.num_val_ids
     return dataset, num_classes, train_loader, val_loader, test_loader
 
 

@@ -4,10 +4,12 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='dbg',
+        logs_dir='dbg.2',
         arch='resnet34',
-        batch_size=16, print_freq=1,
-        num_instances=4,
+        dataset='market1501',
+        dataset_val = 'market1501',
+        batch_size=256, print_freq=1,
+        num_instances=8,
         gpu=range(1),
         pin_mem=True,
         workers=8,
@@ -18,7 +20,7 @@ cfgs = [
         # resume='work.12.7/cuhk03/model_best.pth',
         # evaluate=True,
         log_at=np.concatenate([
-            range(10, 100, 49),
+            range(0, 100, 49),
             range(100, 150, 19),
             range(155, 165, 1),
             # [0, 1, 2, 3, 4, 5, 6]
@@ -79,7 +81,7 @@ base = EasyDict(
         freeze='',
         # tuning
         dataset='market1501',
-        dataset_val='',
+        dataset_val='market1501',
         batch_size=100,
         logs_dir='',
         arch='resnet50',

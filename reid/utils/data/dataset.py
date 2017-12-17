@@ -31,10 +31,7 @@ class Dataset(object):
         self.train, self.val, self.trainval = [], [], []
         self.query, self.gallery = [], []
         self.num_train_ids, self.num_val_ids, self.num_trainval_ids = 0, 0, 0
-
-    @property
-    def images_dir(self):
-        return osp.join(self.root, 'images')
+        self.images_dir = osp.join(self.root,'images')
 
     def load(self, num_val=0.3, verbose=True):
         splits = read_json(osp.join(self.root, 'splits.json'))
