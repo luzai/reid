@@ -5,6 +5,7 @@ cfgs = [
     EasyDict(dict(
         lr=3e-4,
         logs_dir='single',
+        has_npy=True,
         arch='resnet50',
         dataset='cuhk03',
         dataset_val='cuhk03',
@@ -32,6 +33,7 @@ cfgs = [
 
 base = EasyDict(
     dict(
+        has_npy=False,
         pretrained=True,
         dbg=False,
         data_dir='/home/xinglu/.torch/data',

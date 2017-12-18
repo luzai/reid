@@ -22,10 +22,11 @@ def extract_features(model, data_loader, print_freq=1, limit=None, ):
     print('extract feature')
     end = time.time()
     for i, data in enumerate(data_loader):
-        imgs, npys, fnames, pids = data.get('img'), data.get('npy') ,data.get('fname') , data.get('pid')
+        imgs, npys, fnames, pids = data.get('img'), data.get('npy'), data.get('fname'), data.get('pid')
         data_time.update(time.time() - end)
 
-        outputs = extract_cnn_feature(model, [imgs, npys], )
+        outputs = extract_cnn_feature(model,
+                                      [imgs, npys] )
         for fname, output, pid in zip(fnames, outputs, pids):
             if limit is not None and int(pid) not in limit.tolist():
                 continue
@@ -364,6 +365,7 @@ class CascadeEvaluator(object):
             return cmc_scores, cmc_scores2
         else:
             return cmc_scores['cuhk03'][0], cmc_scores2['cuhk03'][0]
+
 
 class SiameseEvaluator(object):
     def __init__(self, base_model, embed_model, embed_dist_fn=None):

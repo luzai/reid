@@ -148,23 +148,22 @@ def stat_(writer, tag, tensor, iter):
 
 
 class Trainer(object):
-    def __init__(self, model, criterion, dbg=False, logs_at='work/vis', gpu=(0,)):
+    def __init__(self, model, criterion, dbg=False, logs_at='work/vis', ):
         self.model = model
         self.criterion = criterion
         self.dbg = dbg
         self.iter = 0
-        self.gpu = gpu
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
 
     def _parse_data(self, inputs):
         imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
-        if self.gpu is None:
-            inputs = [Variable(imgs, requires_grad=False), Variable(npys, requires_grad=False)]
+        inputs = [imgs, npys]
+        inputs = to_variable(inputs, require_grad=False)
+        if not torch.cuda.is_available():
             targets = Variable(pids, requires_grad=False)
         else:
-            inputs = [Variable(imgs.cuda(), requires_grad=False), Variable(npys.cuda(), requires_grad=False)]
             targets = Variable(pids.cuda(), requires_grad=False)
         return inputs, targets, fnames
 

@@ -7,7 +7,7 @@ from ..utils.meters import *
 
 def extract_cnn_feature(model, inputs, modules=None):
     model.eval()
-    inputs = to_variable(inputs)
+    inputs = to_variable(inputs, volatile=True)
 
     if modules is None:
         outputs = model(*inputs)

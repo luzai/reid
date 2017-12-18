@@ -55,7 +55,7 @@ def run(_):
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
-             workers, combine_trainval, pin_memory=True, name_val=''):
+             workers, combine_trainval, pin_memory=True, name_val='', npy=True):
     if isinstance(name, list) and len(name) != 1:
         names = name
         root = '/home/xinglu/.torch/data/'
@@ -96,7 +96,8 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     ])
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
-                     transform=train_transformer),
+                     transform=train_transformer,
+                     has_npy=npy),
         batch_size=batch_size, num_workers=workers,
         sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
         pin_memory=pin_memory, drop_last=True)
@@ -107,7 +108,8 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
 
     val_loader = DataLoader(
         Preprocessor(dataset_val.val, root=dataset_val.images_dir,
-                     transform=test_transformer),
+                     transform=test_transformer,
+                     has_npy=npy),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
     query_ga = np.concatenate([
@@ -119,7 +121,8 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     test_loader = DataLoader(
         Preprocessor(query_ga,
                      root=dataset_val.images_dir,
-                     transform=test_transformer),
+                     transform=test_transformer,
+                     has_npy=npy),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
     dataset.val = dataset_val.val
@@ -150,7 +153,9 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
-                 args.combine_trainval, pin_memory=args.pin_mem, name_val=args.dataset_val)
+                 args.combine_trainval,
+                 pin_memory=args.pin_mem, name_val=args.dataset_val,
+                 npy=args.has_npy)
     # Create model
 
     base_model = models.create(args.arch,
@@ -170,9 +175,11 @@ def main(args):
         global_model = Global(base_model.out_planes, args.global_dim, dropout=args.dropout)
     else:
         global_model = None
-    lomo_model = LomoNet()
-    # lomo_model = None
-    concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim + 128,
+    lomo_model = LomoNet() if args.has_npy else None
+    concat_inplates = args.branchs * args.branch_dim + args.global_dim
+    if args.has_npy:
+        concat_inplates += 128
+    concat_model = ConcatReduce(concat_inplates,
                                 args.num_classes, dropout=0)
 
     model = SingleNet(base_model, global_model, local_model, lomo_model, concat_model, )
@@ -239,7 +246,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', gpu=args.gpu)
+    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis')
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

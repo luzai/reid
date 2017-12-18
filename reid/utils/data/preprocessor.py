@@ -6,13 +6,15 @@ from lz import *
 
 
 class Preprocessor(object):
-    def __init__(self, dataset, root=None, transform=None, test_aug=False):
+    def __init__(self, dataset, root=None, transform=None, test_aug=False, has_npy=False, has_pose=False):
         super(Preprocessor, self).__init__()
         self.dataset = dataset
         self.root = root
         self.transform = transform
         self.cache = dict()
         self.test_aug = test_aug  # todo
+        self.has_npy = has_npy
+        self.has_pose = has_pose
 
     def __len__(self):
         return len(self.dataset)
@@ -23,26 +25,32 @@ class Preprocessor(object):
         return self._get_single_item(indices)
 
     def _get_single_item(self, index):
-        fname, pid, camid = self.dataset[index]
+        res = {}
+        fname, pid, cid = self.dataset[index]
+        res['fname'] = fname
+        res['pid'] = pid
+        res['cid'] = cid
+
         fpath2 = '/home/xinglu/prj/openpose/cu.out/' + fname.split('.')[0] + '_rendered.png'
         fpath3 = '/home/xinglu/.torch/data/cuhk03/label/npy/' + fname.split('.')[0] + '.npy'
         fpath = fname
         if not osp.exists(fpath) and self.root is not None:
-            fpath = osp.join(self.root, fname)
+            fpath = osp.join(self.root, fpath)
         if fpath in self.cache:
-            (img, npy, fname, pid, camid) = self.cache[fpath]
-            img = self.transform(img)
-            return {'img': img, 'npy': npy,
-                    'fname': fname, 'pid': pid, 'cid': camid}
-        img = Image.open(fpath).convert('RGB')
-        npy = np.load(fpath3)
-        npy = to_torch(npy)
-        self.cache[fpath] = (img, npy, fname, pid, camid)
-        if self.transform is not None:
-            img = self.transform(img)
+            res = self.cache[fpath]
+            img = self.transform(res['img'])
+            res_return = copy.deepcopy(res)
+            res_return.update({'img': img})
+            return res_return
 
-        return {'img': img, 'npy': npy,
-                'fname': fname, 'pid': pid, 'cid': camid}
+        res['img'] = Image.open(fpath).convert('RGB')
+        if self.has_npy:
+            res['npy'] = to_torch(np.load(fpath3))
+        self.cache[fpath] = res
+        img = self.transform(res['img'])
+        res_return = copy.deepcopy(res)
+        res_return.update({'img': img})
+        return res_return
 
 
 class KeyValuePreprocessor(object):

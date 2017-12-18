@@ -20,7 +20,7 @@ cfgs = [
         # resume='work.12.7/cuhk03/model_best.pth',
         evaluate=False,
         log_at=np.concatenate([
-            range(0, 100, 49),
+            range(10, 100, 49),
             range(100, 150, 19),
             range(155, 165, 1),
             # [0, 1, 2, 3, 4, 5, 6]
@@ -34,7 +34,7 @@ base = EasyDict(
     dict(
         retrain=False,
         pretrained=True,
-        hard_examples=False,
+        hard_examples=True,
         dbg=False,
         data_dir='/home/xinglu/.torch/data',
         restart=True,

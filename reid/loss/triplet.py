@@ -1,12 +1,10 @@
-from __future__ import absolute_import
-
 import torch
 from torch import nn
 from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 import subprocess
 import numpy as np, numpy
-import lz
+from lz import *
 
 
 def select(dist, range, descend=True, return_ind=False, global_ind=None):
@@ -35,7 +33,7 @@ class TripletLoss(nn.Module):
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         dist_ap, dist_an = [], []
-        # all_ind = Variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False, volatile=True).cuda()
+        all_ind = to_variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False, volatile=True)
         posp_inds, negp_inds = [], []
 
         for i in range(n):
@@ -78,9 +76,9 @@ class TripletLoss(nn.Module):
         # y.resize_as_(dist_an.data)
         # y.fill_(1)
         if torch.cuda.is_available():
-            y = Variable(lz.to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
+            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
         else:
-            y = Variable(lz.to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
+            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
         loss = self.ranking_loss(dist_an, dist_ap, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
