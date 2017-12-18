@@ -47,6 +47,7 @@ class RandomSizedRectCrop(object):
                           interpolation=self.interpolation)
         return scale(img)
 
+# todo more aug
 
 class RandomCropFlip(object):
     def __init__(self, height, width, interpolation=Image.BILINEAR, area=(0.85, 1), aspect=(1.5, 3)):

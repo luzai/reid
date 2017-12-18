@@ -141,166 +141,137 @@ def main(args):
     cudnn.benchmark = True
     if not args.evaluate:
         writer = SummaryWriter(args.logs_dir)
-
     # Create data loaders
-    assert args.num_instances > 1, "num_instances should be greater than 1"
-    assert args.batch_size % args.num_instances == 0, \
-        'num_instances should divide batch_size'
-
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
                  args.combine_trainval, pin_memory=args.pin_mem, name_val=args.dataset_val)
     # Create model
-
     base_model = models.create(args.arch,
                                dropout=args.dropout,
                                pretrained=args.pretrained,
-                               cut_at_pooling=True
+                               num_features=args.global_dim,
+                               num_classes=args.num_classes
                                )
-    if args.branchs * args.branch_dim != 0:
-        local_model = Mask(base_model.out_planes, args.branchs, args.branch_dim,
-                           height=args.height // 32,
-                           width=args.width // 32,
-                           dopout=args.dropout
-                           )
-    else:
-        local_model = None
-    if args.global_dim != 0:
-        global_model = Global(base_model.out_planes, args.global_dim, dropout=args.dropout)
-    else:
-        global_model = None
-    lomo_model = LomoNet()
-    # lomo_model = None
-    concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim + 128,
-                                args.num_classes, dropout=0)
+    embed_model = EltwiseSubEmbed()
+    model = TripletNet(base_model, embed_model)
+    model = torch.nn.DataParallel(model).cuda()
 
-    model = SingleNet(base_model, global_model, local_model, lomo_model, concat_model, )
-
-    print(model)
+    if args.retrain:
+        checkpoint = load_checkpoint(args.retrain)
+        copy_state_dict(checkpoint['state_dict'], base_model, strip='module.')
+        copy_state_dict(checkpoint['state_dict'], embed_model, strip='module.')
 
     # Load from checkpoint
-    start_epoch = best_top1 = 0
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
-        # model.load_state_dict(checkpoint['state_dict'])
-        load_state_dict(model, checkpoint['state_dict'])
-        if args.restart:
-            start_epoch_ = checkpoint['epoch']
-            best_top1_ = checkpoint['best_top1']
-            print("=> Start epoch {}  best top1 {:.1%}"
-                  .format(start_epoch_, best_top1_))
-        else:
-            start_epoch = checkpoint['epoch']
-            best_top1 = checkpoint['best_top1']
-            print("=> Start epoch {}  best top1 {:.1%}"
-                  .format(start_epoch, best_top1))
-    if args.gpu is None:
-        model = nn.DataParallel(model)
-    elif len(args.gpu) == 1:
-        model = nn.DataParallel(model).cuda()
+        model.load_state_dict(checkpoint['state_dict'])
+        args.start_epoch = checkpoint['epoch']
+        best_top1 = checkpoint['best_top1']
+        print("=> start epoch {}  best top1 {:.1%}"
+              .format(args.start_epoch, best_top1))
     else:
-        model = nn.DataParallel(model, device_ids=range(len(args.gpu))).cuda()
-
-    # Distance metric
-    metric = DistanceMetric(algorithm=args.dist_metric)
+        best_top1 = 0
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu)
+    evaluator = SiameseEvaluator(
+        torch.nn.DataParallel(base_model).cuda(),
+        torch.nn.DataParallel(embed_model).cuda())
     if args.evaluate:
-        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        # acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, final=True)
-        lz.logging.info('eval cmc-1 is {}'.format(acc))
-        # db.close()
-        return 0
+        print("Validation:")
+        evaluator.evaluate(val_loader, dataset.val, dataset.val)
+        print("Test:")
+        evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
+        return
+
+    if args.hard_examples:
+        # Use sequential train set loader
+        data_loader = DataLoader(
+            Preprocessor(dataset.train, root=dataset.images_dir,
+                         transform=val_loader.dataset.transform),
+            batch_size=args.batch_size, num_workers=args.workers,
+            shuffle=False, pin_memory=False)
+        # Mine hard triplet examples, index of [(anchor, pos, neg), ...]
+        triplets = mine_hard_triplets(torch.nn.DataParallel(base_model).cuda(),
+                                      data_loader, margin=args.margin)
+        print("Mined {} hard example triplets".format(len(triplets)))
+        # Build a hard examples loader
+        train_loader.sampler = SubsetRandomSampler(triplets)
 
     # Criterion
-    if args.gpu is not None:
-        criterion = TripletLoss(margin=args.margin).cuda()
-    else:
-        criterion = TripletLoss(margin=args.margin)
+    criterion = torch.nn.MarginRankingLoss(margin=args.margin).cuda()
 
-    # Optimizer
-    # filter(lambda p: p.requires_grad, model.parameters())
-    # for param in itertools.chain(model.module.base.parameters(),
-    #                              model.module.feat.parameters(),
-    #                              model.module.feat_bn.parameters(),
-    #                              model.module.classifier.parameters()
-    #                              ):
-    #     param.requires_grad = False
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay)
 
-    if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,  # module.stn
-                                     weight_decay=args.weight_decay)
-    elif args.optimizer == 'sgd':
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
-                                    weight_decay=args.weight_decay, momentum=0.9,
-                                    nesterov=True)
-    else:
-        raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', gpu=args.gpu)
+    trainer = TripletTrainer(model, criterion)
 
     # Schedule learning rate
-    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
-        exp = len(steps)
-        for i, step in enumerate(steps):
-            if epoch < step:
-                exp = i
-                break
-        lr = base_lr * decay ** exp
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr * param_group.get('lr_mult', 1)
+    def adjust_lr(epoch):
+        lr = args.lr * (0.1 ** (epoch // 40))
+        for g in optimizer.param_groups:
+            g['lr'] = lr
 
     # Start training
-    for epoch in range(start_epoch, args.epochs):
-        adjust_lr(epoch=epoch)
-        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
-        for k, v in hist.items():
-            writer.add_scalar('train/' + k, v, epoch)
-        writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
-        if not args.log_middle:
-            continue
-        if epoch < args.start_save:
-            continue
-        if epoch not in args.log_at:
-            continue
+    for epoch in range(args.start_epoch, args.epochs):
+        adjust_lr(epoch)
+        trainer.train(epoch, train_loader, optimizer)
 
-        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-        writer.add_scalar('train/top-1', acc, epoch)
-        writer.add_scalar('train/mAP', mAP, epoch)
+        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
 
-        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        writer.add_scalar('test/top-1', acc, epoch)
-        writer.add_scalar('test/mAP', mAP, epoch)
-
-        top1 = acc
         is_best = top1 > best_top1
-
         best_top1 = max(top1, best_top1)
         save_checkpoint({
-            'state_dict': model.module.state_dict(),
+            'state_dict': model.state_dict(),
             'epoch': epoch + 1,
             'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
+        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-    writer.add_scalar('test/top-1', acc, args.epochs)
-    writer.add_scalar('test/mAP', mAP, args.epochs)
-    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
-        print('Test with best model:')
-        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
-        model.module.load_state_dict(checkpoint['state_dict'])
-        metric.train(model, train_loader)
-        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        writer.add_scalar('test/top-1', acc, args.epochs + 1)
-        writer.add_scalar('test/mAP', mAP, args.epochs + 1)
-        lz.logging.info('final rank1 is {}'.format(acc))
+    print('Test with best model:')
+    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
+    model.load_state_dict(checkpoint['state_dict'])
+    evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
 
 
 if __name__ == '__main__':
-    run('')
+    parser = argparse.ArgumentParser(
+        description="Training Inception Siamese Model")
+    # data
+    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
+                        choices=['cuhk03', 'market1501', 'viper'])
+    parser.add_argument('-b', '--batch-size', type=int, default=64)
+    parser.add_argument('-j', '--workers', type=int, default=2)
+    parser.add_argument('--split', type=int, default=0)
+    parser.add_argument('--hard-examples', action='store_true')
+    # model
+    parser.add_argument('--depth', type=int, default=50,
+                        choices=[18, 34, 50, 101, 152])
+    parser.add_argument('--features', type=int, default=256)
+    parser.add_argument('--dropout', type=float, default=0.5)
+    # loss
+    parser.add_argument('--margin', type=float, default=0.5)
+    # optimizer
+    parser.add_argument('--lr', type=float, default=0.1)
+    parser.add_argument('--momentum', type=float, default=0.9)
+    parser.add_argument('--weight-decay', type=float, default=5e-4)
+    # training configs
+    parser.add_argument('--retrain', type=str, default='', metavar='PATH')
+    parser.add_argument('--resume', type=str, default='', metavar='PATH')
+    parser.add_argument('--evaluate', action='store_true')
+    parser.add_argument('--start-epoch', type=int, default=0)
+    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--print-freq', type=int, default=1)
+    # misc
+    working_dir = osp.dirname(osp.abspath(__file__))
+    parser.add_argument('--data-dir', type=str, metavar='PATH',
+                        default=osp.join(working_dir, 'data'))
+    parser.add_argument('--logs-dir', type=str, metavar='PATH',
+                        default=osp.join(working_dir, 'logs'))
+    main(parser.parse_args())

@@ -24,7 +24,7 @@ def extract_features(model, data_loader, print_freq=1, limit=None, gpu=(0,)):
     for i, (imgs, npys, fnames, pids, _) in enumerate(data_loader):
         data_time.update(time.time() - end)
 
-        outputs = extract_cnn_feature(model, [imgs,npys], gpu=gpu)
+        outputs = extract_cnn_feature(model, [imgs, npys], gpu=gpu)
         for fname, output, pid in zip(fnames, outputs, pids):
             if limit is not None and int(pid) not in limit.tolist():
                 continue

@@ -109,9 +109,6 @@ class VerfTrainer(BaseTrainer):
         return loss, prec1[0]
 
 
-def stat(tensor):
-    return tensor.min(), tensor.mean(), tensor.max(), tensor.std(), tensor.size()
-
 
 class SiameseTrainer(BaseTrainer):
     def _parse_data(self, inputs):

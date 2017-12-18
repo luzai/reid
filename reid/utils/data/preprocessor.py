@@ -6,12 +6,13 @@ from lz import *
 
 
 class Preprocessor(object):
-    def __init__(self, dataset, root=None, transform=None):
+    def __init__(self, dataset, root=None, transform=None, test_aug=False):
         super(Preprocessor, self).__init__()
         self.dataset = dataset
         self.root = root
         self.transform = transform
         self.cache = dict()
+        self.test_aug = test_aug # todo
 
     def __len__(self):
         return len(self.dataset)
@@ -38,11 +39,6 @@ class Preprocessor(object):
         self.cache[fpath] = (img, npy, fname, pid, camid)
         if self.transform is not None:
             img = self.transform(img)
-        # self.transform.transforms[0].use_last = True
-        # self.transform.transforms[1].use_last=True
-        # pose = Image.open(fpath2).convert('RGB')
-        # pose = self.transform(pose)
-        # img = torch.cat([img,pose])
 
         return img, npy, fname, pid, camid
 
