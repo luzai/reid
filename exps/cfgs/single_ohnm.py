@@ -4,7 +4,7 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='dbg',
+        logs_dir='single',
         arch='resnet50',
         dataset='cuhk03',
         dataset_val='cuhk03',

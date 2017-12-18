@@ -26,7 +26,7 @@ import torchpack
 
 
 def run(_):
-    cfgs = torchpack.load_cfg('./conf/trihard.py')
+    cfgs = torchpack.load_cfg('./cfgs/tribranch_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
 
@@ -201,77 +201,76 @@ def main(args):
     # Criterion
     criterion = torch.nn.MarginRankingLoss(margin=args.margin).cuda()
 
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+    if args.optimizer == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,  # module.stn
+                                     weight_decay=args.weight_decay)
+    elif args.optimizer == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
+                                    weight_decay=args.weight_decay, momentum=0.9,
+                                    nesterov=True)
 
     # Trainer
     trainer = TripletTrainer(model, criterion)
 
     # Schedule learning rate
-    def adjust_lr(epoch):
-        lr = args.lr * (0.1 ** (epoch // 40))
-        for g in optimizer.param_groups:
-            g['lr'] = lr
+    def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
+        exp = len(steps)
+        for i, step in enumerate(steps):
+            if epoch < step:
+                exp = i
+                break
+        lr = base_lr * decay ** exp
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Start training
-    for epoch in range(args.start_epoch, args.epochs):
-        adjust_lr(epoch)
-        trainer.train(epoch, train_loader, optimizer)
+    for epoch in range(args.epochs):
+        adjust_lr(epoch=epoch)
+        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
+        for k, v in hist.items():
+            writer.add_scalar('train/' + k, v, epoch)
+        writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
+        if not args.log_middle:
+            continue
+        if epoch < args.start_save:
+            continue
+        if epoch not in args.log_at:
+            continue
 
-        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
+        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, )
+        writer.add_scalar('train/top-1', acc, epoch)
+        writer.add_scalar('train/mAP', mAP, epoch)
 
+        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, )
+        writer.add_scalar('test/top-1', acc, epoch)
+        writer.add_scalar('test/mAP', mAP, epoch)
+
+        top1 = acc
         is_best = top1 > best_top1
+
         best_top1 = max(top1, best_top1)
         save_checkpoint({
-            'state_dict': model.state_dict(),
+            'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
             'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
+        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    print('Test with best model:')
-    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
-    model.load_state_dict(checkpoint['state_dict'])
-    evaluator.evaluate(test_loader, dataset.query, dataset.gallery)
+    mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, )
+    writer.add_scalar('test/top-1', acc, args.epochs)
+    writer.add_scalar('test/mAP', mAP, args.epochs)
+    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
+        print('Test with best model:')
+        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
+        model.module.load_state_dict(checkpoint['state_dict'])
+        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, )
+        writer.add_scalar('test/top-1', acc, args.epochs + 1)
+        writer.add_scalar('test/mAP', mAP, args.epochs + 1)
+        lz.logging.info('final rank1 is {}'.format(acc))
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description="Training Inception Siamese Model")
-    # data
-    parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
-                        choices=['cuhk03', 'market1501', 'viper'])
-    parser.add_argument('-b', '--batch-size', type=int, default=64)
-    parser.add_argument('-j', '--workers', type=int, default=2)
-    parser.add_argument('--split', type=int, default=0)
-    parser.add_argument('--hard-examples', action='store_true')
-    # model
-    parser.add_argument('--depth', type=int, default=50,
-                        choices=[18, 34, 50, 101, 152])
-    parser.add_argument('--features', type=int, default=256)
-    parser.add_argument('--dropout', type=float, default=0.5)
-    # loss
-    parser.add_argument('--margin', type=float, default=0.5)
-    # optimizer
-    parser.add_argument('--lr', type=float, default=0.1)
-    parser.add_argument('--momentum', type=float, default=0.9)
-    parser.add_argument('--weight-decay', type=float, default=5e-4)
-    # training configs
-    parser.add_argument('--retrain', type=str, default='', metavar='PATH')
-    parser.add_argument('--resume', type=str, default='', metavar='PATH')
-    parser.add_argument('--evaluate', action='store_true')
-    parser.add_argument('--start-epoch', type=int, default=0)
-    parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--seed', type=int, default=1)
-    parser.add_argument('--print-freq', type=int, default=1)
-    # misc
-    working_dir = osp.dirname(osp.abspath(__file__))
-    parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'data'))
-    parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
-    main(parser.parse_args())
+    run("")

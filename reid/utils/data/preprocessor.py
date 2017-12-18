@@ -12,7 +12,7 @@ class Preprocessor(object):
         self.root = root
         self.transform = transform
         self.cache = dict()
-        self.test_aug = test_aug # todo
+        self.test_aug = test_aug  # todo
 
     def __len__(self):
         return len(self.dataset)
@@ -32,7 +32,8 @@ class Preprocessor(object):
         if fpath in self.cache:
             (img, npy, fname, pid, camid) = self.cache[fpath]
             img = self.transform(img)
-            return img, npy, fname, pid, camid
+            return {'img': img, 'npy': npy,
+                    'fname': fname, 'pid': pid, 'cid': camid}
         img = Image.open(fpath).convert('RGB')
         npy = np.load(fpath3)
         npy = to_torch(npy)
@@ -40,7 +41,8 @@ class Preprocessor(object):
         if self.transform is not None:
             img = self.transform(img)
 
-        return img, npy, fname, pid, camid
+        return {'img': img, 'npy': npy,
+                'fname': fname, 'pid': pid, 'cid': camid}
 
 
 class KeyValuePreprocessor(object):

@@ -12,7 +12,7 @@ from .feature_extraction import *
 from .utils.meters import AverageMeter
 
 
-def extract_features(model, data_loader, print_freq=1, limit=None, gpu=(0,)):
+def extract_features(model, data_loader, print_freq=1, limit=None, ):
     model.eval()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -21,10 +21,11 @@ def extract_features(model, data_loader, print_freq=1, limit=None, gpu=(0,)):
     labels = OrderedDict()
     print('extract feature')
     end = time.time()
-    for i, (imgs, npys, fnames, pids, _) in enumerate(data_loader):
+    for i, data in enumerate(data_loader):
+        imgs, npys, fnames, pids = data.get('img'), data.get('npy') ,data.get('fname') , data.get('pid')
         data_time.update(time.time() - end)
 
-        outputs = extract_cnn_feature(model, [imgs, npys], gpu=gpu)
+        outputs = extract_cnn_feature(model, [imgs, npys], )
         for fname, output, pid in zip(fnames, outputs, pids):
             if limit is not None and int(pid) not in limit.tolist():
                 continue
@@ -137,7 +138,7 @@ class Evaluator(object):
         #     query_cams = [cam for _, _, cam in query]
         #     gallery_cams = [cam for _, _, cam in gallery]
 
-        features, _ = extract_features(self.model, data_loader, gpu=self.gpu)
+        features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
         # list(features.keys())
         distmat = pairwise_distance(features, query, gallery, metric=metric)
@@ -363,3 +364,41 @@ class CascadeEvaluator(object):
             return cmc_scores, cmc_scores2
         else:
             return cmc_scores['cuhk03'][0], cmc_scores2['cuhk03'][0]
+
+class SiameseEvaluator(object):
+    def __init__(self, base_model, embed_model, embed_dist_fn=None):
+        super(SiameseEvaluator, self).__init__()
+        self.base_model = base_model
+        self.embed_model = embed_model
+        self.embed_dist_fn = embed_dist_fn
+
+    def evaluate(self, data_loader, query, gallery, cache_file=None):
+        # Extract features image by image
+        features = extract_features(self.base_model, data_loader,
+                                    output_file=cache_file)
+        if cache_file is not None:
+            features = FeatureDatabase(cache_file, 'r')
+
+        # Build a data loader for exhaustive (query, gallery) pairs
+        query_keys = [fname for fname, _, _ in query]
+        gallery_keys = [fname for fname, _, _ in gallery]
+        data_loader = DataLoader(
+            KeyValuePreprocessor(features),
+            sampler=ExhaustiveSampler(query_keys, gallery_keys,
+                                      return_index=False),
+            batch_size=min(len(gallery), 4096),
+            num_workers=1, pin_memory=False)
+
+        # Extract embeddings of each (query, gallery) pair
+        embeddings = extract_embeddings(self.embed_model, data_loader)
+        if self.embed_dist_fn is not None:
+            embeddings = self.embed_dist_fn(embeddings)
+
+        if cache_file is not None:
+            features.close()
+
+        # Convert embeddings to distance matrix
+        distmat = embeddings.contiguous().view(len(query), len(gallery))
+
+        # Evaluate CMC scores
+        return evaluate_cmc(distmat, query, gallery)

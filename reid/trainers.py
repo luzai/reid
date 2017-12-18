@@ -109,6 +109,20 @@ class VerfTrainer(BaseTrainer):
         return loss, prec1[0]
 
 
+class TripletTrainer(BaseTrainer):
+    def _parse_data(self, inputs):
+        (a, _, _, _), (p, _, _, _), (n, _, _, _) = inputs
+        inputs = [Variable(a), Variable(p), Variable(n)]
+        targets = Variable(torch.ones(len(a)).cuda())
+        return inputs, targets
+
+    def _forward(self, inputs, targets):
+        dist_an, dist_ap = self.model(*inputs)
+        loss = self.criterion(dist_an, dist_ap, targets)
+        # ByteTensor has no mean() method
+        prec = (dist_an.data > dist_ap.data).sum() * 1. / targets.size(0)
+        return loss, prec
+
 
 class SiameseTrainer(BaseTrainer):
     def _parse_data(self, inputs):
@@ -145,7 +159,7 @@ class Trainer(object):
             self.writer = SummaryWriter(logs_at)
 
     def _parse_data(self, inputs):
-        imgs, npys, fnames, pids, _ = inputs
+        imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
         if self.gpu is None:
             inputs = [Variable(imgs, requires_grad=False), Variable(npys, requires_grad=False)]
             targets = Variable(pids, requires_grad=False)
