@@ -14,10 +14,10 @@ class SingleNet(nn.Module):
         self.lomo_model = lomo_model
         self.concat_model = concat_model
 
-    def forward(self, x):
+    def forward(self, x, x2=None):
         x_l = []
         if self.lomo_model is not None:
-            x_l.append(self.lomo_model(x))
+            x_l.append(self.lomo_model(x2))
         x = self.base_model(x)
         if self.global_model is not None:
             x_l.append(self.global_model(x))

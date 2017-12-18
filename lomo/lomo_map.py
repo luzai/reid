@@ -162,15 +162,21 @@ if __name__ == '__main__':
 
     img_path = '/data1/xinglu/work/data/market1501/images'
     npy_path = '/data1/xinglu/work/data/market1501/npy'
-    mkdir_p(npy_path,delete=True)
+    # mkdir_p(npy_path,delete=True)
 
     def func(img_name):
         npy_name = img_name.replace('images', 'npy').replace('.jpg', '.npy')
-        if osp.exists(npy_name): return
+        # if osp.exists(npy_name): return
         npy = feature_extractor().extract_feature(img_name)
         np.save(npy_name, npy)
         print(npy_name, npy.shape)
 
 
-    pool = mp.Pool(processes=64)
-    pool.map(func, glob.iglob(img_path + '/*.jpg'))
+    # pool = mp.Pool(processes=64)
+    img_name_iter= glob.iglob(img_path + '/*.jpg')
+    # pool.map(func, img_name_iter )
+    timer = cvb.Timer()
+    for img_name in img_name_iter:
+        func(img_name)
+        break
+    print(timer.since_start())

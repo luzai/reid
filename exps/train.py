@@ -84,8 +84,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     else dataset.num_train_ids)
 
     train_transformer = T.Compose([
-        T.RandomSizedRectCrop(height, width),
-        T.RandomHorizontalFlip(),
+        T.RandomCropFlip(height,width),
         T.ToTensor(),
         normalizer,
     ])
@@ -187,7 +186,7 @@ def main(args):
     concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
                                 args.num_classes, dropout=0)
 
-    model = SingleNet(base_model, global_model, local_model,lomo_model, concat_model, )
+    model = SingleNet(base_model, global_model, local_model, lomo_model, concat_model, )
 
     print(model)
 
