@@ -98,7 +98,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
+        sampler=RandomTripletSampler(train_set),
         pin_memory=pin_memory, drop_last=True)
 
     fnames = np.asarray(train_set)[:, 0]

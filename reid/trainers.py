@@ -111,9 +111,12 @@ class VerfTrainer(BaseTrainer):
 
 class TripletTrainer(BaseTrainer):
     def _parse_data(self, inputs):
-        (a, _, _, _), (p, _, _, _), (n, _, _, _) = inputs
-        inputs = [Variable(a), Variable(p), Variable(n)]
-        targets = Variable(torch.ones(len(a)).cuda())
+        def _parse_one(inputs):
+            imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
+            return imgs
+        a,p,n = _parse_one(inputs[0]),_parse_one(inputs[1]),_parse_one(inputs[2])
+        inputs = to_variable([a,p,n])
+        targets = to_variable(torch.ones(len(a)) )
         return inputs, targets
 
     def _forward(self, inputs, targets):
@@ -161,10 +164,7 @@ class Trainer(object):
         imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
         inputs = [imgs, npys]
         inputs = to_variable(inputs, require_grad=False)
-        if not torch.cuda.is_available():
-            targets = Variable(pids, requires_grad=False)
-        else:
-            targets = Variable(pids.cuda(), requires_grad=False)
+        targets = to_variable(pids, require_grad=False)
         return inputs, targets, fnames
 
     def _forward(self, inputs, targets):

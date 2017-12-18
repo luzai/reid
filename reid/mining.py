@@ -28,7 +28,7 @@ def mine_hard_triplets(model, data_loader, margin=0.5):
     model.eval()
     # Compute pairwise distance
     new_loader = DataLoader(data_loader.dataset,
-                            batch_size=256,
+                            batch_size=32,
                             num_workers=8,
                             pin_memory=True if torch.cuda.is_available() else False)
 

@@ -5,7 +5,7 @@ cfgs = [
     EasyDict(dict(
         lr=3e-4,
         logs_dir='single',
-        has_npy=True,
+        # has_npy=True,
         arch='resnet50',
         dataset='cuhk03',
         dataset_val='cuhk03',
