@@ -4,23 +4,28 @@ from torch.utils.data import DataLoader
 from reid.utils.data.preprocessor import IndValuePreprocessor
 from reid.utils import to_torch
 
+
 class SingleNet(nn.Module):
-    def __init__(self,base_model, global_model =None, local_model=None,concat_model=None):
-        super(SingleNet, self).__init__( )
+    def __init__(self, base_model, global_model=None, local_model=None, lomo_model=None, concat_model=None, ):
+        super(SingleNet, self).__init__()
         self.base_model = base_model
         self.global_model = global_model
-        self.local_model=local_model
-        self.concat_model =concat_model
+        self.local_model = local_model
+        self.lomo_model = lomo_model
+        self.concat_model = concat_model
 
     def forward(self, x):
-        x=self.base_model(x)
-        x_l=[]
+        x_l = []
+        if self.lomo_model is not None:
+            x_l.append(self.lomo_model(x))
+        x = self.base_model(x)
         if self.global_model is not None:
             x_l.append(self.global_model(x))
         if self.local_model is not None:
             x_l.append(self.local_model(x))
-        x= self.concat_model(*x_l)
+        x = self.concat_model(*x_l)
         return x
+
 
 class SiameseNet(nn.Module):
     def __init__(self, base_model, embed_model):
@@ -64,7 +69,6 @@ class SiameseNet2(nn.Module):
 
 
 def extract_cnn_embeddings(model, inputs, modules=None):
-
     model.eval()
     for ind, inp in enumerate(inputs):
         inputs[ind] = to_torch(inp)
@@ -111,7 +115,7 @@ class SiameseNet3(nn.Module):
             embeddings.append(outpus)
 
         embeddings = torch.cat(embeddings)
-        embeddings = F.softmax(Variable(embeddings[:, 0],volatile=True), dim=0)
+        embeddings = F.softmax(Variable(embeddings[:, 0], volatile=True), dim=0)
         embeddings = embeddings.view(batch.size(0), batch.size(0))
         pair1, pair2, y2, info = self.transform(batch, y1, info, embeddings)
         y2 = y2.type_as(y1.data)

@@ -72,7 +72,4 @@ class MobileNet(nn.Module):
 
 
 if __name__ == '__main__':
-    str = "0123 is string example....wow!!!0000000"
-    str.lstrip('0123')
-    str.lstrip('3210')
     model = MobileNet(1024, 128)

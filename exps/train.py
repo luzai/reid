@@ -4,11 +4,9 @@ sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 
 from lz import *
 import lz
-import torch
-from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
+import reid
 from reid import datasets
 from reid import models
 from reid.models import *
@@ -23,7 +21,6 @@ from reid.utils.data.sampler import *
 from reid.utils.logging import Logger
 from reid.utils.serialization import *
 
-import torchvision
 from tensorboardX import SummaryWriter
 import torchpack
 
@@ -127,7 +124,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
     dataset.val = dataset_val.val
-    dataset.query=dataset_val.query
+    dataset.query = dataset_val.query
     dataset.gallery = dataset_val.gallery
     dataset.images_dir = dataset_val.images_dir
     # dataset.num_val_ids
@@ -185,10 +182,12 @@ def main(args):
         global_model = Global(base_model.out_planes, args.global_dim, dropout=args.dropout)
     else:
         global_model = None
+    # lomo_model = LomoNet()
+    lomo_model = None
     concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
                                 args.num_classes, dropout=0)
 
-    model = SingleNet(base_model, global_model, local_model, concat_model)
+    model = SingleNet(base_model, global_model, local_model,lomo_model, concat_model, )
 
     print(model)
 
