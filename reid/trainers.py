@@ -9,6 +9,7 @@ from reid.utils import to_numpy, to_torch
 from reid.mining import mine_hard_triplets
 import torch
 
+
 class BaseTrainer(object):
     def __init__(self, model, criterion, dbg=False, logs_at='work/vis'):
         super(BaseTrainer, self).__init__()
@@ -136,7 +137,7 @@ def stat_(writer, tag, tensor, iter):
 
 
 class Trainer(object):
-    def __init__(self, model, criterion, dbg=False, logs_at='work/vis', gpu = (0,)):
+    def __init__(self, model, criterion, dbg=False, logs_at='work/vis', gpu=(0,)):
         self.model = model
         self.criterion = criterion
         self.dbg = dbg
@@ -147,12 +148,12 @@ class Trainer(object):
             self.writer = SummaryWriter(logs_at)
 
     def _parse_data(self, inputs):
-        imgs, fnames, pids, _ = inputs
+        imgs, npys, fnames, pids, _ = inputs
         if self.gpu is None:
-            inputs = [Variable(imgs , requires_grad=False)]
-            targets = Variable(pids , requires_grad=False)
+            inputs = [Variable(imgs, requires_grad=False), Variable(npys, requires_grad=False)]
+            targets = Variable(pids, requires_grad=False)
         else:
-            inputs = [Variable(imgs.cuda(), requires_grad=False)]
+            inputs = [Variable(imgs.cuda(), requires_grad=False), Variable(npys.cuda(), requires_grad=False)]
             targets = Variable(pids.cuda(), requires_grad=False)
         return inputs, targets, fnames
 
@@ -174,7 +175,7 @@ class Trainer(object):
             prec = prec[0]
         elif isinstance(self.criterion, TripletLoss):
             if self.dbg and self.iter % 10 == 0:
-                loss, prec,  dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
+                loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
                 diff = dist_an - dist_ap
                 self.writer.add_histogram('an-ap', diff, self.iter)
                 # self.writer.add_histogram('an-ap/auto', diff, self.iter, 'auto')
@@ -186,7 +187,7 @@ class Trainer(object):
                 self.writer.add_histogram('ap', dist_ap, self.iter)
                 self.writer.add_histogram('an', dist_an, self.iter)
             else:
-                loss, prec  = self.criterion(outputs, targets, dbg=False)
+                loss, prec = self.criterion(outputs, targets, dbg=False)
 
         elif isinstance(self.criterion, TupletLoss):
             loss, prec = self.criterion(outputs, targets)
@@ -230,7 +231,7 @@ class Trainer(object):
             # print('global probs ', np.asarray(data_loader.sampler.info['probs']))
 
             self.model.train()
-            loss, prec1  = self._forward(inputs, targets)
+            loss, prec1 = self._forward(inputs, targets)
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(loss.data[0], targets.size(0))

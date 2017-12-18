@@ -23,24 +23,28 @@ class Preprocessor(object):
 
     def _get_single_item(self, index):
         fname, pid, camid = self.dataset[index]
-        fpath2 = '/data1/xinglu/prj/openpose/out/' + fname.split('.')[0] + '_rendered.png'
+        fpath2 = '/home/xinglu/prj/openpose/cu.out/' + fname.split('.')[0] + '_rendered.png'
+        fpath3 = '/home/xinglu/.torch/data/cuhk03/label/npy/' + fname.split('.')[0] + '.npy'
         fpath = fname
         if not osp.exists(fpath) and self.root is not None:
             fpath = osp.join(self.root, fname)
         if fpath in self.cache:
-            (img, fname, pid, camid) = self.cache[fpath]
+            (img, npy, fname, pid, camid) = self.cache[fpath]
             img = self.transform(img)
-            return img, fname, pid, camid
+            return img, npy, fname, pid, camid
         img = Image.open(fpath).convert('RGB')
-        self.cache[fpath] = (img, fname, pid, camid)
+        npy = np.load(fpath3)
+        npy = to_torch(npy)
+        self.cache[fpath] = (img, npy, fname, pid, camid)
         if self.transform is not None:
             img = self.transform(img)
-        self.transform.transforms[0].use_last = True
+        # self.transform.transforms[0].use_last = True
         # self.transform.transforms[1].use_last=True
         # pose = Image.open(fpath2).convert('RGB')
         # pose = self.transform(pose)
         # img = torch.cat([img,pose])
-        return img, fname, pid, camid
+
+        return img, npy, fname, pid, camid
 
 
 class KeyValuePreprocessor(object):

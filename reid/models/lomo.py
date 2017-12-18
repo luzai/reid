@@ -11,6 +11,7 @@ from reid.utils.serialization import load_state_dict
 class LomoNet(nn.Module):
     def __init__(self, block=BasicBlock, layers= [2, 2, ], num_classes=1000):
         self.inplanes = 64
+        self.out_planes = 128
         super(LomoNet, self).__init__()
         self.layer1 = self._make_layer(block, 64, layers[0], stride=2)
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)

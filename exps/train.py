@@ -84,7 +84,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     else dataset.num_train_ids)
 
     train_transformer = T.Compose([
-        T.RandomCropFlip(height,width),
+        T.RandomCropFlip(height, width),
         T.ToTensor(),
         normalizer,
     ])
@@ -181,9 +181,9 @@ def main(args):
         global_model = Global(base_model.out_planes, args.global_dim, dropout=args.dropout)
     else:
         global_model = None
-    # lomo_model = LomoNet()
-    lomo_model = None
-    concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim,
+    lomo_model = LomoNet()
+    # lomo_model = None
+    concat_model = ConcatReduce(args.branchs * args.branch_dim + args.global_dim + 128,
                                 args.num_classes, dropout=0)
 
     model = SingleNet(base_model, global_model, local_model, lomo_model, concat_model, )
@@ -281,9 +281,9 @@ def main(args):
         writer.add_scalar('train/top-1', acc, epoch)
         writer.add_scalar('train/mAP', mAP, epoch)
 
-        # mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        # writer.add_scalar('test/top-1', acc, epoch)
-        # writer.add_scalar('test/mAP', mAP, epoch)
+        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        writer.add_scalar('test/top-1', acc, epoch)
+        writer.add_scalar('test/mAP', mAP, epoch)
 
         top1 = acc
         is_best = top1 > best_top1

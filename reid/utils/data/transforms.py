@@ -58,11 +58,11 @@ class RandomCropFlip(object):
 
     def __call__(self, img):
         if random.random() < 0.5:
-            img=  img.transpose(Image.FLIP_LEFT_RIGHT)
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
         for attempt in range(10):
             area = img.size[0] * img.size[1]
-            target_area = random.uniform(self.area) * area
-            aspect_ratio = random.uniform(self.aspect)
+            target_area = random.uniform(*self.area) * area
+            aspect_ratio = random.uniform(*self.aspect)
 
             h = int(round(math.sqrt(target_area * aspect_ratio)))
             w = int(round(math.sqrt(target_area / aspect_ratio)))

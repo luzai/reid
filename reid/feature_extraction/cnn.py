@@ -7,14 +7,10 @@ from ..utils.meters import *
 
 def extract_cnn_feature(model, inputs, modules=None, gpu=(0,)):
     model.eval()
-    inputs = to_torch(inputs)
-    if not torch.cuda.is_available():
-        inputs = Variable(inputs, volatile=True)
-    else:
-        inputs = Variable(inputs, volatile=True).cuda()
+    inputs = to_variable(inputs)
 
     if modules is None:
-        outputs = model(inputs)
+        outputs = model(*inputs)
         if isinstance(outputs, tuple):
             outputs = outputs[0]
         outputs = outputs.data.cpu()
