@@ -163,8 +163,8 @@ class Trainer(object):
     def _parse_data(self, inputs):
         imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
         inputs = [imgs, npys]
-        inputs = to_variable(inputs, require_grad=False)
-        targets = to_variable(pids, require_grad=False)
+        inputs = to_variable(inputs, requires_grad=False)
+        targets = to_variable(pids, requires_grad=False)
         return inputs, targets, fnames
 
     def _forward(self, inputs, targets):

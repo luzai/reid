@@ -4,31 +4,46 @@ from easydict import EasyDict
 cfgs = [
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='single',
-        # has_npy=True,
+        logs_dir='res50.bs.512.lc.64.8.inst.8',
         arch='resnet50',
         dataset='cuhk03',
         dataset_val='cuhk03',
-        batch_size=100, print_freq=1,
-        num_instances=4,
-        gpu=range(1),
-        pin_mem=True,
-        workers=8,
+        batch_size=512, print_freq=1,
+        num_instances=8,
+        gpu=range(4),
+        has_npy=False,
         branchs=8,
         branch_dim=64,
         global_dim=1024,
         num_classes=128,
-        # resume='work.12.7/cuhk03/model_best.pth',
-        evaluate=False,
         log_at=np.concatenate([
             range(0, 100, 49),
             range(100, 150, 19),
             range(155, 165, 1),
-            # [0, 1, 2, 3, 4, 5, 6]
         ]),
         epochs=165,
     )),
-
+    EasyDict(dict(
+        lr=3e-4,
+        logs_dir='res34.bs.1024.lc.64.8.int16',
+        arch='resnet34',
+        dataset='cuhk03',
+        dataset_val='cuhk03',
+        batch_size=1024, print_freq=1,
+        num_instances=16,
+        gpu=range(4),
+        has_npy=False,
+        branchs=8,
+        branch_dim=64,
+        global_dim=1024,
+        num_classes=128,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(155, 165, 1),
+        ]),
+        epochs=165,
+    )),
 ]
 
 base = EasyDict(
@@ -99,6 +114,16 @@ base = EasyDict(
 for k, v in enumerate(cfgs):
     v = dict_update(base, v)
     cfgs[k] = EasyDict(v)
+
+
+def format_cfg(cfg):
+    if cfg.gpu is not None:
+        cfg.pin_mem = True
+        cfg.workers = len(cfg.gpu) * 8
+    else:
+        cfg.pin_mem = False
+        cfg.workers = 4
+
 
 if __name__ == '__main__':
     # print(cfgs)

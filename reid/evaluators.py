@@ -1,10 +1,6 @@
 from lz import *
-
-import time
 from collections import OrderedDict
-
-import torch
-import numpy as np
+from .utils.data.sampler import *
 from torch.utils.data import DataLoader
 from .utils.data.preprocessor import *
 from .evaluation_metrics import cmc, mean_ap
@@ -376,8 +372,7 @@ class SiameseEvaluator(object):
 
     def evaluate(self, data_loader, query, gallery, cache_file=None):
         # Extract features image by image
-        features = extract_features(self.base_model, data_loader,
-                                    output_file=cache_file)
+        features = extract_features(self.base_model, data_loader,)
         if cache_file is not None:
             features = FeatureDatabase(cache_file, 'r')
 
@@ -386,7 +381,7 @@ class SiameseEvaluator(object):
         gallery_keys = [fname for fname, _, _ in gallery]
         data_loader = DataLoader(
             KeyValuePreprocessor(features),
-            sampler=ExhaustiveSampler(query_keys, gallery_keys,
+            sampler=ExhaustiveSampler(query_keys+ gallery_keys,
                                       return_index=False),
             batch_size=min(len(gallery), 4096),
             num_workers=1, pin_memory=False)
@@ -403,4 +398,4 @@ class SiameseEvaluator(object):
         distmat = embeddings.contiguous().view(len(query), len(gallery))
 
         # Evaluate CMC scores
-        return evaluate_cmc(distmat, query, gallery)
+        return cmc(distmat, query, gallery)
