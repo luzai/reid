@@ -79,7 +79,7 @@ class RandomIdentityWeightedSampler(Sampler):
         self.cache_ind = []
 
     def __len__(self):
-        return self.batch_size*43
+        return self.batch_size*44
 
     def get_cache(self):
         cache_ind = self.cache_ind.copy()

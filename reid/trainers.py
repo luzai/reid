@@ -109,12 +109,66 @@ class VerfTrainer(BaseTrainer):
         return loss, prec1[0]
 
 
-class TripletTrainer(BaseTrainer):
+class TripletTrainer(object):
+    def __init__(self, model, criterion, dbg=False, logs_at='work/vis'):
+        self.model = model
+        self.criterion = criterion
+        self.dbg = dbg
+        self.iter = 0
+
+        if dbg:
+            mkdir_p(logs_at, delete=True)
+            self.writer = SummaryWriter(logs_at)
+
+    def train(self, epoch, data_loader, optimizer, print_freq=1):
+        self.model.train()
+
+        batch_time = AverageMeter()
+        data_time = AverageMeter()
+        losses = AverageMeter()
+        precisions = AverageMeter()
+
+        end = time.time()
+        for i, inputs in enumerate(data_loader):
+            data_time.update(time.time() - end)
+
+            inputs, targets = self._parse_data(inputs)
+            loss, prec1 = self._forward(inputs, targets)
+            if isinstance(targets, tuple):
+                targets, _ = targets
+            losses.update(loss.data[0], targets.size(0))
+            precisions.update(prec1, targets.size(0))
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if (i + 1) % print_freq == 0:
+                print('Epoch: [{}][{}/{}]\t'
+                      'Time {:.3f} ({:.3f})\t'
+                      'Data {:.3f} ({:.3f})\t'
+                      'Loss {:.3f} ({:.3f})\t'
+                      'Prec {:.2%} ({:.2%})\t'
+                      .format(epoch, i + 1, len(data_loader),
+                              batch_time.val, batch_time.avg,
+                              data_time.val, data_time.avg,
+                              losses.val, losses.avg,
+                              precisions.val, precisions.avg))
+        return collections.OrderedDict({
+            'ttl-time': batch_time.avg,
+            'data-time': data_time.avg,
+            'loss': losses.avg,
+            'prec': precisions.avg
+        })
     def _parse_data(self, inputs):
         def _parse_one(inputs):
             imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
+            # print(fnames)
             return imgs
-
+        # cvb.dump(np.asarray([in_.get('fname') for in_ in inputs ]).ravel(), 'tmp.pkl')
         a, p, n = _parse_one(inputs[0]), _parse_one(inputs[1]), _parse_one(inputs[2])
         inputs = to_variable([a, p, n])
         targets = to_variable(torch.ones(len(a)))

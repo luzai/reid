@@ -367,8 +367,8 @@ class SiameseEvaluator(object):
             KeyValuePreprocessor(features),
             sampler=ExhaustiveSampler((query_keys, gallery_keys,),
                                       return_index=False),
-            batch_size=min(len(gallery), 4096),
-            num_workers=1, pin_memory=False)
+            batch_size=4096*8, #min(len(gallery), 4096),
+            num_workers=16, pin_memory=False)
 
         # Extract embeddings of each (query, gallery) pair
         embeddings = extract_embeddings(self.embed_model, data_loader)
@@ -385,6 +385,10 @@ class SiameseEvaluator(object):
         gallery_ids = [pid for _, pid, _ in gallery]
         query_cams = [cam for _, _, cam in query]
         gallery_cams = [cam for _, _, cam in gallery]
+
+        mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+        print('Mean AP: {:4.1%}'.format(mAP))
+
         # Evaluate CMC scores
         mcmc1 = cmc(distmat, query_ids, gallery_ids,
                     query_cams, gallery_cams,
@@ -398,4 +402,4 @@ class SiameseEvaluator(object):
                     first_match_break=False)[0]
         print('market1501 cmc-1', mcmc1, 'cu cmc-1', ccmc1)
 
-        return mcmc1
+        return mAP, mcmc1

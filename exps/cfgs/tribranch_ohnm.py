@@ -3,13 +3,13 @@ from easydict import EasyDict
 
 cfgs = [
     EasyDict(dict(
-        lr=3e-4,
-        logs_dir='tribranch.per.epoch',
+        lr=3e-4*0.1*0.5,
+        logs_dir='tribranch.per.batch',
         arch='resnet50',
         dataset='cuhk03',
         dataset_val='cuhk03',
-        batch_size=32, print_freq=1,
-        gpu=range(1),
+        batch_size=128, print_freq=1,
+        gpu=range(4),
         branchs=8,
         branch_dim=64,
         global_dim=1024,
@@ -17,10 +17,10 @@ cfgs = [
         resume='work/res50.bs.512.lc.64.8.inst.8/model_best.pth',
         # evaluate=True,
         log_at=np.concatenate([
-            range(10, 100, 49),
-            range(100, 150, 19),
-            range(155, 165, 1),
-            # [0, 1, 2, 3, 4, 5, 6]
+            # range(10, 100, 49),
+            # range(100, 150, 19),
+            # range(155, 165, 1),
+            range(165)
         ]),
         epochs=165,
     )),
@@ -101,10 +101,10 @@ for k, v in enumerate(cfgs):
 def format_cfg(cfg):
     if cfg.gpu is not None:
         cfg.pin_mem = True
-        cfg.workers = len(cfg.gpu) * 8
+        cfg.workers = 0
     else:
         cfg.pin_mem = False
-        cfg.workers = 4
+        cfg.workers = 0
 
 
 if __name__ == '__main__':

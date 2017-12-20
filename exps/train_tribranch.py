@@ -232,7 +232,11 @@ def main(args):
                                           data_loader, margin=args.margin, batch_size=args.batch_size)
             print("Mined {} hard example triplets".format(len(triplets)))
             # Build a hard examples loader
-            train_loader.sampler = SubsetRandomSampler(triplets)
+            train_loader = DataLoader(
+                train_loader.dataset,
+                batch_size=train_loader.batch_size, num_workers=train_loader.num_workers,
+                sampler=SubsetRandomSampler(triplets),
+                pin_memory=True, drop_last=True)
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)

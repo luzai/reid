@@ -43,11 +43,19 @@ def mine_hard_triplets(model, data_loader, margin=0.5, batch_size=32):
 
     pids_exp = np.repeat(pids, pids.shape[0]).reshape(pids.shape[0], pids.shape[0])
     mask = (pids_exp == pids_exp.T)
-    n = batch_size * 2
+    n = 1024 + 3  # batch_size
     distmat_n = distmat.copy()
     distmat_n[mask == True] = distmat_n.max()
+    no_sel = np.setdiff1d(np.arange(pids.shape[0]), np.random.choice(pids.shape[0], 1024))
+    distmat_n[no_sel, :] = distmat_n.max()
+    distmat_n[:, no_sel] = distmat_n.min()
     ind = np.argpartition(distmat_n.ravel(), n)[:n]
-    ind = np.random.choice(ind, n // 2)
+    ind = ind[np.argsort(distmat_n.ravel()[ind])]
+    ind = ind[3:256 + 3]
+    # ind = np.random.choice(ind, n)
+    # plt.plot(np.sort(distmat_n.ravel()[ind]),'.')
+
+    # plt.hist(distmat_n.ravel()[ind] )
     anc, neg = np.unravel_index(ind, distmat.shape)
     triplets = []
     for anc_, neg_ in zip(anc, neg):
@@ -57,11 +65,13 @@ def mine_hard_triplets(model, data_loader, margin=0.5, batch_size=32):
         pos_ind = np.random.choice(pos_inds)
         triplets.append([anc_, pos_ind, neg_])
 
-    distmat[anc_, pos_ind]
-    distmat[anc_, neg_]
-    distmat[anc_, pos_inds]
     # cvb.dump(distmat, 'distmat.pkl')
     # cvb.dump(mask, 'mask.pkl')
-
+    # db=Database('fea.h5')
+    # features_id2key= dict(zip(range(len(features.keys())), features.keys()))
+    # for ind_ in np.asarray(triplets).ravel():
+    #     key=features_id2key[ind_]
+    #     db[key] = to_numpy(features[key])
+    # db.close()
     print('mined hard', len(triplets), 'num pids ', pids.shape[0])
     return triplets
