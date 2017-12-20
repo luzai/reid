@@ -66,6 +66,7 @@ class EltwiseSubEmbed(nn.Module):
             x = self.classifier(x)
         else:
             x = x.sum(1)
+            x = x.clamp(min=1e-12).sqrt()
         return x
 
 

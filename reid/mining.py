@@ -43,45 +43,25 @@ def mine_hard_triplets(model, data_loader, margin=0.5, batch_size=32):
 
     pids_exp = np.repeat(pids, pids.shape[0]).reshape(pids.shape[0], pids.shape[0])
     mask = (pids_exp == pids_exp.T)
-    # return distmat, mask
-    # distmat = distmat.reshape(-1)
-    # mask = mask.reshape(-1)
-    #
-    # def get_topk_ind(arr, mask, k, ascend=True):
-    #     gl_ind = np.arange(arr.shape[0], dtype=int)
-    #     lc_ind = gl_ind[mask]
-    #     lc_arr = arr[mask]
-    #     if ascend:
-    #         return lc_ind[np.argsort(lc_arr)[:k]]
-    #     else:
-    #         return lc_ind[np.argsort(lc_arr)[::-1][:k]]
-    #
-    # posind = get_topk_ind(distmat, mask, pids.shape[0], ascend=False)
-    # negind = get_topk_ind(distmat, mask, pids.shape[0], ascend=True)
-    #
-    # triplets = []
-    # for ind in posind:
-    #     triplets.extend([
-    #         ind // pids.shape[0], ind % (pids.shape[0])
-    #     ])
-    # for ind in negind:
-    #     triplets.extend([
-    #         ind // pids.shape[0], ind % pids.shape[0]
-    #     ])
-
+    n = batch_size * 2
+    distmat_n = distmat.copy()
+    distmat_n[mask == True] = distmat_n.max()
+    ind = np.argpartition(distmat_n.ravel(), n)[:n]
+    ind = np.random.choice(ind, n // 2)
+    anc, neg = np.unravel_index(ind, distmat.shape)
     triplets = []
-    for i in np.random.permutation(range(len(distmat))):
-        # print(i)
-        d = distmat[i]
-        pos_indices = np.where(pids == pids[i])[0]
-        neg_indices = np.where(pids != pids[i])[0]
-        sorted_pos = np.argsort(d[pos_indices])[::-1]
-        for j in sorted_pos:
-            p = pos_indices[j]
-            mask = (d[neg_indices] <= d[p] + margin)
-            neg_indices = neg_indices[mask]
-            triplets.extend([(i, p, n) for n in neg_indices])
-        if len(triplets) > pids.shape[0] * 3:
-            break
+    for anc_, neg_ in zip(anc, neg):
+        # d = distmat[anc_]
+        # pos_inds = np.where(pids == pids[anc_])[0]
+        pos_inds = np.where(mask[anc_] == True)[0]
+        pos_ind = np.random.choice(pos_inds)
+        triplets.append([anc_, pos_ind, neg_])
+
+    distmat[anc_, pos_ind]
+    distmat[anc_, neg_]
+    distmat[anc_, pos_inds]
+    # cvb.dump(distmat, 'distmat.pkl')
+    # cvb.dump(mask, 'mask.pkl')
+
     print('mined hard', len(triplets), 'num pids ', pids.shape[0])
     return triplets

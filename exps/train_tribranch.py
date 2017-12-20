@@ -54,6 +54,14 @@ def run(_):
         # proc.join()
 
 
+def get_param(model, name):
+    for n, p in model.named_parameters():
+        if name in n:
+            return p
+
+# id(get_param(base_model, 'conv1.weight'))
+# id(get_param(model, 'conv1.weight'))
+
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
              workers, combine_trainval, pin_memory=True, name_val=''):
     if isinstance(name, list) and len(name) != 1:
@@ -165,7 +173,7 @@ def main(args):
     # Load from checkpoint
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
-        model.load_state_dict(checkpoint['state_dict'])
+        load_state_dict(model, checkpoint['state_dict'])
         args.start_epoch = checkpoint['epoch']
         best_top1 = checkpoint['best_top1']
         print("=> start epoch {}  best top1 {:.1%}"
@@ -221,7 +229,7 @@ def main(args):
                 shuffle=False, pin_memory=False)
             # Mine hard triplet examples, index of [(anchor, pos, neg), ...]
             triplets = mine_hard_triplets(torch.nn.DataParallel(base_model).cuda(),
-                                          data_loader, margin=args.margin,batch_size=args.batch_size)
+                                          data_loader, margin=args.margin, batch_size=args.batch_size)
             print("Mined {} hard example triplets".format(len(triplets)))
             # Build a hard examples loader
             train_loader.sampler = SubsetRandomSampler(triplets)

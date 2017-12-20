@@ -6,6 +6,7 @@ from .utils.data.preprocessor import *
 from .evaluation_metrics import cmc, mean_ap
 from .feature_extraction import *
 from .utils.meters import AverageMeter
+from rerank import *
 
 
 def extract_features(model, data_loader, print_freq=1, limit=None, ):
@@ -22,7 +23,7 @@ def extract_features(model, data_loader, print_freq=1, limit=None, ):
         data_time.update(time.time() - end)
 
         outputs = extract_cnn_feature(model,
-                                      [imgs, npys] )
+                                      [imgs, npys])
         for fname, output, pid in zip(fnames, outputs, pids):
             if limit is not None and int(pid) not in limit.tolist():
                 continue
@@ -69,7 +70,7 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
     return torch.cat(embeddings)
 
 
-def pairwise_distance(features, query=None, gallery=None, metric=None):
+def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=True):
     if query is None and gallery is None:
         n = len(features)
         x = torch.cat(list(features.values()))
@@ -77,31 +78,29 @@ def pairwise_distance(features, query=None, gallery=None, metric=None):
         print('feature size ', x.size())
         if metric is not None:
             x = metric.transform(x)
-        dist = torch.pow(x, 2).sum(dim=1, keepdim=True) * 2
-        dist = dist.expand(n, n) - 2 * torch.mm(x, x.t())
+        dist = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(n, n)
+        dist = dist + dist.t()
+        dist.addmm_(1, -2, x, x.t())
+        dist = dist.clamp(min=1e-12).sqrt()
         return dist
 
     x = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
     y = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
-    m, n = x.size(0), y.size(0)
-    x = x.view(m, -1)
-    y = y.view(n, -1)
-    if metric is not None and metric.algorithm != 'euclidean':
-        x = metric.transform(x)
-        y = metric.transform(y)
-    dist = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-           torch.pow(y, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    dist.addmm_(1, -2, x, y.t())
-    return dist
-
-
-def limit_dataset(query, limit):
-    res_l = []
-    for pid_, df_ in pd.DataFrame(data=query, columns=['fnames', 'pids', 'cids']).groupby('pids'):
-        if pid_ not in limit: continue
-        res_l.append(df_)
-    res = pd.concat(res_l)
-    return res.to_records(index=False).tolist()
+    if rerank:
+        dist = re_ranking(to_numpy(x), to_numpy(y))
+        return dist
+    else:
+        m, n = x.size(0), y.size(0)
+        x = x.view(m, -1)
+        y = y.view(n, -1)
+        if metric is not None and metric.algorithm != 'euclidean':
+            x = metric.transform(x)
+            y = metric.transform(y)
+        dist = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(m, n) + \
+               torch.pow(y, 2).sum(dim=1, keepdim=True).expand(n, m).t()
+        dist.addmm_(1, -2, x, y.t())
+        dist = dist.clamp(min=1e-12).sqrt()
+        return to_numpy(dist)
 
 
 class Evaluator(object):
@@ -120,26 +119,11 @@ class Evaluator(object):
         query_cams = [cam for _, _, cam in query]
         gallery_cams = [cam for _, _, cam in gallery]
 
-        query_ids_u = np.unique(query_ids)
-        residual = np.setdiff1d(np.unique(gallery_ids), query_ids_u)
-        limit = None
-        # if not final and query_ids_u.shape[0] > 100:
-        #     # if True:
-        #     limit = np.random.choice(query_ids_u, 100)
-        #     limit = np.concatenate((residual, limit))
-        #
-        #     query = limit_dataset(query, limit)
-        #     gallery = limit_dataset(gallery, limit)
-        #     query_ids = [pid for _, pid, _ in query]
-        #     gallery_ids = [pid for _, pid, _ in gallery]
-        #     query_cams = [cam for _, _, cam in query]
-        #     gallery_cams = [cam for _, _, cam in gallery]
-
         features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
         # list(features.keys())
         distmat = pairwise_distance(features, query, gallery, metric=metric)
-        self.distmat = distmat.cpu().numpy()
+        self.distmat = to_numpy(distmat)
 
         mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
         print('Mean AP: {:4.1%}'.format(mAP))
@@ -165,9 +149,9 @@ class Evaluator(object):
                 # 'allshots': dict(separate_camera_set=False,  # hard
                 #                  single_gallery_shot=False,  # hard
                 #                  first_match_break=False),
-                # 'cuhk03': dict(separate_camera_set=True,
-                #                single_gallery_shot=True,
-                #                first_match_break=False),
+                'cuhk03': dict(separate_camera_set=True,
+                               single_gallery_shot=True,
+                               first_match_break=False),
                 'market1501': dict(separate_camera_set=False,  # hard
                                    single_gallery_shot=False,  # hard
                                    first_match_break=True)}
@@ -184,7 +168,7 @@ class Evaluator(object):
             #                   cmc_scores['cuhk03'][k - 1],
             #                   cmc_scores['market1501'][k - 1]))
             # print('cmc-1 cuhk03' + str(cmc_scores['cuhk03'][0]))
-            print('cmc-1 market1501 ' + str(cmc_scores['market1501'][0]))
+            print('cmc-1 market1501 ', cmc_scores['market1501'][0], 'cmc-1 cuhk03 ', cmc_scores['cuhk03'][0])
 
             logging.info('evaluate takes time {}'.format(timer.since_start()))
             # return cmc_scores['cuhk03'][0]
@@ -372,7 +356,7 @@ class SiameseEvaluator(object):
 
     def evaluate(self, data_loader, query, gallery, cache_file=None):
         # Extract features image by image
-        features = extract_features(self.base_model, data_loader,)
+        features, _ = extract_features(self.base_model, data_loader, )
         if cache_file is not None:
             features = FeatureDatabase(cache_file, 'r')
 
@@ -381,7 +365,7 @@ class SiameseEvaluator(object):
         gallery_keys = [fname for fname, _, _ in gallery]
         data_loader = DataLoader(
             KeyValuePreprocessor(features),
-            sampler=ExhaustiveSampler(query_keys+ gallery_keys,
+            sampler=ExhaustiveSampler((query_keys, gallery_keys,),
                                       return_index=False),
             batch_size=min(len(gallery), 4096),
             num_workers=1, pin_memory=False)
@@ -396,6 +380,22 @@ class SiameseEvaluator(object):
 
         # Convert embeddings to distance matrix
         distmat = embeddings.contiguous().view(len(query), len(gallery))
-
+        # cvb.dump(distmat.cpu(),'dbg.pkl')
+        query_ids = [pid for _, pid, _ in query]
+        gallery_ids = [pid for _, pid, _ in gallery]
+        query_cams = [cam for _, _, cam in query]
+        gallery_cams = [cam for _, _, cam in gallery]
         # Evaluate CMC scores
-        return cmc(distmat, query, gallery)
+        mcmc1 = cmc(distmat, query_ids, gallery_ids,
+                    query_cams, gallery_cams,
+                    separate_camera_set=False,
+                    single_gallery_shot=False,
+                    first_match_break=True)[0]
+        ccmc1 = cmc(distmat, query_ids, gallery_ids,
+                    query_cams, gallery_cams,
+                    separate_camera_set=True,
+                    single_gallery_shot=True,
+                    first_match_break=False)[0]
+        print('market1501 cmc-1', mcmc1, 'cu cmc-1', ccmc1)
+
+        return mcmc1

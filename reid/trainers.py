@@ -114,9 +114,10 @@ class TripletTrainer(BaseTrainer):
         def _parse_one(inputs):
             imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
             return imgs
-        a,p,n = _parse_one(inputs[0]),_parse_one(inputs[1]),_parse_one(inputs[2])
-        inputs = to_variable([a,p,n])
-        targets = to_variable(torch.ones(len(a)) )
+
+        a, p, n = _parse_one(inputs[0]), _parse_one(inputs[1]), _parse_one(inputs[2])
+        inputs = to_variable([a, p, n])
+        targets = to_variable(torch.ones(len(a)))
         return inputs, targets
 
     def _forward(self, inputs, targets):

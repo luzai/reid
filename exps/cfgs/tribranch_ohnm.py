@@ -8,16 +8,14 @@ cfgs = [
         arch='resnet50',
         dataset='cuhk03',
         dataset_val='cuhk03',
-        batch_size=128, print_freq=1,
-        gpu=range(4),
-        pin_mem=True,
-        workers=32,
-        branchs=0,
+        batch_size=32, print_freq=1,
+        gpu=range(1),
+        branchs=8,
         branch_dim=64,
         global_dim=1024,
         num_classes=128,
-        # resume='work.12.7/cuhk03/model_best.pth',
-        evaluate=False,
+        resume='work/res50.bs.512.lc.64.8.inst.8/model_best.pth',
+        # evaluate=True,
         log_at=np.concatenate([
             range(10, 100, 49),
             range(100, 150, 19),
@@ -98,6 +96,16 @@ base = EasyDict(
 for k, v in enumerate(cfgs):
     v = dict_update(base, v)
     cfgs[k] = EasyDict(v)
+
+
+def format_cfg(cfg):
+    if cfg.gpu is not None:
+        cfg.pin_mem = True
+        cfg.workers = len(cfg.gpu) * 8
+    else:
+        cfg.pin_mem = False
+        cfg.workers = 4
+
 
 if __name__ == '__main__':
     # print(cfgs)

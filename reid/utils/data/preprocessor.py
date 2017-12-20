@@ -22,7 +22,18 @@ class Preprocessor(object):
     def __getitem__(self, indices):
         if isinstance(indices, (tuple, list)):
             return [self._get_single_item(index) for index in indices]
-        return self._get_single_item(indices)
+        res = self._get_single_item(indices)
+        for k, v in res.items():
+            assert (
+                # isinstance(v, collections.Sequence) or
+                # isinstance(v,collections.Mapping) or
+                    isinstance(v, np.ndarray) or
+                    isinstance(v, str) or
+                    isinstance(v, int) or
+                    isinstance(v, np.int64) or
+                    torch.is_tensor(v)
+            ), type(v)
+        return res
 
     def _get_single_item(self, index):
         res = {}
