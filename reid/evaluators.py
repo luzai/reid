@@ -70,7 +70,7 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
     return torch.cat(embeddings)
 
 
-def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=True):
+def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=False):
     if query is None and gallery is None:
         n = len(features)
         x = torch.cat(list(features.values()))

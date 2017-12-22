@@ -6,13 +6,17 @@ from reid.utils import to_torch
 
 
 class SingleNet(nn.Module):
-    def __init__(self, base_model, global_model=None, local_model=None, lomo_model=None, concat_model=None, ):
+    def __init__(self, base_model, global_model=None, local_model=None, lomo_model=None,
+                 dconv_model = None,
+                 concat_model=None, ):
         super(SingleNet, self).__init__()
         self.base_model = base_model
         self.global_model = global_model
         self.local_model = local_model
         self.lomo_model = lomo_model
         self.concat_model = concat_model
+        self.dconv_model = dconv_model
+
 
     def forward(self, x, x2=None):
         x_l = []
@@ -23,6 +27,8 @@ class SingleNet(nn.Module):
             x_l.append(self.global_model(x))
         if self.local_model is not None:
             x_l.append(self.local_model(x))
+        if self.dconv_model is not  None:
+            x_l.append(self.dconv_model(x))
         x = self.concat_model(*x_l)
         return x
 

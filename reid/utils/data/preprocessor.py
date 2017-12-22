@@ -3,7 +3,7 @@ import os.path as osp
 
 from PIL import Image
 from lz import *
-
+from lomo.lomo_map import  extract_feature
 
 class Preprocessor(object):
     def __init__(self, dataset, root=None, transform=None, test_aug=False, has_npy=False, has_pose=False):
@@ -25,8 +25,6 @@ class Preprocessor(object):
         res = self._get_single_item(indices)
         for k, v in res.items():
             assert (
-                # isinstance(v, collections.Sequence) or
-                # isinstance(v,collections.Mapping) or
                     isinstance(v, np.ndarray) or
                     isinstance(v, str) or
                     isinstance(v, int) or
@@ -47,18 +45,19 @@ class Preprocessor(object):
         fpath = fname
         if not osp.exists(fpath) and self.root is not None:
             fpath = osp.join(self.root, fpath)
-        if fpath in self.cache:
-            res = self.cache[fpath]
-            img = self.transform(res['img'])
-            res_return = copy.deepcopy(res)
-            res_return.update({'img': img})
-            return res_return
+        # if fpath in self.cache:
+        #     res = self.cache[fpath]
+        #     img = self.transform(res['img'])
+        #     res_return = copy.deepcopy(res)
+        #     res_return.update({'img': img})
+        #     return res_return
 
         res['img'] = Image.open(fpath).convert('RGB')
-        if self.has_npy:
-            res['npy'] = to_torch(np.load(fpath3))
-        self.cache[fpath] = res
+        # self.cache[fpath] = res
         img = self.transform(res['img'])
+        if self.has_npy:
+            # res['npy'] = to_torch(np.load(fpath3))
+            res['npy'] = extract_feature(img, fpath)
         res_return = copy.deepcopy(res)
         res_return.update({'img': img})
         return res_return

@@ -176,14 +176,18 @@ def main(args):
     else:
         global_model = None
     lomo_model = LomoNet() if args.has_npy else None
-
+    # dconv_model = DConv(2048, 512, 8, 4, 3, 2).cuda()
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
+    # concat_inplates += 512
     if args.has_npy:
         concat_inplates += 128
     concat_model = ConcatReduce(concat_inplates,
                                 args.num_classes, dropout=0)
 
-    model = SingleNet(base_model, global_model, local_model, lomo_model, concat_model)
+    model = SingleNet(base_model, global_model, local_model,
+                      lomo_model,
+                      # dconv_model,
+                      concat_model=concat_model)
 
     print(model)
 

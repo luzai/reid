@@ -26,7 +26,10 @@ def map_lomo_com(im, block_step, block_size, bin_size):
     return new_array.transpose(2, 0, 1) * 255
 
 
-class feature_extractor(object):
+extract_feature = lambda x, dbg=None: FeaExtractor().extract_feature(x, dbg)
+
+
+class FeaExtractor(object):
     def __init__(self, RGB_para=[True, 8], HSV_para=[True, 8], SILTP_para=[True, 16],
                  block_size=8, block_step=4, pad_size=2, tau=0.3, R=5, numPoints=4):
         self.block_size = block_size
@@ -123,9 +126,16 @@ class feature_extractor(object):
         return J
 
     # ***_para = [flage, bin_size]
-    def extract_feature(self, imgpath):
-        im = cv2.imread(imgpath, cv2.IMREAD_COLOR)
-        im = cv2.resize(im, (80, 160), interpolation=cv2.INTER_LINEAR)
+    def extract_feature(self, imgpath, dbg=None):
+        if isinstance(imgpath, str):
+            im = cv2.imread(imgpath, cv2.IMREAD_COLOR)
+            # im = cv2.imread(dbg, cv2.IMREAD_COLOR)
+            im = cv2.resize(im, (128, 256), interpolation=cv2.INTER_LINEAR)
+        else:
+            im = to_numpy(imgpath)
+            im = norm_np(im).astype(np.uint8)
+            im = np.transpose(im, (2, 1, 0))
+            # im.shape
         hist_RGB = np.zeros((1, 1))
         hist_HSV = np.zeros((1, 1))
         hist_SILTP = np.zeros((1, 1))
@@ -160,23 +170,25 @@ if __name__ == '__main__':
     img_path = '/data1/xinglu/work/data/cuhk03/label/images'
     npy_path = '/data1/xinglu/work/data/cuhk03/label/npy'
 
-    img_path = '/data1/xinglu/work/data/market1501/images'
-    npy_path = '/data1/xinglu/work/data/market1501/npy'
+    # img_path = '/data1/xinglu/work/data/market1501/images'
+    # npy_path = '/data1/xinglu/work/data/market1501/npy'
+
+
     # mkdir_p(npy_path,delete=True)
 
     def func(img_name):
         npy_name = img_name.replace('images', 'npy').replace('.jpg', '.npy')
         # if osp.exists(npy_name): return
-        npy = feature_extractor().extract_feature(img_name)
+        npy = FeaExtractor().extract_feature(img_name)
         np.save(npy_name, npy)
         print(npy_name, npy.shape)
 
 
-    # pool = mp.Pool(processes=64)
-    img_name_iter= glob.iglob(img_path + '/*.jpg')
-    # pool.map(func, img_name_iter )
+    pool = mp.Pool(processes=16)
+    img_name_iter = glob.iglob(img_path + '/*.jpg')
+    pool.map(func, img_name_iter)
     timer = cvb.Timer()
-    for img_name in img_name_iter:
-        func(img_name)
-        break
+    # for img_name in img_name_iter:
+    #     func(img_name)
+    # break
     print(timer.since_start())
