@@ -176,13 +176,14 @@ def main(args):
     else:
         global_model = None
     lomo_model = LomoNet() if args.has_npy else None
+
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
     if args.has_npy:
         concat_inplates += 128
     concat_model = ConcatReduce(concat_inplates,
                                 args.num_classes, dropout=0)
 
-    model = SingleNet(base_model, global_model, local_model, lomo_model, concat_model, )
+    model = SingleNet(base_model, global_model, local_model, lomo_model, concat_model)
 
     print(model)
 

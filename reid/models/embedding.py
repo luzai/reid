@@ -1,6 +1,4 @@
 import math
-from torch import nn
-
 from .kron import KronMatching
 from .common import _make_conv,_make_fc
 from torch import nn
@@ -20,10 +18,6 @@ class ConcatEmbed(nn.Module):
 
     def forward(self, x1, x2):
         x = torch.cat([x1, x2], dim=1)
-        # self.conv1[1].eval()
-        # self.conv2[1].eval()
-        # self.fc1[1].eval()
-        # self.fc2[1].eval()
 
         x = self.conv1(x)
         x = self.conv2(x)

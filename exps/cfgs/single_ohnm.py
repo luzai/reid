@@ -2,6 +2,29 @@ from lz import *
 from easydict import EasyDict
 
 cfgs = [
+    EasyDict(dict(
+        lr=3e-4,
+        logs_dir='res50.dbg',
+        arch='resnet50',
+        dataset='cuhk03',
+        dataset_val='cuhk03',
+        batch_size=128, print_freq=1,
+        num_instances=4,
+        gpu=range(1),
+        has_npy=False,
+        branchs=0,
+        branch_dim=64,
+        global_dim=1024,
+        num_classes=128,
+        evaluate=False,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(155, 165, 1),
+        ]),
+        epochs=165,
+    )),
+
     # EasyDict(dict(
     #     lr=3e-4,
     #     # logs_dir='res50.bs.512.lc.64.8.inst.8',
@@ -25,29 +48,29 @@ cfgs = [
     #     ]),
     #     epochs=165,
     # )),
-    EasyDict(dict(
-        lr=3e-4,
-        # logs_dir='res34.bs.1024.lc.64.8.int16',
-        arch='resnet34',
-        dataset='cuhk03',
-        dataset_val='cuhk03',
-        batch_size=128, print_freq=1,
-        num_instances=16,
-        gpu=range(1),
-        has_npy=False,
-        branchs=8,
-        branch_dim=64,
-        global_dim=1024,
-        num_classes=128,
-        evaluate=True,
-        resume='work/res34.bs.1024.lc.64.8.int16/model_best.pth',
-        log_at=np.concatenate([
-            range(0, 100, 49),
-            range(100, 150, 19),
-            range(155, 165, 1),
-        ]),
-        epochs=165,
-    )),
+    # EasyDict(dict(
+    #     lr=3e-4,
+    #     # logs_dir='res34.bs.1024.lc.64.8.int16',
+    #     arch='resnet34',
+    #     dataset='cuhk03',
+    #     dataset_val='cuhk03',
+    #     batch_size=128, print_freq=1,
+    #     num_instances=16,
+    #     gpu=range(1),
+    #     has_npy=False,
+    #     branchs=8,
+    #     branch_dim=64,
+    #     global_dim=512,
+    #     num_classes=128,
+    #     evaluate=True,
+    #     resume='work/res34.bs.1024.lc.64.8.int16/model_best.pth',
+    #     log_at=np.concatenate([
+    #         range(0, 100, 49),
+    #         range(100, 150, 19),
+    #         range(155, 165, 1),
+    #     ]),
+    #     epochs=165,
+    # )),
 ]
 
 base = EasyDict(

@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-from torch import nn
 from lz import *
 from torchvision.models.resnet import BasicBlock, model_zoo, model_urls
 import torch, math
@@ -9,7 +8,7 @@ from reid.utils.serialization import load_state_dict
 
 
 class LomoNet(nn.Module):
-    def __init__(self, block=BasicBlock, layers= [2, 2, ], num_classes=1000):
+    def __init__(self, block=BasicBlock, layers=[2, 2, ], num_classes=1000):
         self.inplanes = 64
         self.out_planes = 128
         super(LomoNet, self).__init__()
@@ -52,9 +51,36 @@ class LomoNet(nn.Module):
         return x
 
 
+class DConv(nn.Module):
+    def __init__(self, cl=2048, cl2=None, w=8, h=4, zp=4, z=3, s=2):
+        super(DConv, self).__init__()
+        self.cl, self.cl2, self.w, self.h, self.zp, self.z, self.s = cl, cl2, w, h, zp, z, s
+        self.Wl = nn.Parameter(torch.Tensor(1, cl2, zp, zp))
+
+    def reset_parameters(self):
+        n = self.in_channels
+        for k in self.kernel_size:
+            n *= k
+        stdv = 1. / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input):
+        cl, cl2, w, h, zp, z, s = self.cl, self.cl2, self.w, self.h, self.zp, self.z, self.s
+        Il = torch.eye(cl * z * z)
+        Il = Il.view(cl * z * z, cl, z, z)
+        Wtl = F.conv2d(self.Wl, Il)
+        zpz = zp - z + 1
+        Wtl = Wtl.view(cl2 * zpz * zpz, cl, z, z)
+        Ol2 = F.conv2d(input, Wtl)
+        bs, _, wl2, hl2 = Ol2.size()
+        Ol2 = Ol2.view(bs, -1, zpz, zpz)
+        Il2 = F.avg_pool2d(Ol2, (s, s))
+        return Il2.view(bs, -1, wl2, hl2)
+
+
 if __name__ == '__main__':
-    model = LomoNet(BasicBlock, [2, 2, ])
-    x = Variable(torch.rand(1, 64, 40, 20))
+    model = DConv()
+    x = Variable(torch.rand(12, 2048, 8, 4))
     y = model(x)
     print(y.size())
     print(model)
