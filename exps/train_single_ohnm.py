@@ -36,9 +36,6 @@ def run(_):
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
-        if args.export_config:
-            lz.mypickle(args, './conf.pkl')
-            exit(0)
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
@@ -54,8 +51,12 @@ def run(_):
         proc.join()
 
 
-def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
-             workers, combine_trainval, pin_memory=True, name_val='', npy=True):
+def get_data(args):
+    name, split_id, data_dir, height, width, batch_size, num_instances, workers, combine_trainval = args.dataset, args.split, args.data_dir, args.height, args.width, args.batch_size, args.num_instances, args.workers, args.combine_trainval,
+    pin_memory = args.pin_mem
+    name_val = args.dataset_val
+    npy = args.has_npy
+
     if isinstance(name, list) and len(name) != 1:
         names = name
         root = '/home/xinglu/.torch/data/'
@@ -63,13 +64,13 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         dataset = datasets.creates(name, roots=roots)
     else:
         root = osp.join(data_dir, name)
-        dataset = datasets.create(name, root, split_id=split_id)
+        dataset = datasets.create(name, root, split_id=split_id,mode=args.dataset_mode)
 
-    if isinstance(name, list) and len(name) != 1:
+    if isinstance(name_val, list) and len(name_val) != 1:
         raise NotImplementedError
     else:
         root = osp.join(data_dir, name_val)
-        dataset_val = datasets.create(name_val, root, split_id=split_id)
+        dataset_val = datasets.create(name_val, root, split_id=split_id,mode=args.dataset_mode)
         if name_val == 'market1501':
             lim_query = cvb.load(work_path + '/mk.query.pkl')
             dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
@@ -84,7 +85,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     else dataset.num_train_ids)
 
     train_transformer = T.Compose([
-        T.RandomCropFlip(height, width),
+        T.RandomCropFlip(height, width,area=args.area),
         T.ToTensor(),
         normalizer,
     ])
@@ -151,11 +152,7 @@ def main(args):
         'num_instances should divide batch_size'
 
     dataset, num_classes, train_loader, val_loader, test_loader = \
-        get_data(args.dataset, args.split, args.data_dir, args.height,
-                 args.width, args.batch_size, args.num_instances, args.workers,
-                 args.combine_trainval,
-                 pin_memory=args.pin_mem, name_val=args.dataset_val,
-                 npy=args.has_npy)
+        get_data(args)
     # Create model
 
     base_model = models.create(args.arch,
@@ -176,17 +173,18 @@ def main(args):
     else:
         global_model = None
     lomo_model = LomoNet() if args.has_npy else None
-    # dconv_model = DConv(2048, 512, 8, 4, 3, 2).cuda()
+    dconv_model = DoubleConv2(2048, 512).cuda() if args.double else None
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
-    # concat_inplates += 512
+    if args.double:
+        concat_inplates += 512
     if args.has_npy:
-        concat_inplates += 128
+        concat_inplates += 256
     concat_model = ConcatReduce(concat_inplates,
                                 args.num_classes, dropout=0)
 
     model = SingleNet(base_model, global_model, local_model,
                       lomo_model,
-                      # dconv_model,
+                      dconv_model,
                       concat_model=concat_model)
 
     print(model)

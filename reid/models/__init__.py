@@ -7,7 +7,7 @@ from .multi_branch import *
 from .embedding import *
 from .darknet import *
 from .mobilenet import *
-from .lomo import *
+from .misc import *
 
 __factory = {
     'inception': inception,

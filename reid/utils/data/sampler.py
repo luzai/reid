@@ -54,7 +54,7 @@ class RandomIdentitySampler(Sampler):
 
 
 class RandomIdentityWeightedSampler(Sampler):
-    def __init__(self, data_source, num_instances=4, batch_size=100, weights=None):
+    def __init__(self, data_source, num_instances=4, batch_size=100, weights=None, ):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
 
@@ -79,7 +79,7 @@ class RandomIdentityWeightedSampler(Sampler):
         self.cache_ind = []
 
     def __len__(self):
-        return self.batch_size*44
+        return self.batch_size * 43
 
     def get_cache(self):
         cache_ind = self.cache_ind.copy()

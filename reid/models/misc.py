@@ -45,15 +45,16 @@ class LomoNet(nn.Module):  # Bottleneck 2222 or 3463
     def forward(self, x):
         x = self.layer1(x)
         x = self.layer2(x)
+        x = self.layer3(x)
         x = F.avg_pool2d(x, x.size()[2:])
         x = x.view(x.size(0), -1)
 
         return x
 
 
-class DConv(nn.Module):
-    def __init__(self, cl=2048, cl2=1024, w=8, h=4, zp=4, z=3, s=2):
-        super(DConv, self).__init__()
+class DoubleConv(nn.Module):
+    def __init__(self, cl=2048, cl2=512, w=8, h=4, zp=4, z=3, s=2):
+        super(DoubleConv, self).__init__()
         self.cl, self.cl2, self.w, self.h, self.zp, self.z, self.s = cl, cl2, w, h, zp, z, s
         self.Wl = nn.Parameter(torch.Tensor(cl2, cl, zp, zp))
         self.reset_parameters()
@@ -84,12 +85,49 @@ class DConv(nn.Module):
         return res
 
 
+class DoubleConv2(nn.Module):
+    def __init__(self, in_plates=2048, out_plates=512, w=4, h=8, zmeta=4, z=3, stride=2):
+        super(DoubleConv2, self).__init__()
+        self.in_plates, self.out_plates, self.w, self.h, self.zmeta, self.z, self.stride = in_plates, out_plates, w, h, zmeta, z, stride
+        self.weight = nn.Parameter(torch.FloatTensor(out_plates, in_plates, zmeta, zmeta))
+        self.reset_parameters()
+
+        self.n_inst, self.n_inst_sqrt = (self.zmeta - self.z + 1) * (self.zmeta - self.z + 1), self.zmeta - self.z + 1
+
+    def reset_parameters(self):
+        n = self.out_plates * self.zmeta * self.zmeta
+        stdv = 1. / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input):
+        # n_inst_sqrt = self.n_inst_sqrt
+        weight = []
+        for i in range(self.zmeta - self.z + 1):
+            for j in range(self.zmeta - self.z + 1):
+                weight.append(self.weight[:, :, i:i + self.z, j:j + self.z])
+        n_inst = len(weight)
+        n_inst_sqrt = int(math.sqrt(n_inst))
+        weight_inst = torch.cat(weight)
+        # self.weight_inst = weight_inst
+
+        bs = input.size(0)
+        out = F.conv2d(input, weight_inst, padding=1)
+        # self.out_inst = out
+        out = out.view(bs, n_inst_sqrt, n_inst_sqrt, self.out_plates, self.h, self.w)
+        out = out.permute(0, 3, 4, 5, 1, 2).contiguous().view(bs, -1, n_inst_sqrt, n_inst_sqrt)
+        out = F.avg_pool2d(out, (self.stride, self.stride))
+        out = out.permute(0, 2, 3, 1).contiguous().view(bs, -1, self.h, self.w)
+        # self.out=out
+        out = F.avg_pool2d(out, out.size()[2:])
+        out = out.view(out.size(0), -1)
+        return out
+
+
 if __name__ == '__main__':
-    init_dev((3))
-    model = DConv(128, 64).cuda()
+    init_dev((3,))
+    model = DoubleConv2(128, 64, stride=1).cuda()
     x = Variable(torch.rand(12, 128, 8, 4), requires_grad=False).cuda()
     y = model(x)
     y.sum().backward()
-    x.grad
-    model.Wl.grad
-    print(y.size())
+
+    print(model.weight.grad.size(), y.size())
