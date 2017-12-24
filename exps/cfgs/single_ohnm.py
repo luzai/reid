@@ -7,12 +7,11 @@ cfgs = [
         logs_dir='double.dbg',
         arch='resnet50',
         dataset='cuhk03',
-        dataset_mode='combine',
         area=(0.85, 1),
         dataset_val='cuhk03',
         batch_size=100, print_freq=1, num_instances=4,
-        gpu=range(2),
-        has_npy=False, double=True,
+        gpu=range(1),
+        has_npy=False, double=True, loss_div_weight=1e-2,
         global_dim=1024,
         num_classes=128,
         log_at=np.concatenate([
@@ -212,7 +211,7 @@ cfgs = [
 
 base = EasyDict(
     dict(
-        has_npy=False, double=False,
+        has_npy=False, double=False, loss_div_weight=0,
         pretrained=True,
         dbg=False,
         data_dir='/home/xinglu/.torch/data',

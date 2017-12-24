@@ -5,9 +5,9 @@ from .loss import OIMLoss, TripletLoss, TupletLoss
 from .utils.meters import AverageMeter
 from lz import *
 from tensorboardX import SummaryWriter
-from reid.utils import to_numpy, to_torch
 from reid.mining import mine_hard_triplets
 import torch
+from .models.resnet import get_loss_div
 
 
 class BaseTrainer(object):
@@ -206,7 +206,8 @@ def stat_(writer, tag, tensor, iter):
 
 
 class Trainer(object):
-    def __init__(self, model, criterion, dbg=False, logs_at='work/vis', ):
+    def __init__(self, model, criterion, dbg=False, logs_at='work/vis',loss_div_weight=0 ):
+        self.loss_div_weight=loss_div_weight
         self.model = model
         self.criterion = criterion
         self.dbg = dbg
@@ -224,6 +225,9 @@ class Trainer(object):
 
     def _forward(self, inputs, targets):
         outputs = self.model(*inputs)
+        weight = self.model.module.dconv_model.weight
+        weight = weight.view(weight.size(0),-1)
+        loss_div=get_loss_div(weight)
         if self.dbg and self.iter % 1000 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', outputs, self.iter)
@@ -232,6 +236,7 @@ class Trainer(object):
 
         if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
             loss = self.criterion(outputs, targets)
+            loss += loss_div*self.loss_div_weight
             prec, = accuracy(outputs.data, targets.data)
             prec = prec[0]
         elif isinstance(self.criterion, OIMLoss):
@@ -243,10 +248,11 @@ class Trainer(object):
                 loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
                 diff = dist_an - dist_ap
                 self.writer.add_histogram('an-ap', diff, self.iter)
-                # self.writer.add_histogram('an-ap/auto', diff, self.iter, 'auto')
 
                 stat_(self.writer, 'an-ap', diff, self.iter)
-                self.writer.add_scalar('vis/loss', loss, self.iter)
+                self.writer.add_scalar('vis/loss', loss-loss_div*self.loss_div_weight, self.iter)
+                self.writer.add_scalar('vis/loss_div', loss_div)
+                self.writer.add_scalar('vis/loss_ttl',loss)
                 self.writer.add_scalar('vis/prec', prec, self.iter)
                 self.writer.add_histogram('dist', dist, self.iter)
                 self.writer.add_histogram('ap', dist_ap, self.iter)

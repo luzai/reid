@@ -257,7 +257,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis')
+    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', loss_div_weight=args.loss_div_weight)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
