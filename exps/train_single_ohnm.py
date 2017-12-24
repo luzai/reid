@@ -64,13 +64,13 @@ def get_data(args):
         dataset = datasets.creates(name, roots=roots)
     else:
         root = osp.join(data_dir, name)
-        dataset = datasets.create(name, root, split_id=split_id,mode=args.dataset_mode)
+        dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
 
     if isinstance(name_val, list) and len(name_val) != 1:
         raise NotImplementedError
     else:
         root = osp.join(data_dir, name_val)
-        dataset_val = datasets.create(name_val, root, split_id=split_id,mode=args.dataset_mode)
+        dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
         if name_val == 'market1501':
             lim_query = cvb.load(work_path + '/mk.query.pkl')
             dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
@@ -85,7 +85,7 @@ def get_data(args):
     else dataset.num_train_ids)
 
     train_transformer = T.Compose([
-        T.RandomCropFlip(height, width,area=args.area),
+        T.RandomCropFlip(height, width, area=args.area),
         T.ToTensor(),
         normalizer,
     ])
@@ -173,7 +173,14 @@ def main(args):
     else:
         global_model = None
     lomo_model = LomoNet() if args.has_npy else None
-    dconv_model = DoubleConv2(2048, 512).cuda() if args.double else None
+    np.random.seed(16)
+    dconv_model = DoubleConv3(2048, 512,
+                              stride2=12,
+                              controller=np.asarray([1, 0, 0, 0, 1, 0])
+                                         + np.random.randn(12, 6) * 0.15
+                                         + np.asarray([0, 0, 0.5, 0, 0, 0.5])
+                              ).cuda() if args.double else None
+
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
     if args.double:
         concat_inplates += 512
@@ -231,7 +238,7 @@ def main(args):
         criterion = TripletLoss(margin=args.margin)
 
     # Optimizer
-    # filter(lambda p: p.requires_grad, model.parameters())
+    #
     # for param in itertools.chain(model.module.base.parameters(),
     #                              model.module.feat.parameters(),
     #                              model.module.feat_bn.parameters(),
@@ -243,7 +250,8 @@ def main(args):
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,  # module.stn
                                      weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
+        optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
+                                    lr=args.lr,
                                     weight_decay=args.weight_decay, momentum=0.9,
                                     nesterov=True)
     else:

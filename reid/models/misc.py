@@ -123,6 +123,45 @@ class DoubleConv2(nn.Module):
         return out
 
 
+class DoubleConv3(nn.Module):
+    def __init__(self, in_plates=2048, out_plates=512, w=4, h=8, zmeta=4, z=3, stride2=12, bs=100, controller=None):
+        super(DoubleConv3, self).__init__()
+        self.in_plates, self.out_plates, self.w, self.h, self.zmeta, self.z, self.stride2 = in_plates, out_plates, w, h, zmeta, z, stride2
+        self.bs = bs
+        self.weight = nn.Parameter(
+            torch.FloatTensor(out_plates, in_plates, zmeta, zmeta))
+        self.reset_parameters()
+        self.register_buffer('theta',torch.FloatTensor(controller).view(-1,2,3).cuda())
+        self.n_inst, self.n_inst_sqrt = (self.zmeta - self.z + 1) * (self.zmeta - self.z + 1), self.zmeta - self.z + 1
+
+    def reset_parameters(self):
+        n = self.out_plates * self.zmeta * self.zmeta
+        stdv = 1. / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input):
+        bs = input.size(0)
+
+        weight_l = []
+        for theta_ in Variable(self.theta, requires_grad=False):
+            grid = F.affine_grid(theta_.expand(self.weight.size(0),2,3), self.weight.size())
+            weight_l.append(F.grid_sample(self.weight, grid))
+
+        weight_inst = torch.cat(weight_l)
+        weight_inst = weight_inst[:,:,:3,:3]
+        out = F.conv2d(input, weight_inst, padding=1)
+        # self.out_inst = out
+        # input.size(),weight_inst.size(),out.size()
+        out = out.view(bs, self.stride2, self.out_plates, self.h, self.w)
+        out = out.permute(0, 3, 4, 1, 2).contiguous().view(bs, -1, self.stride2)
+        out = F.avg_pool1d(out, self.stride2)
+        out = out.permute(0, 2, 1).contiguous().view(bs, -1, self.h, self.w)
+        # self.out=out
+        out = F.avg_pool2d(out, out.size()[2:])
+        out = out.view(out.size(0), -1)
+        return out
+
+
 if __name__ == '__main__':
     init_dev((3,))
     model = DoubleConv2(128, 64, stride=1).cuda()

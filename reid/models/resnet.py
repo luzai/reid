@@ -5,10 +5,12 @@ from torch.nn import functional as F
 from torch.nn import init
 import torchvision
 import torch
-from reid.models.common import _make_conv,_make_fc
+from reid.models.common import _make_conv, _make_fc
+from lz import *
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
+
 
 def get_loss_div(theta):
     norm = theta.norm(p=2, dim=1, keepdim=True)
@@ -100,7 +102,7 @@ class UnBoundedGridLocNet(nn.Module):
         points = self.fc(x)
         return points.view(batch_size, -1, 2)
 
-import itertools
+
 class STN_TPS(nn.Module):
     def __init__(self):
         super(STN_TPS, self).__init__()
@@ -126,7 +128,6 @@ class STN_TPS(nn.Module):
         return transformed_x, 0
 
 
-
 class ResNet(nn.Module):
     __factory = {
         18: torchvision.models.resnet18,
@@ -145,13 +146,14 @@ class ResNet(nn.Module):
         self.cut_at_pooling = cut_at_pooling
 
         # self.stn = STN_TPS()
-        self.stn=STN_shallow()
+        self.stn = STN_shallow()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:
             raise KeyError("Unsupported depth:", depth)
         self.base = ResNet.__factory[depth](pretrained=pretrained)
         out_planes = self.base.fc.in_features
+        self.out_planes = out_planes
         if not self.cut_at_pooling:
             self.num_features = num_features
             self.norm = norm
@@ -196,7 +198,7 @@ class ResNet(nn.Module):
         if self.has_embedding:
             x = self.feat(x)
             x = self.feat_bn(x)
-            x=self.feat_relu(x)
+            x = self.feat_relu(x)
         if self.dropout > 0:
             x = self.drop(x)
         if self.num_classes > 0:
