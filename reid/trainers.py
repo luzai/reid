@@ -163,11 +163,13 @@ class TripletTrainer(object):
             'loss': losses.avg,
             'prec': precisions.avg
         })
+
     def _parse_data(self, inputs):
         def _parse_one(inputs):
             imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
             # print(fnames)
             return imgs
+
         # cvb.dump(np.asarray([in_.get('fname') for in_ in inputs ]).ravel(), 'tmp.pkl')
         a, p, n = _parse_one(inputs[0]), _parse_one(inputs[1]), _parse_one(inputs[2])
         inputs = to_variable([a, p, n])
@@ -206,8 +208,8 @@ def stat_(writer, tag, tensor, iter):
 
 
 class Trainer(object):
-    def __init__(self, model, criterion, dbg=False, logs_at='work/vis',loss_div_weight=0 ):
-        self.loss_div_weight=loss_div_weight
+    def __init__(self, model, criterion, dbg=False, logs_at='work/vis', loss_div_weight=0):
+        self.loss_div_weight = loss_div_weight
         self.model = model
         self.criterion = criterion
         self.dbg = dbg
@@ -225,9 +227,12 @@ class Trainer(object):
 
     def _forward(self, inputs, targets):
         outputs = self.model(*inputs)
-        weight = self.model.module.dconv_model.weight
-        weight = weight.view(weight.size(0),-1)
-        loss_div=get_loss_div(weight)
+        if self.model.module.dconv_model is not None:
+            weight = self.model.module.dconv_model.weight
+            weight = weight.view(weight.size(0), -1)
+            loss_div = get_loss_div(weight)
+        else:
+            loss_div = 0.
         if self.dbg and self.iter % 1000 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', outputs, self.iter)
@@ -236,7 +241,7 @@ class Trainer(object):
 
         if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
             loss = self.criterion(outputs, targets)
-            loss += loss_div*self.loss_div_weight
+            loss += loss_div * self.loss_div_weight
             prec, = accuracy(outputs.data, targets.data)
             prec = prec[0]
         elif isinstance(self.criterion, OIMLoss):
@@ -249,10 +254,10 @@ class Trainer(object):
                 diff = dist_an - dist_ap
                 self.writer.add_histogram('an-ap', diff, self.iter)
 
-                stat_(self.writer, 'an-ap', diff, self.iter)
-                self.writer.add_scalar('vis/loss', loss-loss_div*self.loss_div_weight, self.iter)
-                self.writer.add_scalar('vis/loss_div', loss_div)
-                self.writer.add_scalar('vis/loss_ttl',loss)
+                # stat_(self.writer, 'an-ap', diff, self.iter)
+                self.writer.add_scalar('vis/loss', loss - loss_div * self.loss_div_weight, self.iter)
+                self.writer.add_scalar('vis/loss_div', loss_div,self.iter)
+                self.writer.add_scalar('vis/loss_ttl', loss, self.iter)
                 self.writer.add_scalar('vis/prec', prec, self.iter)
                 self.writer.add_histogram('dist', dist, self.iter)
                 self.writer.add_histogram('ap', dist_ap, self.iter)

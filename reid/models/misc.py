@@ -131,7 +131,7 @@ class DoubleConv3(nn.Module):
         self.weight = nn.Parameter(
             torch.FloatTensor(out_plates, in_plates, zmeta, zmeta))
         self.reset_parameters()
-        self.register_buffer('theta',torch.FloatTensor(controller).view(-1,2,3).cuda())
+        self.register_buffer('theta', torch.FloatTensor(controller).view(-1, 2, 3).cuda())
         self.n_inst, self.n_inst_sqrt = (self.zmeta - self.z + 1) * (self.zmeta - self.z + 1), self.zmeta - self.z + 1
 
     def reset_parameters(self):
@@ -144,11 +144,10 @@ class DoubleConv3(nn.Module):
 
         weight_l = []
         for theta_ in Variable(self.theta, requires_grad=False):
-            grid = F.affine_grid(theta_.expand(self.weight.size(0),2,3), self.weight.size())
+            grid = F.affine_grid(theta_.expand(self.weight.size(0), 2, 3), self.weight.size())
             weight_l.append(F.grid_sample(self.weight, grid))
-
         weight_inst = torch.cat(weight_l)
-        weight_inst = weight_inst[:,:,:3,:3]
+        weight_inst = weight_inst[:, :, :3, :3]
         out = F.conv2d(input, weight_inst, padding=1)
         # self.out_inst = out
         # input.size(),weight_inst.size(),out.size()

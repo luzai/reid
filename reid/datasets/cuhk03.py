@@ -33,7 +33,7 @@ class CUHK03(Dataset):
                osp.isfile(osp.join(self.root, mode, 'meta.json')) and \
                osp.isfile(osp.join(self.root, mode, 'splits.json'))
 
-    def __init__(self, root, split_id=0, num_val=100, download=True, mode='comine', check_integrity=True):
+    def __init__(self, root, split_id=0, num_val=100, download=True, mode='combine', check_integrity=True):
         super(CUHK03, self).__init__(root, split_id=split_id)
         self.mode = mode
         print('use mode ', mode )

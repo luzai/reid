@@ -173,14 +173,26 @@ def main(args):
     else:
         global_model = None
     lomo_model = LomoNet() if args.has_npy else None
-    np.random.seed(16)
-    dconv_model = DoubleConv3(2048, 512,
-                              stride2=12,
-                              controller=np.asarray([1, 0, 0, 0, 1, 0])
-                                         + np.random.randn(12, 6) * 0.15
-                                         + np.asarray([0, 0, 0.5, 0, 0, 0.5])
-                              ).cuda() if args.double else None
 
+    # np.random.seed(16)
+
+    def get_controller(scale=(2 / 3, 3 / 2), translation=(0, 2 / 3)):
+        controller = []
+        for sx in scale:
+            for sy in scale:
+                for tx in translation:
+                    for ty in translation:
+                        controller.append([sx, 0, tx, 0, sy, ty])
+        controller = np.stack(controller)
+        controller = controller.reshape(16, 2, 3)
+        controller = np.ascontiguousarray(controller, np.float32)
+        return controller
+
+    dconv_model = DoubleConv3(2048, 512,
+                              stride2=16,
+                              controller=get_controller(),
+                              ).cuda() if args.double else None
+    # dconv_model = DoubleConv2(2048, 512) if args.double else None
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
     if args.double:
         concat_inplates += 512

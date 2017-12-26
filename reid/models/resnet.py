@@ -146,7 +146,7 @@ class ResNet(nn.Module):
         self.cut_at_pooling = cut_at_pooling
 
         # self.stn = STN_TPS()
-        self.stn = STN_shallow()
+        # self.stn = STN_shallow()
 
         # Construct base (pretrained) resnet
         if depth not in ResNet.__factory:
