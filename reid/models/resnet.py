@@ -169,6 +169,7 @@ class ResNet(nn.Module):
                 init.constant(self.feat.bias, 0)
                 init.constant(self.feat_bn.weight, 1)
                 init.constant(self.feat_bn.bias, 0)
+                self.feat_relu = nn.ReLU()
             else:
                 # Change the num_features to CNN output channels
                 self.num_features = out_planes

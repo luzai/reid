@@ -25,14 +25,14 @@ cfgs = [
     # )),
     EasyDict(dict(
         lr=3e-4,
-        logs_dir='double.16.predefine',
+        logs_dir='mining',
         arch='resnet50',
         dataset='cuhk03',
         area=(0.85, 1),
         dataset_val='cuhk03',
-        batch_size=92, print_freq=1, num_instances=4,
-        gpu=range(1),
-        has_npy=False, double=True, loss_div_weight=0,
+        batch_size=100, print_freq=1, num_instances=4,
+        gpu=range(4),
+        has_npy=False, double=False, loss_div_weight=0, hard_examples=True,
         global_dim=1024,
         num_classes=128,
         log_at=np.concatenate([
@@ -44,31 +44,12 @@ cfgs = [
         # resume='work/res50.doubly/model_best.pth',
         epochs=165,
     )),
-    # EasyDict(dict(
-    #         lr=3e-4,
-    #         logs_dir='fuck.all.data.long.cont2',
-    #         arch='resnet50',
-    #         dataset=['cuhk03', 'dukemtmc', 'market1501'],
-    #         dataset_val='cuhk03',
-    #         batch_size=128, print_freq=200,
-    #         num_instances=4,
-    #         gpu=range(2),
-    #         has_npy=False, double=False,
-    #         branchs=0,
-    #         branch_dim=64,
-    #         global_dim=1024,
-    #         num_classes=128,
-    #         resume='work/fuck.all.data.long.cont/checkpoint.23.pth',
-    #         restart=False,
-    #         log_at=np.concatenate([
-    #             range(0, 185, 1),
-    #         ]),
-    #         epochs=185,
-    #     )),
+
 ]
 
 base = EasyDict(
     dict(
+        hard_examples=False,
         has_npy=False, double=False, loss_div_weight=0,
         pretrained=True,
         dbg=False,

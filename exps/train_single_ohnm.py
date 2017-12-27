@@ -285,6 +285,27 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch=epoch)
+        if args.hard_examples:
+            # Use sequential train set loader
+            data_loader = DataLoader(
+                Preprocessor(dataset.train, root=dataset.images_dir,
+                             transform=val_loader.dataset.transform),
+                batch_size=args.batch_size, num_workers=args.workers,
+                shuffle=False, pin_memory=False)
+            # Mine hard triplet examples, index of [(anchor, pos, neg), ...]
+            triplets = mine_hard_triplets(torch.nn.DataParallel(base_model).cuda(),
+                                          data_loader, margin=args.margin, batch_size=args.batch_size)
+            print("Mined {} hard example triplets".format(len(triplets)))
+            # Build a hard examples loader
+            train_loader = DataLoader(
+                train_loader.dataset,
+                batch_size=train_loader.batch_size,
+                num_workers=train_loader.num_workers,
+                sampler=RandomIdentityWeightedSampler(train_loader.dataset.dataset,
+                                                      args.num_instances,
+                                                      batch_size=args.batch_size,
+                                                      subsample=triplets),
+                pin_memory=True, drop_last=True)
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)

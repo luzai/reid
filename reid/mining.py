@@ -23,6 +23,8 @@ def mine_hard_pairs(model, data_loader, margin=0.32):
         pairs.extend([(i, n) for n in neg_indices if threshold >= d[n]])
     return pairs
 
+def _stat(ndarr):
+    return ndarr.shape, np.unique(ndarr).shape
 
 def mine_hard_triplets(model, data_loader, margin=0.5, batch_size=32):
     model.eval()
@@ -43,12 +45,12 @@ def mine_hard_triplets(model, data_loader, margin=0.5, batch_size=32):
 
     pids_exp = np.repeat(pids, pids.shape[0]).reshape(pids.shape[0], pids.shape[0])
     mask = (pids_exp == pids_exp.T)
-    n = 1024 + 3  # batch_size
+    n = 1024*4  # batch_size
     distmat_n = distmat.copy()
     distmat_n[mask == True] = distmat_n.max()
-    no_sel = np.setdiff1d(np.arange(pids.shape[0]), np.random.choice(pids.shape[0], 1024))
+    no_sel = np.setdiff1d(np.arange(pids.shape[0]), np.random.choice(pids.shape[0], 1024*4))
     distmat_n[no_sel, :] = distmat_n.max()
-    distmat_n[:, no_sel] = distmat_n.min()
+    distmat_n[:, no_sel] = distmat_n.max()
     ind = np.argpartition(distmat_n.ravel(), n)[:n]
     ind = ind[np.argsort(distmat_n.ravel()[ind])]
     ind = ind[3:256 + 3]
@@ -57,12 +59,14 @@ def mine_hard_triplets(model, data_loader, margin=0.5, batch_size=32):
 
     # plt.hist(distmat_n.ravel()[ind] )
     anc, neg = np.unravel_index(ind, distmat.shape)
+    _stat(anc), _stat(neg), _stat(np.concatenate((anc,neg)))
     triplets = []
     for anc_, neg_ in zip(anc, neg):
-        # d = distmat[anc_]
         # pos_inds = np.where(pids == pids[anc_])[0]
         pos_inds = np.where(mask[anc_] == True)[0]
         pos_ind = np.random.choice(pos_inds)
+        d = distmat[anc_][pos_inds]
+
         triplets.append([anc_, pos_ind, neg_])
 
     # cvb.dump(distmat, 'distmat.pkl')

@@ -155,31 +155,46 @@ def main(args):
                  args.width, args.batch_size, args.num_instances, args.workers,
                  args.combine_trainval, pin_memory=args.pin_mem, name_val=args.dataset_val)
     # Create model
+
     base_model = models.create(args.arch,
                                dropout=args.dropout,
                                pretrained=args.pretrained,
-                               num_features=args.global_dim,
-                               num_classes=args.num_classes
+                               cut_at_pooling=True
                                )
+    global_model = Global(base_model.out_planes, args.global_dim, dropout=args.dropout)
+    concat_model = ConcatReduce(args.global_dim,
+                                args.num_classes, dropout=0)
+    single_model = SingleNet(base_model,global_model,
+                      concat_model=concat_model)
     embed_model = EltwiseSubEmbed()
-    model = TripletNet(base_model, embed_model)
-    model = torch.nn.DataParallel(model).cuda()
+    model = TripletNet(single_model, embed_model)
 
-    if args.retrain:
-        checkpoint = load_checkpoint(args.retrain)
-        copy_state_dict(checkpoint['state_dict'], base_model, strip='module.')
-        copy_state_dict(checkpoint['state_dict'], embed_model, strip='module.')
+    print(model)
 
     # Load from checkpoint
+    start_epoch = best_top1 = 0
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
+        # model.load_state_dict(checkpoint['state_dict'])
         load_state_dict(model, checkpoint['state_dict'])
-        args.start_epoch = checkpoint['epoch']
-        best_top1 = checkpoint['best_top1']
-        print("=> start epoch {}  best top1 {:.1%}"
-              .format(args.start_epoch, best_top1))
+        if args.restart:
+            start_epoch_ = checkpoint['epoch']
+            best_top1_ = checkpoint['best_top1']
+            print("=> Start epoch {}  best top1 {:.1%}"
+                  .format(start_epoch_, best_top1_))
+        else:
+            start_epoch = checkpoint['epoch']
+            best_top1 = checkpoint['best_top1']
+            print("=> Start epoch {}  best top1 {:.1%}"
+                  .format(start_epoch, best_top1))
+
+    if args.gpu is None:
+        model = nn.DataParallel(model)
+    elif len(args.gpu) == 1:
+        model = nn.DataParallel(model).cuda()
     else:
-        best_top1 = 0
+        model = nn.DataParallel(model, device_ids=range(len(args.gpu))).cuda()
+
 
     # Evaluator
     evaluator = SiameseEvaluator(
@@ -218,14 +233,14 @@ def main(args):
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     # Start training
-    for epoch in range(args.epochs):
+    for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch=epoch)
         if args.hard_examples:
             # Use sequential train set loader
             data_loader = DataLoader(
                 Preprocessor(dataset.train, root=dataset.images_dir,
                              transform=val_loader.dataset.transform),
-                batch_size=args.batch_size, num_workers=args.workers,
+                batch_size=len(args.gpu)*32, num_workers=args.workers,
                 shuffle=False, pin_memory=False)
             # Mine hard triplet examples, index of [(anchor, pos, neg), ...]
             triplets = mine_hard_triplets(torch.nn.DataParallel(base_model).cuda(),

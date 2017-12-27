@@ -54,10 +54,11 @@ class RandomIdentitySampler(Sampler):
 
 
 class RandomIdentityWeightedSampler(Sampler):
-    def __init__(self, data_source, num_instances=4, batch_size=100, weights=None, ):
+    def __init__(self, data_source, num_instances=4, batch_size=100, weights=None, subsample=None):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
-
+        self.subsample=np.unique(np.asarray(subsample).ravel())
+        # self.subsample=np.unique(np.asarray(self.subsample).ravel())
         self.data_source = data_source
         self.num_instances = num_instances
         self.memory = queue.Queue(maxsize=256)
@@ -96,8 +97,9 @@ class RandomIdentityWeightedSampler(Sampler):
                 yield tobe
             else:
                 probs = grouped.sum()['probs']
-                pid = np.random.choice(probs.index, p=probs)
+                pid = np.random.choice(probs.index, )
                 pid = int(pid)
+
                 dft = grouped.get_group(pid)
                 t = dft['inds'].tolist()
                 probs_probs = np.asarray(dft['probs'], dtype=float)
