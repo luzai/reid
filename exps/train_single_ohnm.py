@@ -43,12 +43,13 @@ def run(_):
 
         main(args)
 
-        # proc = lz.mp.Process(target=main, args=(args,))
-        # proc.start()
-        # # time.sleep(30)
-        # procs.append(proc)
-        # # for proc in procs:
-        # proc.join()
+        proc = lz.mp.Process(target=main, args=(args,))
+        proc.start()
+        time.sleep(30)
+        procs.append(proc)
+
+    for proc in procs:
+        proc.join()
 
 
 def get_data(args):
@@ -176,26 +177,28 @@ def main(args):
 
     # np.random.seed(16)
 
-    def get_controller(scale=(2 / 3, 3 / 2), translation=(0, 2 / 3)):
+    def get_controller(scale=args.scale, translation=args.translation, theta=args.theta):
         controller = []
         for sx in scale:
             for sy in scale:
                 for tx in translation:
                     for ty in translation:
-                        controller.append([sx, 0, tx, 0, sy, ty])
+                        for th in theta:
+                            controller.append([sx * np.cos(th), -sx * np.sin(th), tx,
+                                               sy * np.sin(th), sy * np.cos(th), ty])
         controller = np.stack(controller)
-        controller = controller.reshape(16, 2, 3)
+        controller = controller.reshape(-1, 2, 3)
         controller = np.ascontiguousarray(controller, np.float32)
         return controller
 
-    dconv_model = DoubleConv3(2048, 512,
-                              stride2=16,
+    dconv_model = DoubleConv3(2048, args.double,
+                              stride2=get_controller().shape[0],
                               controller=get_controller(),
                               ).cuda() if args.double else None
     # dconv_model = DoubleConv2(2048, 512) if args.double else None
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
     if args.double:
-        concat_inplates += 512
+        concat_inplates += args.double
     if args.has_npy:
         concat_inplates += 256
     concat_model = ConcatReduce(concat_inplates,
@@ -301,7 +304,7 @@ def main(args):
                 train_loader.dataset,
                 batch_size=train_loader.batch_size,
                 num_workers=train_loader.num_workers,
-                sampler= SubsetRandomSampler( np.unique(np.asarray(triplets).ravel())),
+                sampler=SubsetRandomSampler(np.unique(np.asarray(triplets).ravel())),
                 pin_memory=True, drop_last=True)
 
             # RandomIdentityWeightedSampler(train_loader.dataset.dataset,

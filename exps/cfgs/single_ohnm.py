@@ -2,56 +2,58 @@ from lz import *
 from easydict import EasyDict
 
 cfgs = [
-    # EasyDict(dict(
-    #     lr=3e-4,
-    #     logs_dir='double.divloss.1e-3.2',
-    #     arch='resnet50',
-    #     dataset='cuhk03',
-    #     area=(0.85, 1),
-    #     dataset_val='cuhk03',
-    #     batch_size=100, print_freq=1, num_instances=4,
-    #     gpu=range(1),
-    #     has_npy=False, double=True, loss_div_weight=1e-3,
-    #     global_dim=1024,
-    #     num_classes=128,
-    #     log_at=np.concatenate([
-    #         range(0, 100, 49),
-    #         range(100, 150, 19),
-    #         range(161, 165, 1),
-    #     ]),
-    #     # evaluate=True,
-    #     # resume='work/res50.doubly/model_best.pth',
-    #     epochs=165,
-    # )),
     EasyDict(dict(
-        lr=3e-4,
-        logs_dir='mining',
+        logs_dir='rotation',
         arch='resnet50',
         dataset='cuhk03',
         area=(0.85, 1),
         dataset_val='cuhk03',
         batch_size=128, print_freq=1, num_instances=4,
         gpu=range(2),
-        has_npy=False, double=False, loss_div_weight=0, hard_examples=True,
-        global_dim=1024,
+        double=128, loss_div_weight=0,
+        scale=(1, 2 / 3), translation=(0, 2 / 3), theta=(0, np.pi / 8, -np.pi / 8),
+        hard_examples=False,
         num_classes=128,
         log_at=np.concatenate([
-            # range(0, 100, 49),
-            # range(100, 150, 19),
-            # range(161, 165, 1),
-            range(165)
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(161, 165, 1),
+            # range(165)
         ]),
         evaluate=False,
-        resume='work.long/fuck.all.data.long.cont3/checkpoint.164.pth',
+        # resume='work.long/fuck.all.data.long.cont3/checkpoint.164.pth',
         epochs=165,
     )),
-
+    EasyDict(dict(
+        logs_dir='translation',
+        arch='resnet50',
+        dataset='cuhk03',
+        area=(0.85, 1),
+        dataset_val='cuhk03',
+        batch_size=128, print_freq=1, num_instances=4,
+        gpu=range(2),
+        double=512, loss_div_weight=0,
+        translation=(0, 2 / 3),
+        hard_examples=False,
+        num_classes=128,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(161, 165, 1),
+            # range(165)
+        ]),
+        evaluate=False,
+        # resume='work.long/fuck.all.data.long.cont3/checkpoint.164.pth',
+        epochs=165,
+    )),
 ]
 
 base = EasyDict(
     dict(
+        scale=(1,), translation=(0,), theta=(0,),
         hard_examples=False,
-        has_npy=False, double=False, loss_div_weight=0,
+        has_npy=False,
+        double=0, loss_div_weight=0,
         pretrained=True,
         dbg=False,
         data_dir='/home/xinglu/.torch/data',
