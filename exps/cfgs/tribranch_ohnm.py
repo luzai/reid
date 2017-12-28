@@ -8,14 +8,14 @@ cfgs = [
         arch='resnet50',
         dataset='cuhk03',
         dataset_val='cuhk03',
-        batch_size=128, print_freq=1,
-        gpu=range(2),
+        batch_size=80, print_freq=1,
+        gpu=range(4),
         branchs=0,
         branch_dim=64,
         global_dim=1024,
         num_classes=128,
         resume='work.long/fuck.all.data.long.cont3/checkpoint.164.pth',
-        evaluate=False,
+        evaluate=True,
         log_at=np.concatenate([
             # range(10, 100, 49),
             # range(100, 150, 19),
@@ -23,6 +23,7 @@ cfgs = [
             range(165)
         ]),
         epochs=165,
+        pin_mem=True,
     )),
 
 ]

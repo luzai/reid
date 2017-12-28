@@ -156,18 +156,18 @@ def main(args):
                  args.combine_trainval, pin_memory=args.pin_mem, name_val=args.dataset_val)
     # Create model
 
-    base_model = models.create(args.arch,
+    base_base_model = models.create(args.arch,
                                dropout=args.dropout,
                                pretrained=args.pretrained,
                                cut_at_pooling=True
                                )
-    global_model = Global(base_model.out_planes, args.global_dim, dropout=args.dropout)
+    global_model = Global(base_base_model.out_planes, args.global_dim, dropout=args.dropout)
     concat_model = ConcatReduce(args.global_dim,
                                 args.num_classes, dropout=0)
-    single_model = SingleNet(base_model,global_model,
+    base_model = SingleNet(base_base_model,global_model,
                       concat_model=concat_model)
     embed_model = EltwiseSubEmbed()
-    model = TripletNet(single_model, embed_model)
+    model = TripletNet(base_model, embed_model)
 
     print(model)
 
@@ -238,8 +238,7 @@ def main(args):
         if args.hard_examples:
             # Use sequential train set loader
             data_loader = DataLoader(
-                Preprocessor(dataset.train, root=dataset.images_dir,
-                             transform=val_loader.dataset.transform),
+                train_loader.dataset,
                 batch_size=len(args.gpu)*32, num_workers=args.workers,
                 shuffle=False, pin_memory=False)
             # Mine hard triplet examples, index of [(anchor, pos, neg), ...]

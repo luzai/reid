@@ -295,7 +295,7 @@ class Trainer(object):
             data_time.update(time.time() - end)
             inputs, targets, fnames = self._parse_data(inputs)
 
-            global_inds = [data_loader.fname2ind[fn] for fn in fnames]
+            # global_inds = [data_loader.fname2ind[fn] for fn in fnames]
 
             # triplets = mine_hard_triplets(self.model, data_loader, margin=0.5)
             # al_ind = np.asarray(triplets).flatten()

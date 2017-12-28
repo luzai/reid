@@ -14,7 +14,7 @@ from reid.dist_metric import DistanceMetric
 from reid.loss import *
 from reid.trainers import *
 from reid.evaluators import *
-from reid.mining import mine_hard_pairs
+from reid.mining import *
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
@@ -41,14 +41,14 @@ def run(_):
             lz.mkdir_p(args.logs_dir, delete=True)
             cvb.dump(args, args.logs_dir + '/conf.pkl')
 
-        # main(args)
+        main(args)
 
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
+        # proc = lz.mp.Process(target=main, args=(args,))
+        # proc.start()
         # # time.sleep(30)
         # procs.append(proc)
         # # for proc in procs:
-        proc.join()
+        # proc.join()
 
 
 def get_data(args):
@@ -293,7 +293,7 @@ def main(args):
                 batch_size=args.batch_size, num_workers=args.workers,
                 shuffle=False, pin_memory=False)
             # Mine hard triplet examples, index of [(anchor, pos, neg), ...]
-            triplets = mine_hard_triplets(torch.nn.DataParallel(base_model).cuda(),
+            triplets = mine_hard_triplets(model,
                                           data_loader, margin=args.margin, batch_size=args.batch_size)
             print("Mined {} hard example triplets".format(len(triplets)))
             # Build a hard examples loader
@@ -301,11 +301,14 @@ def main(args):
                 train_loader.dataset,
                 batch_size=train_loader.batch_size,
                 num_workers=train_loader.num_workers,
-                sampler=RandomIdentityWeightedSampler(train_loader.dataset.dataset,
-                                                      args.num_instances,
-                                                      batch_size=args.batch_size,
-                                                      subsample=triplets),
+                sampler= SubsetRandomSampler( np.unique(np.asarray(triplets).ravel())),
                 pin_memory=True, drop_last=True)
+
+            # RandomIdentityWeightedSampler(train_loader.dataset.dataset,
+            #                               args.num_instances,
+            #                               batch_size=args.batch_size,
+            #                               subsample=triplets),
+
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)

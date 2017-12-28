@@ -370,8 +370,8 @@ class SiameseEvaluator(object):
             KeyValuePreprocessor(features),
             sampler=ExhaustiveSampler((query_keys, gallery_keys,),
                                       return_index=False),
-            batch_size=4096*8, #min(len(gallery), 4096),
-            num_workers=16, pin_memory=False)
+            batch_size=min(len(gallery), 4096*8),
+            num_workers=4, pin_memory=False)
 
         # Extract embeddings of each (query, gallery) pair
         embeddings = extract_embeddings(self.embed_model, data_loader)
