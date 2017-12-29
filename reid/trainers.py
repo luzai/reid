@@ -86,9 +86,12 @@ class VerfTrainer(BaseTrainer):
         pred, y, info = self.model(inputs[0], targets, info)
 
         loss = self.criterion(pred, y)
-
-        right = (to_numpy(pred.data > self.criterion.margin / 2.).reshape(-1) == to_numpy(y.data).reshape(-1))
-        prec1 = (right.sum() / right.shape[0])
+        if len(pred.shape)==2:
+            pred = pred.data[:,0]
+        else:
+            pred = pred.data
+        right = (to_numpy(pred  > self.criterion.margin / 2.).reshape(-1) == to_numpy(y.data).reshape(-1))
+        prec1 = (right.astype(float).sum() / right.shape[0])
         # print(prec1)
         return loss, prec1
 

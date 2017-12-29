@@ -54,11 +54,12 @@ def run(args):
           epochs: 50
           freeze: ''
           logs_dir: work/siamese.contrastive
+          # evaluate: True
           start_save: 0
           log_start: False
           log_middle: True
-          # log_at: [1,100,150,163,164]
-          log_at: [1,164,] 
+          log_at: [1,100,150,163,164]
+          # log_at: [1,164,] 
           need_second: True
           batch_size: 120
           gpu: [1, ]

@@ -13,9 +13,11 @@ class ContrastiveLoss(torch.nn.Module):
         self.margin = margin
 
     def forward(self, dist, label):
-        loss_contrastive = 1/2. * torch.mean(
+        if len(dist.size()) == 2:
+            dist = dist[:, 0]
+        loss_contrastive = 1 / 2. * torch.mean(
             (label.float()) * torch.pow(dist, 2) +
-            (1.-label.float()) * torch.pow(torch.clamp(self.margin - dist, min=0.0), 2)
+            (1. - label.float()) * torch.pow(torch.clamp(self.margin - dist, min=0.0), 2)
         )
 
         return loss_contrastive
