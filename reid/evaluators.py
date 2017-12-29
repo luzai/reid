@@ -41,6 +41,13 @@ def extract_features(model, data_loader, print_freq=1, limit=None, ):
                           batch_time.val, batch_time.avg,
                           data_time.val, data_time.avg))
 
+    print('Extract Features: [{}/{}]\t'
+          'Time {:.3f} ({:.3f})\t'
+          'Data {:.3f} ({:.3f})\t'
+          .format(i + 1, len(data_loader),
+                  batch_time.val, batch_time.avg,
+                  data_time.val, data_time.avg))
+    print(features.values().__iter__().__next__().shape)
     return features, labels
 
 
@@ -54,7 +61,7 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
     for i, inputs in enumerate(data_loader):
         data_time.update(time.time() - end)
         outputs = extract_cnn_embeddings(model, inputs)
-
+        # print(outputs.shape)
         embeddings.append(outputs)
         batch_time.update(time.time() - end)
         end = time.time()
@@ -67,7 +74,15 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
                 batch_time.val, batch_time.avg,
                 data_time.val, data_time.avg))
 
-    return torch.cat(embeddings)
+    print('Extract embedding: [{}/{}]\t'
+          'Time {:.3f} ({:.3f})\t'
+          'Data {:.3f} ({:.3f})\t'
+          .format(i + 1, len(data_loader),
+                  batch_time.val, batch_time.avg,
+                  data_time.val, data_time.avg))
+    res= torch.cat(embeddings)
+    print(res.shape)
+    return res
 
 
 def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=False):
@@ -194,8 +209,7 @@ class CascadeEvaluator(object):
         if one_stage:
             rerank_topk = len(gallery)
         # Extract features image by image
-        features, _ = extract_features(self.base_model, data_loader,
-                                       )
+        features, _ = extract_features(self.base_model, data_loader,)
 
         # Compute pairwise distance and evaluate for the first stage
         distmat = pairwise_distance(features, query, gallery)
@@ -234,42 +248,10 @@ class CascadeEvaluator(object):
             else:
                 return cmc_scores['cuhk03'][0], 0
 
-        # list(features.keys())
-        # features = [features[fname] for fname, pid, cid in query]
-        # pids = [pid for fname, pid, cid in query]
-        # features_bak = features
-        # features = features[:100]
-        # len(features)
-        # # pids=pids[:100]
-        # pids[:12]
-        # pred = []
-        # self.embed_model.eval()
-        # # self.embed_model.train()
-        # for f1 in features:
-        #     for f2 in features:
-        #         pred.append(
-        #             self.embed_model(
-        #                 torch.autograd.Variable(f1.view((1,)+f1.size()).cuda(), volatile=True),
-        #                 torch.autograd.Variable(f2.view((1,)+f2.size()).cuda(), volatile=True)
-        #                     )[0,0]
-        #         )
-        # # pred = torch.cat(pred).view(12,12)
-        # pred=torch.cat(pred)
-        # pred =pred.view(int(np.sqrt(pred.size(0))) , int(np.sqrt(pred.size(0))))
-        # # plt.matshow(pred[:12,:12].data.cpu().numpy())
-        # # plt.colorbar()
-        # # plt.show()
-        # plt.matshow(pred.data.cpu().numpy())
-        # plt.colorbar()
-        # plt.show()
 
         # Sort according to the first stage distance
         distmat =to_numpy(distmat)
-        # from lz import *
-        # plt.matshow(distmat)
-        # plt.colorbar()
-        # plt.show()
-
+        distmat.shape
         self.distmat1 = distmat
         rank_indices = np.argsort(distmat, axis=1)
 
@@ -280,33 +262,20 @@ class CascadeEvaluator(object):
             for j in indices[:rerank_topk]:
                 gallery_fname, _, _ = gallery[j]
                 pair_samples.append((query_fname, gallery_fname))
-
+        len(features)
         data_loader = DataLoader(
             KeyValuePreprocessor(features),
             sampler=pair_samples,
-            batch_size=min(len(gallery) * rerank_topk, 4096),
+            batch_size=min(len(gallery) * rerank_topk, 1024*4),
             num_workers=4, pin_memory=False)
         # features.values().__iter__().__next__()
         # Extract embeddings of each pair
         embeddings = extract_embeddings(self.embed_model, data_loader)
         if self.embed_dist_fn is not None:
             print('before embed_dist fn', embeddings.size())
-            # from lz import *
-            # plt.plot(embeddings[:,0].cpu().numpy())
-            # plt.show()
-
-            # for a,b in data_loader:
-            #     from reid.utils import  to_torch
-            #     from lz import *
-            #     a=to_torch(a)
-            #     a=Variable(a.cuda())
-            #     b=Variable(to_torch(b).cuda())
-            #     t=self.embed_model(a,b)
-            #     break
-
             embeddings = self.embed_dist_fn(embeddings)
             print('after embed dist fn', embeddings.size())
-        # type(embeddings), type(torch.autograd.Variable(embeddings))
+
         # Merge two-stage distances
         for k, embed in enumerate(embeddings):
             i, j = k // rerank_topk, k % rerank_topk

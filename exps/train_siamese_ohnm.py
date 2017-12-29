@@ -45,7 +45,7 @@ def run(args):
           # resume: 'work/siamese/model_best.pth'
           resume: 'work.long/fuck.all.data.long.cont3/model_best.pth'
           restart: True
-          evaluate: False
+          evaluate: True
           export_config: False
           dropout: 0 
           lr: 0.00005
@@ -53,8 +53,8 @@ def run(args):
           decay: 0.5
           epochs: 50
           freeze: ''
-          logs_dir: work/siamese.contrastive
-          # evaluate: True
+          logs_dir: work/siamese.contrastive.eval
+          evaluate: True
           start_save: 0
           log_start: False
           log_middle: True
@@ -62,7 +62,7 @@ def run(args):
           # log_at: [1,164,] 
           need_second: True
           batch_size: 120
-          gpu: [1, ]
+          gpu: [0,1,2 ]
           workers: 4
           margin: 0.25
         '''
