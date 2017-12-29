@@ -1,11 +1,12 @@
 import math
 from .kron import KronMatching
-from .common import _make_conv,_make_fc
+from .common import _make_conv, _make_fc
 from torch import nn
 from torch.nn import functional as F
 from torch.nn import init
 import torchvision
 import torch
+
 
 class ConcatEmbed(nn.Module):
     def __init__(self, in_planes):
@@ -14,7 +15,7 @@ class ConcatEmbed(nn.Module):
         self.conv2 = _make_conv(1024, 1024)
         self.pool = nn.AvgPool2d(2)
         self.fc1 = _make_fc(1024, 512, dp_=0.4)
-        self.fc2 = _make_fc(512, 2, dp_=0.3,with_relu=False)
+        self.fc2 = _make_fc(512, 2, dp_=0, with_relu=False)
 
     def forward(self, x1, x2):
         x = torch.cat([x1, x2], dim=1)
@@ -26,6 +27,7 @@ class ConcatEmbed(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.fc1(x)
         x = self.fc2(x)
+        x = torch.abs(x)
         return x
 
 

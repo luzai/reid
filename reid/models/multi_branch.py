@@ -127,11 +127,6 @@ class SiameseNet3(nn.Module):
         y2 = y2.type_as(y1.data)
 
         pred = self.embed_model(pair1, pair2)
-        if info is not None:
-            mypickle(embeddings.data.cpu().numpy(), 'dbg.hard.pkl')
-            info['y2'] = y2.data.cpu().numpy().tolist()
-            info['pred0'] = pred[:, 0].data.cpu().numpy().tolist()
-            info['pred1'] = pred[:, 1].data.cpu().numpy().tolist()
 
         return pred, y2, info
 

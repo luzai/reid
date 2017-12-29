@@ -45,8 +45,6 @@ class Transform(nn.Module):
         pair1, pair2 = [], []
         pair2_ind = []
 
-        # def get_hard_ind():
-
         if self.mode == 'hard':
             for i in range(n):
                 pair1.append(inputs[i, :])
@@ -84,25 +82,13 @@ class Transform(nn.Module):
 
         pair1, pair2 = torch.stack(pair1), torch.cat(pair2)
         pair1.size(), pair2.size()
-        y = torch.from_numpy(np.concatenate((
+        y = to_torch(np.concatenate((
             np.ones((n,)),
             np.zeros((n,)),
-            # np.ones((n,)),
-            # np.zeros((n,))
         )))
-        if info is not None:
-            info['inds2'] = pair2_ind
 
         y = y.type_as(pair1.data)
-        # y.resize_as_()
         y = Variable(y, requires_grad=False)
-
-        # if self.iter % 10 == 0:
-        #     self.db[self.iter] = np.asarray(pair2_ind)
-        #     self.writer.add_histogram('features', inputs, self.iter)
-        #     self.writer.add_histogram('dist', dist, self.iter)
-        #     self.writer.add_histogram('ap', dist_ap, self.iter)
-        #     self.writer.add_histogram('an', dist_an, self.iter)
 
         self.iter += 1
         # y.size()

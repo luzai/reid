@@ -75,35 +75,22 @@ class BaseTrainer(object):
 
 class VerfTrainer(BaseTrainer):
     def _parse_data(self, inputs):
-        imgs, fnames, pids, = inputs.get('img'),inputs.get('fname'),inputs.get('pid')
+        imgs, fnames, pids, = inputs.get('img'), inputs.get('fname'), inputs.get('pid')
         inputs = [Variable(imgs.cuda(), requires_grad=False)]
-        info = None
-
-        # info = pd.DataFrame.from_dict({
-        #     'fnames': fnames,
-        #     'pids': pids.cpu().numpy(),
-        #     'inds': range(len(fnames))
-        # })
-        # info = pd.concat([info, info], axis=0)
-        # info.reset_index(drop=True, inplace=True)
-
         targets = Variable(pids.cuda(), requires_grad=False)
-        return inputs, (targets, info)
+        return inputs, (targets, None)
 
     def _forward(self, inputs, targets):
         targets, info = targets
         # self.model.eval()
         pred, y, info = self.model(inputs[0], targets, info)
-        if info is not None:
-            write_df(info, 'dbg.hard.h5')
-            print(
-                np.array(((pred.data[:, 1] > pred.data[:, 0]).type_as(y.data) == y.data).cpu().numpy()).mean()
-            )
-            exit(0)
+
         loss = self.criterion(pred, y)
-        prec1, = accuracy(pred.data, y.data)
-        # ((pred.data[:,1] > pred.data[:,0]).type_as(y.data) == y.data).cpu().numpy()
-        return loss, prec1[0]
+
+        right = (to_numpy(pred.data > self.criterion.margin / 2.).reshape(-1) == to_numpy(y.data).reshape(-1))
+        prec1 = (right.sum() / right.shape[0])
+        # print(prec1)
+        return loss, prec1
 
 
 class TripletTrainer(object):
@@ -184,8 +171,8 @@ class TripletTrainer(object):
 class SiameseTrainer(BaseTrainer):
     def _parse_data(self, inputs):
         (imgs1, _, pids1, _), (imgs2, _, pids2, _) = inputs
-        imgs1,imgs2 = inputs[0].get('img'),inputs[1].get('img')
-        pids1,pids2=inputs[0].get('pid'),inputs[1].get('pid')
+        imgs1, imgs2 = inputs[0].get('img'), inputs[1].get('img')
+        pids1, pids2 = inputs[0].get('pid'), inputs[1].get('pid')
         inputs = [Variable(imgs1), Variable(imgs2)]
         targets = Variable((pids1 == pids2).long().cuda())
         return inputs, targets
@@ -255,7 +242,7 @@ class Trainer(object):
 
                 # stat_(self.writer, 'an-ap', diff, self.iter)
                 self.writer.add_scalar('vis/loss', loss - loss_div * self.loss_div_weight, self.iter)
-                self.writer.add_scalar('vis/loss_div', loss_div,self.iter)
+                self.writer.add_scalar('vis/loss_div', loss_div, self.iter)
                 self.writer.add_scalar('vis/loss_ttl', loss, self.iter)
                 self.writer.add_scalar('vis/prec', prec, self.iter)
                 self.writer.add_histogram('dist', dist, self.iter)

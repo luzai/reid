@@ -36,7 +36,7 @@ from tensorboardX import SummaryWriter
 def run(args):
     configs_str = '''        
         - arch: resnet50 
-          # seed: 2         
+          print_freq: 1
           dataset: cuhk03
           optimizer: adam
           embed: concat
@@ -53,15 +53,17 @@ def run(args):
           decay: 0.5
           epochs: 50
           freeze: ''
-          logs_dir: work/siamese.ohnm.43
+          logs_dir: work/siamese.contrastive
           start_save: 0
           log_start: False
           log_middle: True
-          log_at: [1,100,150,163,164]
+          # log_at: [1,100,150,163,164]
+          log_at: [1,164,] 
           need_second: True
           batch_size: 120
-          gpu: [1, 2]
+          gpu: [1, ]
           workers: 4
+          margin: 0.25
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
@@ -177,20 +179,19 @@ def main(args):
     base_model = models.create(args.arch, pretrained=True,
                                cut_at_pooling=True,
                                dropout=args.dropout,
-                               # norm= args.normalize,
-                               # num_features= args.features ,
-                               # num_classes=args.num_classes
                                )
     if args.embed == 'kron':
         embed_model = KronEmbed(8, 4, 128, 2)
     elif args.embed == 'concat':
         embed_model = ConcatEmbed(4096)
     elif args.embed == 'eltsub':
-        EltwiseSubEmbed(args.features, args.num_classes)
+        embed_model = EltwiseSubEmbed(args.features, args.num_classes)
+    else:
+        raise NotImplementedError
     tranform = Transform(mode=args.mode)
 
     model = SiameseNet3(base_model, tranform, embed_model)
-    # print(model)
+    print(model)
 
     # Load from checkpoint
     if args.log_start:
@@ -201,7 +202,6 @@ def main(args):
 
     if args.resume:
         checkpoint = load_checkpoint(args.resume)
-        # model.load_state_dict(checkpoint['state_dict'])
         load_state_dict(model, checkpoint['state_dict'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
@@ -242,7 +242,8 @@ def main(args):
 
         return 0
 
-    criterion = nn.CrossEntropyLoss().cuda()
+    # criterion = nn.CrossEntropyLoss().cuda()
+    criterion = reid.loss.ContrastiveLoss(margin=args.margin).cuda()
 
     # base_param_ids = set(map(id, model.module.model.base.parameters()))
     # new_params = [p for p in model.parameters() if
@@ -259,7 +260,8 @@ def main(args):
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr,
                                     weight_decay=args.weight_decay, momentum=0.9,
                                     nesterov=True)
-
+    else:
+        raise NotImplementedError
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
         exp = len(steps)

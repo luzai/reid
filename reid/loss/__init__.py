@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from .oim import oim, OIM, OIMLoss
 from .triplet import TripletLoss
 from .tuplet import TupletLoss
+from . contrastive import ContrastiveLoss
 
 __all__ = [
     'oim',
