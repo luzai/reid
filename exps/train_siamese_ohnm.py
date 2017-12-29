@@ -35,7 +35,6 @@ from tensorboardX import SummaryWriter
 
 def run(args):
     configs_str = '''        
-          
         - arch: resnet50 
           # seed: 2         
           dataset: cuhk03
@@ -43,7 +42,8 @@ def run(args):
           embed: concat
           mode: hard
           num_instances: 4
-          resume: '../work/siamese.tri.adam.longer/model_best.pth'
+          # resume: 'work/siamese/model_best.pth'
+          resume: 'work.long/fuck.all.data.long.cont3/model_best.pth'
           restart: True
           evaluate: False
           export_config: False
@@ -53,22 +53,22 @@ def run(args):
           decay: 0.5
           epochs: 50
           freeze: ''
-          logs_dir: siamese.tri.adam.longer.bigger.continue
+          logs_dir: work/siamese.ohnm.43
           start_save: 0
           log_start: False
           log_middle: True
-          # log_at: [1,5,50,100,150,163,164]
-          log_at: [1,5,10,20,30,40,46,47,48,49, 50,100,150,202,203,204]
+          log_at: [1,100,150,163,164]
           need_second: True
           batch_size: 120
-          gpu: [0, ]
+          gpu: [1, 2]
+          workers: 4
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
             if k not in vars(args):
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
-        args.logs_dir = '../work/' + args.logs_dir
+        args.logs_dir = args.logs_dir
         args.gpu = lz.get_dev(n=len(args.gpu), ok=(0, 1, 2, 3), mem=[0.5, 0.8])
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -78,13 +78,13 @@ def run(args):
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
-            lz.write_json(vars(args), args.logs_dir + '/conf.json')
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
         proc.join()
 
         # main(args)
+
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=4,
              workers=32, combine_trainval=True, return_vis=False):
@@ -97,7 +97,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
 
     train_set = dataset.trainval if combine_trainval else dataset.train
     num_classes = (dataset.num_trainval_ids if combine_trainval
-                   else dataset.num_train_ids)
+    else dataset.num_train_ids)
 
     train_transformer = T.Compose([
         T.RandomSizedRectCrop(height, width),
@@ -116,7 +116,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        sampler=RandomIdentitySampler(train_set, num_instances),
+        sampler=RandomIdentitySampler(train_set, num_instances, batch_size=batch_size),
         pin_memory=True, drop_last=True)
 
     val_loader = DataLoader(
@@ -142,6 +142,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=
             batch_size=batch_size, num_workers=workers,
             shuffle=False, pin_memory=True
         )
+
 
 def main(args):
     lz.init_dev(args.gpu)
@@ -183,7 +184,7 @@ def main(args):
     if args.embed == 'kron':
         embed_model = KronEmbed(8, 4, 128, 2)
     elif args.embed == 'concat':
-        embed_model = ConcatEmbed(1024)
+        embed_model = ConcatEmbed(4096)
     elif args.embed == 'eltsub':
         EltwiseSubEmbed(args.features, args.num_classes)
     tranform = Transform(mode=args.mode)
@@ -283,12 +284,13 @@ def main(args):
                                           'stage2': acc}, epoch)
 
         return acc
+
     # Trainer
-    trainer = VerfTrainer(model, criterion, freeze=args.freeze)
+    trainer = VerfTrainer(model, criterion, )
 
     # Start training
     if args.log_start:
-        train_log(epoch)
+        train_log(0)
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq)

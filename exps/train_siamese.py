@@ -45,13 +45,14 @@ def run(args):
           start_save: 0
           steps: [100,150,160]
           epochs: 165
-          logs_dir: siamese
-          batch_size: 64
+          logs_dir: work/siamese
+          batch_size: 80
           gpu: [2,3]
           log_start: False
           log_middle: True
           log_at: [1,5,50,100,150,163,164]
           need_second: True
+          workers: 4
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
@@ -74,7 +75,7 @@ def run(args):
         main(args)
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=None,
-             workers=32, combine_trainval=True, return_vis=False):
+             workers=4, combine_trainval=True, return_vis=False):
     root = osp.join(data_dir, name)
 
     dataset = datasets.create(name, root, split_id=split_id)

@@ -75,7 +75,7 @@ class BaseTrainer(object):
 
 class VerfTrainer(BaseTrainer):
     def _parse_data(self, inputs):
-        imgs, fnames, pids, _ = inputs
+        imgs, fnames, pids, = inputs.get('img'),inputs.get('fname'),inputs.get('pid')
         inputs = [Variable(imgs.cuda(), requires_grad=False)]
         info = None
 
@@ -93,9 +93,6 @@ class VerfTrainer(BaseTrainer):
     def _forward(self, inputs, targets):
         targets, info = targets
         # self.model.eval()
-        if self.freeze == 'embed':
-            # self.model.module.base_model.eval()
-            self.model.module.embed_model.eval()
         pred, y, info = self.model(inputs[0], targets, info)
         if info is not None:
             write_df(info, 'dbg.hard.h5')
