@@ -264,8 +264,7 @@ class CascadeEvaluator(object):
         # plt.show()
 
         # Sort according to the first stage distance
-        distmat = distmat.cpu().numpy()
-
+        distmat =to_numpy(distmat)
         # from lz import *
         # plt.matshow(distmat)
         # plt.colorbar()

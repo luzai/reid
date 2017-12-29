@@ -187,6 +187,8 @@ class TripletTrainer(object):
 class SiameseTrainer(BaseTrainer):
     def _parse_data(self, inputs):
         (imgs1, _, pids1, _), (imgs2, _, pids2, _) = inputs
+        imgs1,imgs2 = inputs[0].get('img'),inputs[1].get('img')
+        pids1,pids2=inputs[0].get('pid'),inputs[1].get('pid')
         inputs = [Variable(imgs1), Variable(imgs2)]
         targets = Variable((pids1 == pids2).long().cuda())
         return inputs, targets

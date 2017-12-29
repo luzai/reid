@@ -41,7 +41,7 @@ def run(_):
             lz.mkdir_p(args.logs_dir, delete=True)
             cvb.dump(args, args.logs_dir + '/conf.pkl')
 
-        main(args)
+        # main(args)
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()

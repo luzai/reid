@@ -32,8 +32,7 @@ def run(args):
     configs_str = '''
         - arch: resnet50
           dataset: cuhk03
-          # resume: ''
-          resume: '../work/logs.siamese/model_best.pth'
+          resume: 'work.long/fuck.all.data.long.cont3/model_best.pth'
           restart: True
           evaluate: False
           optimizer: sgd        
@@ -46,41 +45,19 @@ def run(args):
           start_save: 0
           steps: [100,150,160]
           epochs: 165
-          logs_dir: logs.siamese.concat.freezeembed
-          batch_size: 32
-          gpu: [0,]
+          logs_dir: siamese
+          batch_size: 64
+          gpu: [2,3]
           log_start: False
           log_middle: True
           log_at: [1,5,50,100,150,163,164]
           need_second: True
-          
-        - arch: resnet50
-          dataset: cuhk03
-          # resume: ''
-          resume: '../work/logs.siamese/model_best.pth'
-          restart: True
-          evaluate: False
-          optimizer: sgd        
-          embed: concat
-          log_start: True
-          log_middle: True
-          dropout: 0 
-          freeze: ''
-          lr: 0.005
-          start_save: 0
-          steps: [100,150,160]
-          epochs: 170
-          logs_dir: logs.siamese.concat
-          batch_size: 32
-          gpu: [0,]
-
         '''
     for config in yaml.load(configs_str):
         for k, v in config.items():
             if k not in vars(args):
                 raise ValueError('{} {}'.format(k, v))
             setattr(args, k, v)
-        args.logs_dir = '../work/' + args.logs_dir
         args.gpu = lz.get_dev(n=len(args.gpu), ok=(0, 1, 2, 3), mem=[0.5, 0.8])
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -89,13 +66,12 @@ def run(args):
             exit(0)
         if not args.evaluate:
             lz.mkdir_p(args.logs_dir, delete=True)
-            lz.write_json(vars(args), args.logs_dir + '/conf.json')
 
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
-        proc.join()
+        # proc = lz.mp.Process(target=main, args=(args,))
+        # proc.start()
+        # proc.join()
 
-        # main(args)
+        main(args)
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances=None,
              workers=32, combine_trainval=True, return_vis=False):
@@ -187,14 +163,11 @@ def main(args):
     base_model = models.create(args.arch, pretrained=True,
                                cut_at_pooling=True,
                                dropout=args.dropout,
-                               # norm= args.normalize,
-                               # num_features= args.features ,
-                               # num_classes=args.num_classes
                                )
     if args.embed == 'kron':
         embed_model = KronEmbed(8, 4, 128, 2)
     elif args.embed == 'concat':
-        embed_model = ConcatEmbed(1024)
+        embed_model = ConcatEmbed(4096)
     elif args.embed == 'eltsub':
         EltwiseSubEmbed(args.features, args.num_classes)
 
@@ -281,7 +254,7 @@ def main(args):
         writer.add_scalars('test/top-1', {'stage1': acc1,
                                           'stage2': acc}, 0)
     # Trainer
-    trainer = SiameseTrainer(model, criterion,freeze=args.freeze)
+    trainer = SiameseTrainer(model, criterion,)
     if args.log_start:
        train_log()
     # Start training

@@ -37,8 +37,8 @@ def mine_hard_triplets(model, data_loader, margin=0.5, batch_size=32):
                             pin_memory=True if torch.cuda.is_available() else False)
 
     features, _ = extract_features(model, new_loader, print_freq=10)
-    # timer = cvb.Timer()
-    # print('timer start')
+    timer = cvb.Timer()
+    print('timer start')
     distmat = pairwise_distance(features)
     # print('timer ', timer.since_start())
     distmat = distmat.cpu().numpy()
@@ -57,7 +57,7 @@ def mine_hard_triplets(model, data_loader, margin=0.5, batch_size=32):
     ind = np.argpartition(distmat_n.ravel(), n)[:n]
     ind = ind[np.argsort(distmat_n.ravel()[ind])]
     ind = ind[3:256 + 3]
-    # print('timer ', timer.since_start())
+    print('timer ', timer.since_start())
     # ind = np.random.choice(ind, n)
     # plt.plot(np.sort(distmat_n.ravel()[ind]),'.')
 

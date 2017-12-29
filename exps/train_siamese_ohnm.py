@@ -43,9 +43,6 @@ def run(args):
           embed: concat
           mode: hard
           num_instances: 4
-          # resume: '../work/logs.siamese.concat/model_best.pth'
-          # resume: '../work/siamese.tri.hard.stage1/checkpoint.164.pth'
-          # resume: '../work/siamese.tri.hard.adam.lr.0.0001/model_best.pth'
           resume: '../work/siamese.tri.adam.longer/model_best.pth'
           restart: True
           evaluate: False
