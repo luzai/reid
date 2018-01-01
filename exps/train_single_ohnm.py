@@ -186,6 +186,7 @@ def main(args):
                         for th in theta:
                             controller.append([sx * np.cos(th), -sx * np.sin(th), tx,
                                                sy * np.sin(th), sy * np.cos(th), ty])
+        print('use ', len(controller))
         controller = np.stack(controller)
         controller = controller.reshape(-1, 2, 3)
         controller = np.ascontiguousarray(controller, np.float32)
