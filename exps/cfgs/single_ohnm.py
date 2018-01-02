@@ -3,7 +3,7 @@ from easydict import EasyDict
 
 cfgs = [
         EasyDict(dict(
-            logs_dir='base',
+            logs_dir='base.dc3',
             arch='resnet50',
             dataset='cuhk03',
             area=(0.85, 1),

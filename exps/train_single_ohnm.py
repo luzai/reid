@@ -197,6 +197,7 @@ def main(args):
                               controller=get_controller(),
                               ).cuda() if args.double else None
     # dconv_model = DoubleConv2(2048, 512) if args.double else None
+    # dconv_model = DoubleConv2(2048, 512) if args.double else None
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
     if args.double:
         concat_inplates += args.double

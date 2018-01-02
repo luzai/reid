@@ -216,7 +216,7 @@ class Trainer(object):
 
     def _forward(self, inputs, targets):
         outputs = self.model(*inputs)
-        if self.model.module.dconv_model is not None:
+        if self.model.module.dconv_model is not None and hasattr(self.model.module.dconv_model, 'weight'):
             weight = self.model.module.dconv_model.weight
             weight = weight.view(weight.size(0), -1)
             loss_div = get_loss_div(weight)

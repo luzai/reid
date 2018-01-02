@@ -147,12 +147,13 @@ class DoubleConv3(nn.Module):
             grid = F.affine_grid(theta_.expand(self.weight.size(0), 2, 3), self.weight.size())
             weight_l.append(F.grid_sample(self.weight, grid))
         weight_inst = torch.cat(weight_l)
-        weight_inst = weight_inst[:, :, :3, :3]
+        weight_inst = weight_inst[:, :, :3, :3].contiguous()
+
         out = F.conv2d(input, weight_inst, padding=1)
         # self.out_inst = out
         # input.size(),weight_inst.size(),out.size()
         out = out.view(bs, self.stride2, self.out_plates, self.h, self.w)
-        out = out.permute(0, 3, 4, 1, 2).contiguous().view(bs, -1, self.stride2)
+        out = out.permute(0, 2,3,4, 1).contiguous().view(bs, -1, self.stride2)
         out = F.avg_pool1d(out, self.stride2)
         out = out.permute(0, 2, 1).contiguous().view(bs, -1, self.h, self.w)
         # self.out=out
