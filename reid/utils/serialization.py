@@ -1,14 +1,10 @@
 from __future__ import print_function, absolute_import
-import json
-import os.path as osp
-import shutil
 
-import torch
 from torch.nn import Parameter
 
 from .osutils import mkdir_if_missing
 import lz
-from torch import nn
+from lz import *
 
 
 def read_json(fpath):
@@ -67,6 +63,9 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
             # print('{} {} is ok '.format(name, param.size()))
             success.append(name)
         else:
+            F.pad(param,
+                  (0, own_state[name].size(2) - param.size(2),
+                   0, own_state[name].size(3) - param.size(3)))
             lz.logging.error('dimension mismatch for param "{}", in the model are {}'
                              ' and in the checkpoint are {}, ...'.format(
                 name, own_state[name].size(), param.size()))

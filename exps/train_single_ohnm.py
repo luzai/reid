@@ -45,10 +45,10 @@ def run(_):
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
-        time.sleep(30)
-        procs.append(proc)
-
-    for proc in procs:
+    #     time.sleep(30)
+    #     procs.append(proc)
+    #
+    # for proc in procs:
         proc.join()
 
 
@@ -186,7 +186,7 @@ def main(args):
                         for th in theta:
                             controller.append([sx * np.cos(th), -sx * np.sin(th), tx,
                                                sy * np.sin(th), sy * np.cos(th), ty])
-        print('use ', len(controller))
+        print('controller stride is ', len(controller))
         controller = np.stack(controller)
         controller = controller.reshape(-1, 2, 3)
         controller = np.ascontiguousarray(controller, np.float32)

@@ -52,6 +52,7 @@ class LomoNet(nn.Module):  # Bottleneck 2222 or 3463
         return x
 
 
+# original doubly conv
 class DoubleConv(nn.Module):
     def __init__(self, cl=2048, cl2=512, w=8, h=4, zp=4, z=3, s=2):
         super(DoubleConv, self).__init__()
@@ -85,6 +86,7 @@ class DoubleConv(nn.Module):
         return res
 
 
+# move stack version doubly conv
 class DoubleConv2(nn.Module):
     def __init__(self, in_plates=2048, out_plates=512, w=4, h=8, zmeta=4, z=3, stride=2):
         super(DoubleConv2, self).__init__()
@@ -123,6 +125,7 @@ class DoubleConv2(nn.Module):
         return out
 
 
+# stn version doubly conv
 class DoubleConv3(nn.Module):
     def __init__(self, in_plates=2048, out_plates=512, w=4, h=8, zmeta=4, z=3, stride2=12, bs=100, controller=None):
         super(DoubleConv3, self).__init__()
@@ -153,12 +156,138 @@ class DoubleConv3(nn.Module):
         # self.out_inst = out
         # input.size(),weight_inst.size(),out.size()
         out = out.view(bs, self.stride2, self.out_plates, self.h, self.w)
-        out = out.permute(0, 2,3,4, 1).contiguous().view(bs, -1, self.stride2)
+        out = out.permute(0, 2, 3, 4, 1).contiguous().view(bs, -1, self.stride2)
         out = F.avg_pool1d(out, self.stride2)
         out = out.permute(0, 2, 1).contiguous().view(bs, -1, self.h, self.w)
         # self.out=out
         out = F.avg_pool2d(out, out.size()[2:])
         out = out.view(out.size(0), -1)
+        return out
+
+
+# stn + 1x1conv version
+class DoubleConv4(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1,
+                 padding=1, bias=False, meta_kernel_size=6, compression_ratio=1):
+        super(DoubleConv4, self).__init__()
+
+        def get_controller(
+                scale=(1,
+                       ),
+                translation=(0,
+                             2 / (meta_kernel_size - 1)
+                             ),
+                theta=(0,
+                        # np.pi,
+                        # np.pi / 8, -np.pi / 8,
+                        # np.pi / 2, -np.pi / 2,
+                        # np.pi / 4, -np.pi / 4,
+                        # np.pi * 3 / 4, -np.pi * 3 / 4,
+                       )
+        ):
+            controller = []
+            for sx in scale:
+                for sy in scale:
+                    for tx in translation:
+                        for ty in translation:
+                            for th in theta:
+                                controller.append([sx * np.cos(th), -sx * np.sin(th), tx,
+                                                   sy * np.sin(th), sy * np.cos(th), ty])
+            print('controller stride is ', len(controller))
+            controller = np.stack(controller)
+            controller = controller.reshape(-1, 2, 3)
+            controller = np.ascontiguousarray(controller, np.float32)
+            return controller
+
+        while out_channels % compression_ratio != 0:
+            compression_ratio += 1
+            if compression_ratio >= out_channels:
+                compression_ratio = 1
+                break
+        controller = get_controller()
+        len_controller = len(controller)
+        assert out_channels % compression_ratio == 0
+        self.meta_kernel_size = meta_kernel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.weight = nn.Parameter(torch.FloatTensor(
+            out_channels // compression_ratio, in_channels, meta_kernel_size, meta_kernel_size
+        ))
+        self.reset_parameters()
+        self.register_buffer('theta', torch.FloatTensor(controller).view(-1, 2, 3).cuda())
+        # self.reduce_conv = nn.Conv2d(out_channels * len_controller // compression_ratio, out_channels, 1)
+
+    def reset_parameters(self):
+        n = self.in_channels * self.kernel_size * self.kernel_size
+        stdv = 1. / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input):
+        bs, chl, h, w = input.size()
+        weight_l = []
+        for theta_ in Variable(self.theta, requires_grad=False):
+            grid = F.affine_grid(theta_.expand(self.weight.size(0), 2, 3), self.weight.size())
+            weight_l.append(F.grid_sample(self.weight, grid))
+        weight_inst = torch.cat(weight_l)
+        weight_inst = weight_inst[:, :, :self.kernel_size, :self.kernel_size].contiguous()
+        out = F.conv2d(input, weight_inst, stride=self.stride, padding=self.padding)
+        bs, _, oh, ow = out.size()
+        # out = self.reduce_conv(out)
+        out = out.view(bs, len(weight_l), self.out_channels, oh, ow)
+        out = out.permute(0, 2, 3, 4, 1).contiguous().view(bs, -1, len(weight_l))
+        out = F.avg_pool1d(out, len(weight_l))
+        out = out.permute(0, 2, 1).contiguous().view(bs, -1, oh, ow)
+
+        return out
+
+
+# move stack + 1x1 version
+class DoubleConv5(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False, meta_kernel_size=4,
+                 compression_ratio=1):
+        super(DoubleConv5, self).__init__()
+        while out_channels % compression_ratio != 0:
+            compression_ratio += 1
+            if compression_ratio >= out_channels:
+                compression_ratio = 1
+                break
+        assert out_channels % compression_ratio == 0
+        self.meta_kernel_size = meta_kernel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+
+        self.weight = nn.Parameter(torch.FloatTensor(
+            out_channels // compression_ratio, in_channels, meta_kernel_size, meta_kernel_size
+        ))
+        self.reset_parameters()
+        # self.reduce_conv = nn.Conv2d(out_channels * len_controller // compression_ratio, out_channels, 1)
+
+    def reset_parameters(self):
+        n = self.in_channels * self.kernel_size * self.kernel_size
+        stdv = 1. / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input):
+        bs, chl, h, w = input.size()
+        weight_l = []
+        for i in range(self.meta_kernel_size - self.kernel_size + 1):
+            for j in range(self.meta_kernel_size - self.kernel_size + 1):
+                weight_l.append(self.weight[:, :, i:i + self.kernel_size, j:j + self.kernel_size])
+        weight_inst = torch.cat(weight_l).contiguous()
+        out = F.conv2d(input, weight_inst, stride=self.stride, padding=self.padding)
+        bs, _, oh, ow = out.size()
+        # out = self.reduce_conv(out)
+        out = out.view(bs, len(weight_l), self.out_channels, oh, ow)
+        out = out.permute(0, 2, 3, 4, 1).contiguous().view(bs, -1, len(weight_l))
+        out = F.avg_pool1d(out, len(weight_l))
+        out = out.permute(0, 2, 1).contiguous().view(bs, -1, oh, ow)
+
         return out
 
 
