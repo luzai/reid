@@ -129,8 +129,8 @@ class STN_TPS(nn.Module):
 
 from reid.models.misc import DoubleConv4,DoubleConv5
 
-# ConvOp = DoubleConv4
-ConvOp = DoubleConv5
+ConvOp = DoubleConv4
+# ConvOp = DoubleConv5
 
 class ResNetOri(nn.Module):
 

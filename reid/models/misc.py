@@ -164,13 +164,13 @@ class DoubleConv3(nn.Module):
         out = out.view(out.size(0), -1)
         return out
 
-
 # stn + 1x1conv version
 class DoubleConv4(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1,
-                 padding=1, bias=False, meta_kernel_size=6, compression_ratio=1):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                 padding=0, bias=False, meta_kernel_size=None, compression_ratio=1):
         super(DoubleConv4, self).__init__()
-
+        if meta_kernel_size is None:
+            meta_kernel_size = kernel_size*2
         def get_controller(
                 scale=(1,
                        ),

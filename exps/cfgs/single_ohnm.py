@@ -1,5 +1,5 @@
 from lz import *
-
+nn.PixelShuffle
 cfgs = [
     # edict(
     #     logs_dir='base.cont1.2',
@@ -21,7 +21,8 @@ cfgs = [
     #     epochs=165,
     # ),
     edict(
-        logs_dir='res.early.translate.doubly.avgpool',
+        logs_dir='res.early.translate.avgpool.betterinit',
+        # logs_dir='bak',
         arch='resnet50',
         dataset='cuhk03',
         area=(0.85, 1),
@@ -35,6 +36,7 @@ cfgs = [
             range(161, 165, 1),
             # range(165)
         ]),
+        # resume = 'work/res.early.translate.avgpool/model_best.pth',
         evaluate=False,
         epochs=165,
     ),
