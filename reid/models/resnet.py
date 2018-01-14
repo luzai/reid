@@ -2,10 +2,10 @@ from __future__ import absolute_import
 
 from torch.nn import init
 from torchvision.models.resnet import model_zoo, model_urls
-from reid.utils.serialization import load_state_dict
-from .common import _make_conv, _make_fc
 
 from lz import *
+from reid.utils.serialization import load_state_dict
+from .common import _make_conv
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
@@ -127,10 +127,13 @@ class STN_TPS(nn.Module):
         return transformed_x, 0
 
 
-from reid.models.misc import DoubleConv4,DoubleConv5
+from reid.models.misc import DoubleConv4, DoubleConv5, DeformConv, DeformConv2
 
-ConvOp = DoubleConv4
+# ConvOp = DoubleConv4
 # ConvOp = DoubleConv5
+# ConvOp = DeformConv
+ConvOp = DeformConv2
+
 
 class ResNetOri(nn.Module):
 
@@ -142,9 +145,9 @@ class ResNetOri(nn.Module):
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0], dc=True)
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, dc=True)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dc=True)
+        self.layer1 = self._make_layer(block, 64, layers[0], dc=False)
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, dc=False)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dc=False)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dc=True)
         self.avgpool = nn.AvgPool2d(7)
         self.fc = nn.Linear(512 * block.expansion, num_classes)

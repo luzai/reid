@@ -45,10 +45,10 @@ def run(_):
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
-    #     time.sleep(30)
-    #     procs.append(proc)
-    #
-    # for proc in procs:
+        time.sleep(30)
+        procs.append(proc)
+
+    for proc in procs:
         proc.join()
 
 

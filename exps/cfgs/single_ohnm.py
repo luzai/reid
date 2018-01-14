@@ -1,28 +1,25 @@
 from lz import *
-nn.PixelShuffle
+
 cfgs = [
     # edict(
-    #     logs_dir='base.cont1.2',
+    #     logs_dir='deform.translate.l4',
     #     arch='resnet50',
     #     dataset='cuhk03',
     #     area=(0.85, 1),
     #     dataset_val='cuhk03',
     #     batch_size=128, print_freq=1, num_instances=4,
-    #     gpu=range(2),
+    #     gpu=range(1),
     #     num_classes=128,
     #     log_at=np.concatenate([
     #         range(0, 100, 49),
     #         range(100, 150, 19),
     #         range(161, 165, 1),
-    #         # range(165)
     #     ]),
-    #     resume='work.long/fuck.all.data.long.cont3/checkpoint.164.pth',
     #     evaluate=False,
     #     epochs=165,
     # ),
     edict(
-        logs_dir='res.early.translate.avgpool.betterinit',
-        # logs_dir='bak',
+        logs_dir='res.early.translate.avgpool.l4.betterinit.run1',
         arch='resnet50',
         dataset='cuhk03',
         area=(0.85, 1),
@@ -37,6 +34,82 @@ cfgs = [
             # range(165)
         ]),
         # resume = 'work/res.early.translate.avgpool/model_best.pth',
+        evaluate=False,
+        epochs=165,
+    ),
+    edict(
+        logs_dir='res.early.translate.avgpool.l4.betterinit.run2',
+        arch='resnet50',
+        dataset='cuhk03',
+        area=(0.85, 1),
+        dataset_val='cuhk03',
+        batch_size=128, print_freq=1, num_instances=4,
+        gpu=range(1),
+        num_classes=128,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(161, 165, 1),
+            # range(165)
+        ]),
+        # resume = 'work/res.early.translate.avgpool/model_best.pth',
+        evaluate=False,
+        epochs=165,
+    ),
+    edict(
+        logs_dir='res.early.translate.avgpool.l4.betterinit.run3',
+        arch='resnet50',
+        dataset='cuhk03',
+        area=(0.85, 1),
+        dataset_val='cuhk03',
+        batch_size=128, print_freq=1, num_instances=4,
+        gpu=range(1),
+        num_classes=128,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(161, 165, 1),
+            # range(165)
+        ]),
+        # resume = 'work/res.early.translate.avgpool/model_best.pth',
+        evaluate=False,
+        epochs=165,
+    ),
+    edict(
+        logs_dir='res.early.translate.avgpool.l4.betterinit.cont.run1',
+        arch='resnet50',
+        dataset='cuhk03',
+        area=(0.85, 1),
+        dataset_val='cuhk03',
+        batch_size=128, print_freq=1, num_instances=4,
+        gpu=range(1),
+        num_classes=128,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(161, 165, 1),
+            # range(165)
+        ]),
+        resume='work/res.early.translate.avgpool.l4.betterinit/model_best.pth',
+        evaluate=False,
+        epochs=165,
+    ),
+    edict(
+        logs_dir='res.early.translate.avgpool.l4.betterinit.run2',
+        arch='resnet50',
+        dataset='cuhk03',
+        area=(0.85, 1),
+        dataset_val='cuhk03',
+        batch_size=128, print_freq=1, num_instances=4,
+        gpu=range(1),
+        num_classes=128,
+        log_at=np.concatenate([
+            range(0, 100, 49),
+            range(100, 150, 19),
+            range(161, 165, 1),
+            # range(165)
+        ]),
+        resume = 'work/res.early.translate.avgpool.l4.betterinit/model_best.pth',
         evaluate=False,
         epochs=165,
     ),

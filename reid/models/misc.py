@@ -1,9 +1,8 @@
 from __future__ import absolute_import
 
-from lz import *
 from torchvision.models.resnet import BasicBlock, model_zoo, model_urls
-import torch, math
-from reid.models.common import _make_conv, _make_fc
+
+from lz import *
 from reid.utils.serialization import load_state_dict
 
 
@@ -164,13 +163,15 @@ class DoubleConv3(nn.Module):
         out = out.view(out.size(0), -1)
         return out
 
+
 # stn + 1x1conv version
 class DoubleConv4(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding=0, bias=False, meta_kernel_size=None, compression_ratio=1):
         super(DoubleConv4, self).__init__()
         if meta_kernel_size is None:
-            meta_kernel_size = kernel_size*2
+            meta_kernel_size = kernel_size * 2
+
         def get_controller(
                 scale=(1,
                        ),
@@ -281,6 +282,131 @@ class DoubleConv5(nn.Module):
                 weight_l.append(self.weight[:, :, i:i + self.kernel_size, j:j + self.kernel_size])
         weight_inst = torch.cat(weight_l).contiguous()
         out = F.conv2d(input, weight_inst, stride=self.stride, padding=self.padding)
+        bs, _, oh, ow = out.size()
+        # out = self.reduce_conv(out)
+        out = out.view(bs, len(weight_l), self.out_channels, oh, ow)
+        out = out.permute(0, 2, 3, 4, 1).contiguous().view(bs, -1, len(weight_l))
+        out = F.avg_pool1d(out, len(weight_l))
+        out = out.permute(0, 2, 1).contiguous().view(bs, -1, oh, ow)
+
+        return out
+
+
+from modules import ConvOffset2d
+from functions import conv_offset2d
+
+
+# deform conv
+
+class DeformConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False,
+                 compression_ratio=1, num_deformable_groups=2):
+        super(DeformConv, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+
+        self.conv_offset = nn.Conv2d(in_channels, num_deformable_groups * 2 * kernel_size * kernel_size,
+                                     kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+        self.conv = ConvOffset2d(in_channels, out_channels, stride=stride, padding=padding,
+                                 kernel_size=kernel_size,
+                                 num_deformable_groups=num_deformable_groups)
+        self.weight = self.conv.weight
+
+    def reset_parameters(self):
+        n = self.in_channels * self.kernel_size * self.kernel_size
+        stdv = 1. / math.srqt(n)
+        self.conv_offset.weight.data.uniform_(-stdv, stdv)
+        self.conv.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, x):
+        offset = self.conv_offset(x)
+        output = self.conv(x, offset)
+        return output
+
+
+# deform+stn
+
+class DeformConv2(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                 padding=0, bias=False, meta_kernel_size=None, compression_ratio=1, num_deformable_groups=2):
+        super(DeformConv2, self).__init__()
+        if meta_kernel_size is None:
+            meta_kernel_size = kernel_size * 2
+
+        def get_controller(
+                scale=(1,
+                       ),
+                translation=(0,
+                             2 / (meta_kernel_size - 1)
+                             ),
+                theta=(0,
+                        # np.pi,
+                        # np.pi / 8, -np.pi / 8,
+                        # np.pi / 2, -np.pi / 2,
+                        # np.pi / 4, -np.pi / 4,
+                        # np.pi * 3 / 4, -np.pi * 3 / 4,
+                       )
+        ):
+            controller = []
+            for sx in scale:
+                for sy in scale:
+                    for tx in translation:
+                        for ty in translation:
+                            for th in theta:
+                                controller.append([sx * np.cos(th), -sx * np.sin(th), tx,
+                                                   sy * np.sin(th), sy * np.cos(th), ty])
+            print('controller stride is ', len(controller))
+            controller = np.stack(controller)
+            controller = controller.reshape(-1, 2, 3)
+            controller = np.ascontiguousarray(controller, np.float32)
+            return controller
+
+        while out_channels % compression_ratio != 0:
+            compression_ratio += 1
+            if compression_ratio >= out_channels:
+                compression_ratio = 1
+                break
+        controller = get_controller()
+        len_controller = len(controller)
+        assert out_channels % compression_ratio == 0
+        self.meta_kernel_size = meta_kernel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.num_deformable_groups = num_deformable_groups
+        self.weight = nn.Parameter(torch.FloatTensor(
+            out_channels // compression_ratio, in_channels, meta_kernel_size, meta_kernel_size
+        ))
+        self.conv_offset_weight = nn.Parameter(torch.FloatTensor(
+            num_deformable_groups * 2 * self.kernel_size * self.kernel_size, in_channels, kernel_size, kernel_size
+        ))
+        self.reset_parameters()
+        self.register_buffer('theta', torch.FloatTensor(controller).view(-1, 2, 3).cuda())
+        # self.reduce_conv = nn.Conv2d(out_channels * len_controller // compression_ratio, out_channels, 1)
+
+    def reset_parameters(self):
+        n = self.in_channels * self.kernel_size * self.kernel_size
+        stdv = 1. / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+        self.conv_offset_weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input):
+        bs, chl, h, w = input.size()
+
+        offset = F.conv2d(input, self.conv_offset_weight, stride=self.stride, padding=self.padding)
+        weight_l = []
+        for theta_ in Variable(self.theta, requires_grad=False):
+            grid = F.affine_grid(theta_.expand(self.weight.size(0), 2, 3), self.weight.size())
+            weight_l.append(F.grid_sample(self.weight, grid))
+        weight_inst = torch.cat(weight_l)
+        weight_inst = weight_inst[:, :, :self.kernel_size, :self.kernel_size].contiguous()
+        out = conv_offset2d(input, offset, weight_inst, stride=self.stride, padding=self.padding,
+                            deform_groups=self.num_deformable_groups)
         bs, _, oh, ow = out.size()
         # out = self.reduce_conv(out)
         out = out.view(bs, len(weight_l), self.out_channels, oh, ow)
