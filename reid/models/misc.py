@@ -297,7 +297,6 @@ from functions import conv_offset2d
 
 
 # deform conv
-
 class DeformConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False,
                  compression_ratio=1, num_deformable_groups=2):
@@ -328,7 +327,6 @@ class DeformConv(nn.Module):
 
 
 # deform+stn
-
 class DeformConv2(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding=0, bias=False, meta_kernel_size=None, compression_ratio=1, num_deformable_groups=2):
@@ -415,6 +413,32 @@ class DeformConv2(nn.Module):
         out = out.permute(0, 2, 1).contiguous().view(bs, -1, oh, ow)
 
         return out
+
+
+from orn.modules import ORConv2d
+from orn.functions import oralign1d
+
+
+class ORNConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                 padding=0, bias=False, meta_kernel_size=None, compression_ratio=1):
+        super(ORNConv, self).__init__()
+        self.meta_kernel_size = meta_kernel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        assert (kernel_size == 3 or kernel_size == 1, 'kernel size')
+        assert (in_channels%8==0 and out_channels%8==0)
+        self.conv = ORConv2d(in_channels//8,out_channels//8,kernel_size=kernel_size,
+                             arf_config=(8,8),
+                             stride =stride , padding=padding, bias=bias
+                             )
+        self.weight = self.conv.weight
+
+    def forward(self, input):
+        return self.conv(input)
 
 
 if __name__ == '__main__':

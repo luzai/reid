@@ -127,12 +127,13 @@ class STN_TPS(nn.Module):
         return transformed_x, 0
 
 
-from reid.models.misc import DoubleConv4, DoubleConv5, DeformConv, DeformConv2
+from reid.models.misc import DoubleConv4, DoubleConv5, DeformConv, DeformConv2, ORNConv
 
 # ConvOp = DoubleConv4
 # ConvOp = DoubleConv5
 # ConvOp = DeformConv
-ConvOp = DeformConv2
+# ConvOp = DeformConv2
+ConvOp = ORNConv
 
 
 class ResNetOri(nn.Module):

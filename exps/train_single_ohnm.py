@@ -45,10 +45,10 @@ def run(_):
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
-        time.sleep(30)
-        procs.append(proc)
-
-    for proc in procs:
+    #     time.sleep(30)
+    #     procs.append(proc)
+    #
+    # for proc in procs:
         proc.join()
 
 
@@ -139,6 +139,7 @@ def main(args):
     sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
     sys.stderr = Logger(osp.join(args.logs_dir, 'err.txt'))
     lz.init_dev(args.gpu)
+    # lz.init_dev((2,))
     print('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -274,7 +275,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', loss_div_weight=args.loss_div_weight)
+    trainer = Trainer(model, criterion, dbg=False, logs_at=args.logs_dir + '/vis', loss_div_weight=args.loss_div_weight)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
