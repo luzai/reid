@@ -291,7 +291,7 @@ class DoubleConv5(nn.Module):
 
         return out
 
-
+'''
 from modules import ConvOffset2d
 from functions import conv_offset2d
 
@@ -413,7 +413,7 @@ class DeformConv2(nn.Module):
         out = out.permute(0, 2, 1).contiguous().view(bs, -1, oh, ow)
 
         return out
-
+'''
 
 from orn.modules import ORConv2d
 from orn.functions import oralign1d
@@ -439,6 +439,55 @@ class ORNConv(nn.Module):
 
     def forward(self, input):
         return self.conv(input)
+
+class GroupConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False, meta_kernel_size=4,
+                 compression_ratio=1):
+        super(GroupConv, self).__init__()
+        while out_channels % compression_ratio != 0:
+            compression_ratio += 1
+            if compression_ratio >= out_channels:
+                compression_ratio = 1
+                break
+        assert out_channels % compression_ratio == 0
+        self.meta_kernel_size = meta_kernel_size
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+
+        self.weight = nn.Parameter(torch.FloatTensor(
+            out_channels // compression_ratio, in_channels, meta_kernel_size, meta_kernel_size
+        ))
+        self.inter_weight = nn.Parameter(torch.FloatTensor(
+            out_channels // compression_ratio*4,out_channels // compression_ratio*4, 1,1
+        ))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        n = self.in_channels * self.kernel_size * self.kernel_size
+        stdv = 1. / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input):
+        bs, chl, h, w = input.size()
+        weight_l = []
+        for i in range(self.meta_kernel_size - self.kernel_size + 1):
+            for j in range(self.meta_kernel_size - self.kernel_size + 1):
+                weight_l.append(self.weight[:, :, i:i + self.kernel_size, j:j + self.kernel_size])
+        weight_inst1 = torch.cat(weight_l,dim=0).contiguous()
+        weight_inst2 = F.conv2d(weight_inst1.permute(1,0,2,3).contiguous(), self.inter_weight).permute(1,0,2,3).contiguous()
+        weight_inst = torch.cat((weight_inst1, weight_inst2), dim=0).contiguous()
+        out = F.conv2d(input, weight_inst, stride=self.stride, padding=self.padding)
+        bs, _, oh, ow = out.size()
+        # out = self.reduce_conv(out)
+        out = out.view(bs, self.out_channels,  len(weight_l)*2,oh, ow)
+        out = out.permute(0, 1, 3, 4, 2).contiguous().view(bs, -1, 2*len(weight_l))
+        out = F.avg_pool1d(out, len(weight_l)*2)
+        out = out.contiguous().view(bs, -1, oh, ow)
+
+        return out
 
 
 if __name__ == '__main__':

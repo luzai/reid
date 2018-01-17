@@ -32,7 +32,7 @@ def run(_):
 
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(8), mem=[0.9, 0.9])
+            args.gpu = lz.get_dev(n=len(args.gpu), ok=(2,3), mem=[0.9, 0.9])
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]

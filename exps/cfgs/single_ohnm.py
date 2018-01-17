@@ -19,7 +19,7 @@ cfgs = [
     #     epochs=165,
     # ),
     edict(
-        logs_dir='orn.l4.long',
+        logs_dir='bak',
         arch='resnet50',
         dataset='cuhk03',
         area=(0.85, 1),
