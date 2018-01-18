@@ -129,12 +129,15 @@ class STN_TPS(nn.Module):
 
 from reid.models.misc import *
 
-# ConvOp = DoubleConv4
-# ConvOp = DoubleConv5
+# ConvOp = DoubleConv4 # stn
+ConvOp = DoubleConv5 # move stack
+# ConvOp = TransConv
+
 # ConvOp = DeformConv
 # ConvOp = DeformConv2
 # ConvOp = ORNConv
-ConvOp = GroupConv
+# ConvOp = GroupConv
+
 
 class ResNetOri(nn.Module):
 

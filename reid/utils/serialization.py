@@ -73,7 +73,6 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
                               (0, own_state[name].size(2) - param.size(2),
                                0, own_state[name].size(3) - param.size(3)))
                 own_state[name].copy_(param.data)
-                lz.logging.info(id(own_state[name]), id(param.data))
             lz.logging.error('dimension mismatch for param "{}", in the model are {}'
                              ' and in the checkpoint are {}, ...'.format(
                 name, own_state[name].size(), param.size()))
