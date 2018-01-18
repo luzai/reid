@@ -153,16 +153,6 @@ class ResNetOri(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2, dc=False)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dc=False)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dc=True)
-        self.avgpool = nn.AvgPool2d(7)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
-        self.out_planes = self.fc.in_features
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
 
     def _make_layer(self, block, planes, blocks, stride=1, dc=False):
         downsample = None
@@ -356,8 +346,8 @@ def resnet34(**kwargs):
     return ResNet(34, **kwargs)
 
 
-# def resnet50(**kwargs):
-#     return ResNet(50, **kwargs)
+def resnet50(**kwargs):
+    return ResNet(50, **kwargs)
 
 
 def resnet101(**kwargs):

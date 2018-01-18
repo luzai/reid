@@ -46,10 +46,10 @@ def run(_):
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
-    #     time.sleep(30)
-    #     procs.append(proc)
-    #
-    # for proc in procs:
+        #     time.sleep(30)
+        #     procs.append(proc)
+        #
+        # for proc in procs:
         proc.join()
 
 
@@ -280,12 +280,20 @@ def main(args):
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
-        exp = len(steps)
+
+        # exp = len(steps)
+        # for i, step in enumerate(steps):
+        #     if epoch < step:
+        #         exp = i
+        #         break
+        # lr = base_lr * decay ** exp
+        exp = len(steps) - 1
+        steps = [2, 50, 100, 150]
+        lrs = [3e-4, 1e-1, 1e-2, 1e-3]
         for i, step in enumerate(steps):
             if epoch < step:
                 exp = i
-                break
-        lr = base_lr * decay ** exp
+        lr = lrs[exp]
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 

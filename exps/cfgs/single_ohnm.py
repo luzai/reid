@@ -2,7 +2,7 @@ from lz import *
 
 cfgs = [
     edict(
-        logs_dir='meta.1x1conv.l4',
+        logs_dir='warmup',
         arch='resnet50',
         dataset='cuhk03',
         lr=3e-4,
