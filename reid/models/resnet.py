@@ -143,6 +143,7 @@ class ResNetOri(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, **kwargs):
         self.inplanes = 64
+        self.out_planes = 2048
         super(ResNetOri, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
@@ -151,7 +152,7 @@ class ResNetOri(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0], dc=False)
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2, dc=False)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dc=False)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dc=True)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dc=True)
 
     def _make_layer(self, block, planes, blocks, stride=1, dc=False):
@@ -160,9 +161,9 @@ class ResNetOri(nn.Module):
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False)
-                # if not dc else
-                # ConvOp(self.inplanes, planes * block.expansion,
-                #        kernel_size=1, stride=stride, bias=False)
+                if not dc else
+                ConvOp(self.inplanes, planes * block.expansion,
+                       kernel_size=1, stride=stride, bias=False)
                 ,
                 nn.BatchNorm2d(planes * block.expansion),
             )
@@ -346,8 +347,8 @@ def resnet34(**kwargs):
     return ResNet(34, **kwargs)
 
 
-def resnet50(**kwargs):
-    return ResNet(50, **kwargs)
+# def resnet50(**kwargs):
+#     return ResNet(50, **kwargs)
 
 
 def resnet101(**kwargs):

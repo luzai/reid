@@ -247,7 +247,7 @@ class DoubleConv4(nn.Module):
 
 # move stack + 1x1 version
 class DoubleConv5(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False, meta_kernel_size=4,
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False, meta_kernel_size=4,
                  compression_ratio=1):
         super(DoubleConv5, self).__init__()
         while out_channels % compression_ratio != 0:
@@ -256,7 +256,7 @@ class DoubleConv5(nn.Module):
                 compression_ratio = 1
                 break
         assert out_channels % compression_ratio == 0
-        self.meta_kernel_size = meta_kernel_size
+        self.meta_kernel_size = kernel_size+1
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
@@ -267,7 +267,7 @@ class DoubleConv5(nn.Module):
             out_channels // compression_ratio, in_channels, meta_kernel_size, meta_kernel_size
         ))
         self.reset_parameters()
-        len_controller = 4
+        len_controller = (self.meta_kernel_size - self.kernel_size + 1)**2
         self.reduce_conv = nn.Conv2d(out_channels * len_controller // compression_ratio, out_channels, 1)
 
     def reset_parameters(self):

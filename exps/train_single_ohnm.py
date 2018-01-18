@@ -33,7 +33,7 @@ def run(_):
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
             # args.gpu = lz.get_dev(n=len(args.gpu), ok=(2,3), mem=[0.9, 0.9])
-            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1])
+            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1],sleep=10)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -214,7 +214,9 @@ def main(args):
                       concat_model=concat_model)
 
     print(model)
-
+    param_mb = sum(p.numel() for p in model.parameters()) / 1000000.0
+    logging.info('    Total params: %.2fM' % (param_mb))
+    writer.add_scalar('param', param_mb,global_step=0 )
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
@@ -281,19 +283,21 @@ def main(args):
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
 
-        # exp = len(steps)
-        # for i, step in enumerate(steps):
-        #     if epoch < step:
-        #         exp = i
-        #         break
-        # lr = base_lr * decay ** exp
-        exp = len(steps) - 1
-        steps = [2, 50, 100, 150]
-        lrs = [3e-4, 1e-1, 1e-2, 1e-3]
+        exp = len(steps)
         for i, step in enumerate(steps):
             if epoch < step:
                 exp = i
-        lr = lrs[exp]
+                break
+        lr = base_lr * decay ** exp
+
+        # exp = 0
+        # steps = [35, 150, 175, 185, ]
+        # lrs = [3e-4, 5e-3, 5e-4, 5e-5, 5e-5]
+        # for i, step in enumerate(steps):
+        #     if epoch > step:
+        #         exp = i+1
+        # lr = lrs[exp]
+        lz.logging.info('use lr {}'.format(lr))
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 

@@ -2,20 +2,20 @@ from lz import *
 
 cfgs = [
     edict(
-        logs_dir='warmup',
+        logs_dir='meta.1x1conv.l3.l4',
         arch='resnet50',
         dataset='cuhk03',
         lr=3e-4,
         margin=0.5,
         area=(0.85, 1),
         dataset_val='cuhk03',
-        batch_size=128, print_freq=1, num_instances=4,
-        gpu=range(1),
+        batch_size=256, print_freq=1, num_instances=4,
+        gpu=range(2),
         num_classes=128,
         log_at=np.concatenate([
             range(0, 100, 49),
-            range(100, 150, 19),
-            range(161, 165, 1),
+            range(100, 185, 19),
+            range(160, 165, 1),
         ]),
         evaluate=False,
         epochs=165,
