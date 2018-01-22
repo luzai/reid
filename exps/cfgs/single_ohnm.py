@@ -2,45 +2,34 @@ from lz import *
 
 cfgs = [
     edict(
-        logs_dir='meta.1x1conv.l3.l4',
+        logs_dir='bak',
         arch='resnet50',
         dataset='cuhk03',
         lr=3e-4,
         margin=0.5,
         area=(0.85, 1),
         dataset_val='cuhk03',
-        batch_size=256, print_freq=1, num_instances=4,
-        gpu=range(2),
+        batch_size=128, print_freq=1, num_instances=4,
+        gpu=range(1),
         num_classes=128,
+        steps=[150, 300],
         log_at=np.concatenate([
             range(0, 100, 49),
-            range(100, 185, 19),
-            range(160, 165, 1),
+            range(100, 300, 19),
+            range(300,305, 1),
         ]),
         evaluate=False,
-        epochs=165,
+        # epochs=305,
+        epochs=1,
+        bottleneck='Bottleneck',
+        convop='nn.Conv2d'
     ),
-    # edict(
-    #     logs_dir='inter.intra.l4',
-    #     arch='resnet50',
-    #     dataset='cuhk03',
-    #     area=(0.85, 1),
-    #     dataset_val='cuhk03',
-    #     batch_size=128, print_freq=1, num_instances=4,
-    #     gpu=range(1),
-    #     num_classes=128,
-    #     steps=[200, 300, 320],
-    #     log_at=np.concatenate([
-    #         range(0, 100, 49),
-    #         range(100, 310, 19),
-    #         range(320, 325, 1),
-    #     ]),
-    #     evaluate=False,
-    #     epochs=325,
-    # ),
+
 ]
 
 base = edict(
+    bottleneck='Bottleneck',
+    convop='nn.Conv2d',
     scale=(1,), translation=(0,), theta=(0,),
     hard_examples=False,
     has_npy=False,

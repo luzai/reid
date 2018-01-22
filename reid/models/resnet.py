@@ -129,8 +129,6 @@ class STN_TPS(nn.Module):
 
 from reid.models.misc import *
 
-# ConvOp = DoubleConv4 # stn
-ConvOp = DoubleConv5 # move stack
 # ConvOp = TransConv
 
 # ConvOp = DeformConv
@@ -138,13 +136,13 @@ ConvOp = DoubleConv5 # move stack
 # ConvOp = ORNConv
 # ConvOp = GroupConv
 
-
 class ResNetOri(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000, **kwargs):
+    def __init__(self, block, layers,convop='nn.Conv2d', num_classes=1000, **kwargs):
         self.inplanes = 64
         self.out_planes = 2048
         super(ResNetOri, self).__init__()
+        self.convop=convop
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -162,14 +160,14 @@ class ResNetOri(nn.Module):
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False)
                 if not dc else
-                ConvOp(self.inplanes, planes * block.expansion,
+                eval(self.convop)(self.inplanes, planes * block.expansion,
                        kernel_size=1, stride=stride, bias=False)
                 ,
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample, dc))
+        layers.append(block(self.inplanes, planes, stride, downsample, dc, convop=self.convop))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
             layers.append(block(self.inplanes, planes))
@@ -193,7 +191,7 @@ class ResNetOri(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, dc=False):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, dc=False, convop = 'nn.Conv2d'):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
@@ -201,7 +199,7 @@ class Bottleneck(nn.Module):
             self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                    padding=1, bias=False)
         else:
-            self.conv2 = ConvOp(planes, planes, kernel_size=3, stride=stride,
+            self.conv2 = eval(convop)(planes, planes, kernel_size=3, stride=stride,
                                 padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
@@ -233,13 +231,48 @@ class Bottleneck(nn.Module):
         return out
 
 
+class Bottleneck2(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None,dc=False, convop = 'nn.Conv2d'):
+        super(Bottleneck2, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        if not dc:
+            self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
+                                   padding=1, bias=False)
+        else:
+            self.conv2 = eval(convop)(planes, planes, kernel_size=3, stride=stride,
+                                padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+        out += residual
+        out = self.relu(out)
+        return out
+
+
 def resnet50(pretrained=False, **kwargs):
     """Constructs a ResNet-50 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNetOri(Bottleneck, [3, 4, 6, 3], **kwargs)
+    bottleneck = kwargs.get('bottleneck')
+    convop = kwargs.get('convop')
+    model = ResNetOri(eval(bottleneck), [3, 4, 6, 3], convop=convop,**kwargs)
     if pretrained:
         # model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
         load_state_dict(model, model_zoo.load_url(model_urls['resnet50']))

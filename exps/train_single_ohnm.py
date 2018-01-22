@@ -32,8 +32,8 @@ def run(_):
 
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
-            # args.gpu = lz.get_dev(n=len(args.gpu), ok=(2,3), mem=[0.9, 0.9])
-            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1],sleep=10)
+            args.gpu = lz.get_dev(n=len(args.gpu), ok=(2,3), mem=[0.1, 0.1])
+            # args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1],sleep=10)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -46,10 +46,10 @@ def run(_):
 
         proc = lz.mp.Process(target=main, args=(args,))
         proc.start()
-        #     time.sleep(30)
-        #     procs.append(proc)
-        #
-        # for proc in procs:
+        time.sleep(30)
+        procs.append(proc)
+
+    for proc in procs:
         proc.join()
 
 
@@ -161,7 +161,8 @@ def main(args):
     base_model = models.create(args.arch,
                                dropout=args.dropout,
                                pretrained=args.pretrained,
-                               cut_at_pooling=True
+                               cut_at_pooling=True, bottleneck = args.bottleneck
+                               , convop=args.convop
                                )
     if args.branchs * args.branch_dim != 0:
         local_model = Mask(base_model.out_planes, args.branchs, args.branch_dim,
@@ -194,12 +195,11 @@ def main(args):
         controller = np.ascontiguousarray(controller, np.float32)
         return controller
 
-    dconv_model = DoubleConv3(2048, args.double,
-                              stride2=get_controller().shape[0],
-                              controller=get_controller(),
-                              ).cuda() if args.double else None
-    # dconv_model = DoubleConv2(2048, 512) if args.double else None
-    # dconv_model = DoubleConv2(2048, 512) if args.double else None
+    # dconv_model = DoubleConv(2048, args.double,
+    #                           stride2=get_controller().shape[0],
+    #                           controller=get_controller(),
+    #                           ).cuda() if args.double else None
+    dconv_model =None
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
     if args.double:
         concat_inplates += args.double
