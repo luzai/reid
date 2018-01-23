@@ -159,9 +159,9 @@ class ResNetOri(nn.Module):
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False)
-                if not dc else
-                eval(self.convop)(self.inplanes, planes * block.expansion,
-                       kernel_size=1, stride=stride, bias=False)
+                # if not dc else
+                # eval(self.convop)(self.inplanes, planes * block.expansion,
+                #        kernel_size=1, stride=stride, bias=False)
                 ,
                 nn.BatchNorm2d(planes * block.expansion),
             )
@@ -239,10 +239,10 @@ class Bottleneck2(nn.Module):
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
         if not dc:
-            self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
+            self.conv2 = nn.Conv2d(planes, planes*4, kernel_size=3, stride=stride,
                                    padding=1, bias=False)
         else:
-            self.conv2 = eval(convop)(planes, planes, kernel_size=3, stride=stride,
+            self.conv2 = eval(convop)(planes, planes*4, kernel_size=3, stride=stride,
                                 padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
@@ -272,7 +272,7 @@ def resnet50(pretrained=False, **kwargs):
     """
     bottleneck = kwargs.get('bottleneck')
     convop = kwargs.get('convop')
-    model = ResNetOri(eval(bottleneck), [3, 4, 6, 3], convop=convop,**kwargs)
+    model = ResNetOri(eval(bottleneck), [3, 4, 6, 3],**kwargs)
     if pretrained:
         # model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
         load_state_dict(model, model_zoo.load_url(model_urls['resnet50']))

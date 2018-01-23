@@ -63,16 +63,19 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
             # print('{} {} is ok '.format(name, param.size()))
             success.append(name)
         else:
-            if own_state[name].size(0) != param.size(0):
-                param = param.view(8, param.size(0) // 8, param.size(1), param.size(2), param.size(3)).mean(dim=0)
-                # if own_state[name].size(1) != param.size(1):
-                #     param = param.view(param.size(0), 8, param.size(1) // 8, param.size(2), param.size(3)).mean(dim=1)
-                own_state[name].copy_(param)
-            else:
-                param = F.pad(param,
-                              (0, own_state[name].size(2) - param.size(2),
-                               0, own_state[name].size(3) - param.size(3)))
-                own_state[name].copy_(param.data)
+            try:
+                if own_state[name].size(0) != param.size(0):
+                    param = param.view(8, param.size(0) // 8, param.size(1), param.size(2), param.size(3)).mean(dim=0)
+                    # if own_state[name].size(1) != param.size(1):
+                    #     param = param.view(param.size(0), 8, param.size(1) // 8, param.size(2), param.size(3)).mean(dim=1)
+                    own_state[name].copy_(param)
+                else:
+                    param = F.pad(param,
+                                  (0, own_state[name].size(2) - param.size(2),
+                                   0, own_state[name].size(3) - param.size(3)))
+                    own_state[name].copy_(param.data)
+            except:
+                lz.logging.error('fk!!!')
             lz.logging.error('dimension mismatch for param "{}", in the model are {}'
                              ' and in the checkpoint are {}, ...'.format(
                 name, own_state[name].size(), param.size()))

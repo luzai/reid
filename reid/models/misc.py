@@ -171,14 +171,14 @@ class DeformConv2(nn.Module):
         self.stride = stride
         self.padding = padding
         self.num_deformable_groups = num_deformable_groups
-        self.weight = nn.Parameter(torch.FloatTensor(
+        self.weight = nn.Parameter(torch.randn(
             out_channels // compression_ratio, in_channels, meta_kernel_size, meta_kernel_size
         ))
-        self.conv_offset_weight = nn.Parameter(torch.FloatTensor(
+        self.conv_offset_weight = nn.Parameter(torch.randn(
             num_deformable_groups * 2 * self.kernel_size * self.kernel_size, in_channels, kernel_size, kernel_size
         ))
         self.reset_parameters()
-        self.register_buffer('theta', torch.FloatTensor(controller).view(-1, 2, 3).cuda())
+        self.register_buffer('theta', torch.randn(controller).view(-1, 2, 3).cuda())
         # self.reduce_conv = nn.Conv2d(out_channels * len_controller // compression_ratio, out_channels, 1)
 
     def reset_parameters(self):
@@ -234,6 +234,7 @@ class ORNConv(nn.Module):
     def forward(self, input):
         return self.conv(input)
 
+
 # my designed 2048 concat 2048
 class GroupConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False, meta_kernel_size=4,
@@ -287,6 +288,7 @@ class GroupConv(nn.Module):
 
 
 global_compression_ratio = 1
+
 
 # move stack + reduce conv/avg pool
 class TC1Conv(nn.Module):
@@ -370,10 +372,10 @@ class C1Conv(nn.Module):
         self.stride = stride
         self.padding = padding
 
-        self.weight = nn.Parameter(torch.FloatTensor(
+        self.weight = nn.Parameter(torch.randn(
             out_channels // compression_ratio, in_channels, kernel_size, kernel_size
         ))
-        self.trans_weight = nn.Parameter(torch.FloatTensor(
+        self.trans_weight = nn.Parameter(torch.randn(
             out_channels, out_channels, 1, 1
         ))
         self.reset_parameters()
@@ -429,13 +431,13 @@ class C1C1Conv(nn.Module):
         self.stride = stride
         self.padding = padding
 
-        self.weight = nn.Parameter(torch.FloatTensor(
+        self.weight = nn.Parameter(torch.randn(
             out_channels // compression_ratio, in_channels, kernel_size, kernel_size
         ))
-        self.trans_weight = nn.Parameter(torch.FloatTensor(
+        self.trans_weight = nn.Parameter(torch.randn(
             out_channels, out_channels, 1, 1
         ))
-        self.trans_weight2 = nn.Parameter(torch.FloatTensor(
+        self.trans_weight2 = nn.Parameter(torch.randn(
             out_channels, out_channels, 1, 1
         ))
         self.reset_parameters()
@@ -503,13 +505,10 @@ class ZPC1Conv(nn.Module):
         ))
         self.trans_weight = nn.Parameter(torch.randn(
             out_channels,
-            out_channels // compression_ratio * len(range(0, 3, conf.get('meta_stride', 2))) ** 2,
+            out_channels // compression_ratio * len(range(0, 3, 1)) ** 2,
             1, 1
-        ))
+        ))  # conf.get('meta_stride', 2)
         self.reset_parameters()
-
-    def get_param(self):
-        return cnt_param(self.weight),cnt_param(self.trans_weight)
 
     def reset_parameters(self):
         def reset_w(weight):
@@ -524,8 +523,8 @@ class ZPC1Conv(nn.Module):
     def get_weight_inst(self):
         weight_meta = F.pad(self.weight, (1, 1, 1, 1), mode='constant', value=0)
         weight_l = []
-        for i in range(0, 3, conf.get('meta_stride', 2)):
-            for j in range(0, 3, conf.get('meta_stride', 2)):
+        for i in range(0, 3, 1):  # conf.get('meta_stride'
+            for j in range(0, 3, 1):
                 weight_l.append(weight_meta[:, :, i:i + 3, j:j + 3])
         weight_inst = torch.cat(weight_l).contiguous()
         weight_inst = F.conv2d(

@@ -30,27 +30,27 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
 
+        args.epochs=1
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu), ok=(2,3), mem=[0.1, 0.1])
+            # args.gpu = lz.get_dev(n=len(args.gpu), ok=(2,3), mem=[0.1, 0.1],sleep=22.33)
             # args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1],sleep=10)
-
+            args.gpu = (1,)
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
             cvb.dump(args, args.logs_dir + '/conf.pkl')
+        main(args)
 
-        # main(args)
-
-        proc = lz.mp.Process(target=main, args=(args,))
-        proc.start()
-        time.sleep(30)
-        procs.append(proc)
-
-    for proc in procs:
-        proc.join()
+    #     proc = lz.mp.Process(target=main, args=(args,))
+    #     proc.start()
+    #     time.sleep(12)
+    #     procs.append(proc)
+    #
+    # for proc in procs:
+    #     proc.join()
 
 
 def get_data(args):
