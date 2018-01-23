@@ -7,7 +7,7 @@ from lz import *
 from tensorboardX import SummaryWriter
 from reid.mining import mine_hard_triplets
 import torch
-from .models.resnet import get_loss_div
+from .models.resnet import *
 
 
 class BaseTrainer(object):
@@ -219,7 +219,8 @@ class Trainer(object):
         if self.model.module.dconv_model is not None and hasattr(self.model.module.dconv_model, 'weight'):
             weight = self.model.module.dconv_model.weight
             weight = weight.view(weight.size(0), -1)
-            loss_div = get_loss_div(weight)
+            # loss_div = get_loss_div(weight)
+            loss_div = 0.
         else:
             loss_div = 0.
         if self.dbg and self.iter % 1000 == 0:

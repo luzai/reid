@@ -1,7 +1,5 @@
 from __future__ import absolute_import
-
 from torchvision.models.resnet import BasicBlock, model_zoo, model_urls
-
 from lz import *
 from reid.utils.serialization import load_state_dict
 
@@ -50,7 +48,7 @@ class LomoNet(nn.Module):  # Bottleneck 2222 or 3463
 
         return x
 
-
+'''
 # original doubly conv
 class DoubleConv(nn.Module):
     def __init__(self, cl=2048, cl2=512, w=8, h=4, zp=4, z=3, s=2):
@@ -85,8 +83,6 @@ class DoubleConv(nn.Module):
         return res
 
 
-# deform conv
-'''
 from modules import ConvOffset2d
 from functions import conv_offset2d
 
@@ -290,68 +286,6 @@ class GroupConv(nn.Module):
 global_compression_ratio = 1
 
 
-# move stack + reduce conv/avg pool
-class TC1Conv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size,
-                 stride=1, padding=0, bias=False, meta_kernel_size=4,
-                 compression_ratio=global_compression_ratio, mode='train'):
-        super(TC1Conv, self).__init__()
-        while out_channels % compression_ratio != 0:
-            compression_ratio += 1
-            if compression_ratio >= out_channels:
-                compression_ratio = 1
-                break
-        assert out_channels % compression_ratio == 0
-        self.meta_kernel_size = kernel_size + 1
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self.mode = mode
-
-        self.weight = nn.Parameter(torch.randn(
-            out_channels // compression_ratio, in_channels, meta_kernel_size, meta_kernel_size
-        ))
-        len_controller = (self.meta_kernel_size - self.kernel_size + 1) ** 2
-        self.reduce_conv = nn.Conv2d(out_channels * len_controller // compression_ratio,
-                                     out_channels, kernel_size=1)
-
-        self.reset_parameters()
-
-    def get_weight_inst(self):
-        weight_l = []
-
-        for i in range(self.meta_kernel_size - self.kernel_size + 1):
-            for j in range(self.meta_kernel_size - self.kernel_size + 1):
-                weight_l.append(self.weight[:, :, i:i + self.kernel_size, j:j + self.kernel_size])
-        weight_inst = torch.cat(weight_l).contiguous()
-        return weight_inst
-
-    def reset_parameters(self):
-        def reset_w(weight):
-            out_chl, in_chl, w, h = weight.size()
-            n = in_chl * w * h
-            stdv = 1. / math.sqrt(n)
-            weight.data.uniform_(-stdv, stdv)
-
-        reset_w(self.weight)
-        reset_w(self.reduce_conv.weight)
-
-    def forward(self, input):
-        bs, chl, h, w = input.size()
-        weight_inst = self.get_weight_inst()
-        out = F.conv2d(input, weight_inst, stride=self.stride, padding=self.padding)
-        bs, _, oh, ow = out.size()
-        out = self.reduce_conv(out)
-        # out = out.view(bs, len(weight_l), self.out_channels, oh, ow)
-        # out = out.permute(0, 2, 3, 4, 1).contiguous().view(bs, -1, len(weight_l))
-        # out = F.avg_pool1d(out, len(weight_l))
-        # out = out.permute(0, 2, 1).contiguous().view(bs, -1, oh, ow)
-
-        return out
-
-
 # 1x1 conv generate weight
 class C1Conv(nn.Module):
     def __init__(self, in_channels, out_channels,
@@ -483,8 +417,10 @@ class C1C1Conv(nn.Module):
 # zeropad + 1x1 conv generate weight
 class ZPC1Conv(nn.Module):
     def __init__(self, in_channels, out_channels,
-                 kernel_size, stride=1, padding=0, bias=False, meta_kernel_size=4,
-                 compression_ratio=global_compression_ratio, mode='train'):
+                 kernel_size, stride=1, padding=0, bias=False,
+                 compression_ratio=global_compression_ratio, mode='train',
+                 vector=False
+                 ):
         super(ZPC1Conv, self).__init__()
         while out_channels % compression_ratio != 0:
             compression_ratio += 1
@@ -499,7 +435,7 @@ class ZPC1Conv(nn.Module):
         self.mode = mode
         self.stride = stride
         self.padding = padding
-
+        self.vector = vector
         self.weight = nn.Parameter(torch.randn(
             out_channels // compression_ratio, in_channels, kernel_size, kernel_size
         ))
@@ -538,4 +474,73 @@ class ZPC1Conv(nn.Module):
         weight_inst = self.get_weight_inst()
         out = F.conv2d(input, weight_inst, stride=self.stride, padding=self.padding)
         bs, _, oh, ow = out.size()
+        if self.vector:
+            out = F.avg_pool2d(out, out.size()[-2:])
+            out = out.view(out.size(0), -1)
+        return out
+
+
+# move stack + reduce conv/avg pool
+class TC1Conv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size,
+                 stride=1, padding=0, bias=False,
+                 compression_ratio=global_compression_ratio, mode='train',
+                 vector=False,
+                 ):
+        super(TC1Conv, self).__init__()
+        while out_channels % compression_ratio != 0:
+            compression_ratio += 1
+            if compression_ratio >= out_channels:
+                compression_ratio = 1
+                break
+        assert out_channels % compression_ratio == 0
+        self.meta_kernel_size = kernel_size + 1
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.mode = mode
+        self.vector = vector
+        self.weight = nn.Parameter(torch.randn(
+            out_channels // compression_ratio, in_channels, self.meta_kernel_size, self.meta_kernel_size
+        ))
+        len_controller = (self.meta_kernel_size - self.kernel_size + 1) ** 2
+        self.reduce_conv = nn.Conv2d(out_channels * len_controller // compression_ratio,
+                                     out_channels, kernel_size=1)
+
+        self.reset_parameters()
+
+    def get_weight_inst(self):
+        weight_l = []
+
+        for i in range(self.meta_kernel_size - self.kernel_size + 1):
+            for j in range(self.meta_kernel_size - self.kernel_size + 1):
+                weight_l.append(self.weight[:, :, i:i + self.kernel_size, j:j + self.kernel_size])
+        weight_inst = torch.cat(weight_l).contiguous()
+        return weight_inst
+
+    def reset_parameters(self):
+        def reset_w(weight):
+            out_chl, in_chl, w, h = weight.size()
+            n = in_chl * w * h
+            stdv = 1. / math.sqrt(n)
+            weight.data.uniform_(-stdv, stdv)
+
+        reset_w(self.weight)
+        reset_w(self.reduce_conv.weight)
+
+    def forward(self, input):
+        bs, chl, h, w = input.size()
+        weight_inst = self.get_weight_inst()
+        out = F.conv2d(input, weight_inst, stride=self.stride, padding=self.padding)
+        bs, _, oh, ow = out.size()
+        out = self.reduce_conv(out)
+        # out = out.view(bs, len(weight_l), self.out_channels, oh, ow)
+        # out = out.permute(0, 2, 3, 4, 1).contiguous().view(bs, -1, len(weight_l))
+        # out = F.avg_pool1d(out, len(weight_l))
+        # out = out.permute(0, 2, 1).contiguous().view(bs, -1, oh, ow)
+        if self.vector:
+            out = F.avg_pool2d(out, out.size()[-2:])
+            out = out.view(out.size(0), -1)
         return out

@@ -29,13 +29,19 @@ def run(_):
     cfgs = torchpack.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
+        args.dbg = True
+        if args.dbg:
+            args.epochs = 1
+            args.batch_size = 32
 
-        args.epochs=1
+        if args.evaluate:
+            args.logs_dir += '.eval'
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
             # args.gpu = lz.get_dev(n=len(args.gpu), ok=(2,3), mem=[0.1, 0.1],sleep=22.33)
-            # args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1],sleep=10)
+            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.4], sleep=10)
             args.gpu = (1,)
+
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if not args.evaluate:
@@ -43,14 +49,14 @@ def run(_):
             lz.mkdir_p(args.logs_dir, delete=True)
             cvb.dump(args, args.logs_dir + '/conf.pkl')
         main(args)
+        lz.mp.set_start_method('spawn')
+        proc = lz.mp.Process(target=main, args=(args,))
+        proc.start()
+        time.sleep(12)
+        procs.append(proc)
 
-    #     proc = lz.mp.Process(target=main, args=(args,))
-    #     proc.start()
-    #     time.sleep(12)
-    #     procs.append(proc)
-    #
-    # for proc in procs:
-    #     proc.join()
+    for proc in procs:
+        proc.join()
 
 
 def get_data(args):
@@ -84,7 +90,7 @@ def get_data(args):
 
     train_set = dataset.trainval if combine_trainval else dataset.train
     num_classes = (dataset.num_trainval_ids if combine_trainval
-    else dataset.num_train_ids)
+                   else dataset.num_train_ids)
 
     train_transformer = T.Compose([
         T.RandomCropFlip(height, width, area=args.area),
@@ -140,14 +146,12 @@ def main(args):
     sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
     sys.stderr = Logger(osp.join(args.logs_dir, 'err.txt'))
     lz.init_dev(args.gpu)
-    # lz.init_dev((2,))
     print('config is {}'.format(vars(args)))
     if args.seed is not None:
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
     cudnn.benchmark = True
-    if not args.evaluate:
-        writer = SummaryWriter(args.logs_dir)
+    writer = SummaryWriter(args.logs_dir)
 
     # Create data loaders
     assert args.num_instances > 1, "num_instances should be greater than 1"
@@ -161,7 +165,7 @@ def main(args):
     base_model = models.create(args.arch,
                                dropout=args.dropout,
                                pretrained=args.pretrained,
-                               cut_at_pooling=True, bottleneck = args.bottleneck
+                               cut_at_pooling=True, bottleneck=args.bottleneck
                                , convop=args.convop
                                )
     if args.branchs * args.branch_dim != 0:
@@ -195,11 +199,11 @@ def main(args):
         controller = np.ascontiguousarray(controller, np.float32)
         return controller
 
-    # dconv_model = DoubleConv(2048, args.double,
-    #                           stride2=get_controller().shape[0],
-    #                           controller=get_controller(),
-    #                           ).cuda() if args.double else None
-    dconv_model =None
+    dconv_model = ZPC1Conv(2048, args.double, kernel_size=3, vector=True
+                           ).cuda() if args.double else None
+    # dconv_model = TC1Conv(2048, args.double, kernel_size=3, vector=True
+    #                        ).cuda() if args.double else None
+    # dconv_model = None
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
     if args.double:
         concat_inplates += args.double
@@ -216,7 +220,7 @@ def main(args):
     print(model)
     param_mb = sum(p.numel() for p in model.parameters()) / 1000000.0
     logging.info('    Total params: %.2fM' % (param_mb))
-    writer.add_scalar('param', param_mb,global_step=0 )
+    writer.add_scalar('param', param_mb, global_step=0)
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
@@ -290,13 +294,6 @@ def main(args):
                 break
         lr = base_lr * decay ** exp
 
-        # exp = 0
-        # steps = [35, 150, 175, 185, ]
-        # lrs = [3e-4, 5e-3, 5e-4, 5e-5, 5e-5]
-        # for i, step in enumerate(steps):
-        #     if epoch > step:
-        #         exp = i+1
-        # lr = lrs[exp]
         lz.logging.info('use lr {}'.format(lr))
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
