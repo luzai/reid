@@ -86,11 +86,11 @@ class VerfTrainer(BaseTrainer):
         pred, y, info = self.model(inputs[0], targets, info)
 
         loss = self.criterion(pred, y)
-        if len(pred.shape)==2:
-            pred = pred.data[:,0]
+        if len(pred.shape) == 2:
+            pred = pred.data[:, 0]
         else:
             pred = pred.data
-        right = (to_numpy(pred  > self.criterion.margin / 2.).reshape(-1) == to_numpy(y.data).reshape(-1))
+        right = (to_numpy(pred > self.criterion.margin / 2.).reshape(-1) == to_numpy(y.data).reshape(-1))
         prec1 = (right.astype(float).sum() / right.shape[0])
         # print(prec1)
         return loss, prec1
@@ -239,7 +239,7 @@ class Trainer(object):
             prec, = accuracy(outputs.data, targets.data)
             prec = prec[0]
         elif isinstance(self.criterion, TripletLoss):
-            if self.dbg and self.iter % 10 == 0:
+            if self.dbg and self.iter % 1 == 0:
                 loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
                 diff = dist_an - dist_ap
                 self.writer.add_histogram('an-ap', diff, self.iter)
@@ -262,7 +262,7 @@ class Trainer(object):
         self.iter += 1
         return loss, prec
 
-    def train(self, epoch, data_loader, optimizer, print_freq=5):
+    def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
 
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -284,7 +284,11 @@ class Trainer(object):
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
             inputs, targets, fnames = self._parse_data(inputs)
-
+            if schedule is not None:
+                schedule.batch_step()
+            # print('lr is ', optimizer.param_groups[0]['lr'])
+            self.writer.add_scalar('vis/lr', optimizer.param_groups[0]['lr'],
+                                   self.iter)  # schedule.get_lr()
             # global_inds = [data_loader.fname2ind[fn] for fn in fnames]
 
             # triplets = mine_hard_triplets(self.model, data_loader, margin=0.5)

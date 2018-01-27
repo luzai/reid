@@ -33,13 +33,14 @@ class TripletLoss(nn.Module):
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         dist_ap, dist_an = [], []
-        all_ind = to_variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False, volatile=True)
-        posp_inds, negp_inds = [], []
+        # all_ind = to_variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False, volatile=True)
+        # posp_inds, negp_inds = [], []
 
         for i in range(n):
             if self.mode == 'hard':
                 some_pos = dist[i][mask[i]]
                 some_neg = dist[i][mask[i] == 0]
+                # print(some_pos.size(),some_neg.size())
 
                 for pos in select(some_pos, (0, 1), descend=True):
                     for neg in select(some_neg, (0, 1), descend=False):
