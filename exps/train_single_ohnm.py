@@ -39,9 +39,8 @@ def run(_):
             args.logs_dir += '.bak'
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
-            # args.gpu = lz.get_dev(n=len(args.gpu), ok=(2,3), mem=[0.1, 0.1],sleep=22.33)
-            # args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1], sleep=22.23)
-            args.gpu = (0,)
+            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1], sleep=22.23)
+            # args.gpu = (0,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -308,7 +307,7 @@ def main(args):
             if epoch > step:
                 res = i + 1
         print(epoch, res)
-        if res > len(args.num_instances_l):
+        if res >= len(args.num_instances_l):
             res = -1
         args.batch_size = args.batch_size_l[res]
         args.num_instances = args.num_instances_l[res]
