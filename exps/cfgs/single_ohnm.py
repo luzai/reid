@@ -72,7 +72,7 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='nopretrain',
+        logs_dir='nopretrain.gradual',
         arch='resnet50',
         dataset='cuhk03',
         global_dim=512,
@@ -80,17 +80,30 @@ cfgs = [
         margin=0.5,
         area=(0.85, 1),
         dataset_val='cuhk03',
-        batch_size=128, print_freq=1, num_instances=4,
-        gpu=range(1),
+        batch_size_l=[8, 16, 128],
+        num_instances_l=[2, 4, 4],
+        bs_steps=[50, 150, 200, 200 + 165],
         num_classes=128,
+        print_freq=1,
+        gpu=range(1),
         evaluate=False,
         optimizer='sgd',
         pretrained=False,
+        steps=[200, 200 + 150, 200 + 160],
+        epochs=165,
+        log_at=np.concatenate([
+            # range(0, 100, 49),
+            range(100, 200 + 150, 19),
+            range(200 + 155, 200 + 165, 1),
+        ]),
+
     ),
 
 ]
 
 base = edict(
+    bs_steps=[],
+    batch_size_l=[], num_instances_l=[],
     bottleneck='Bottleneck',
     convop='nn.Conv2d',
     scale=(1,), translation=(0,), theta=(0,),
