@@ -31,13 +31,13 @@ class RandomIdentitySampler(Sampler):
         self.queue = queue.Queue()
 
     def __len__(self):
-        return self.batch_size*43
+        return self.batch_size * 43
 
     def __iter__(self):
         # indices = torch.randperm(self.num_samples)
         ind_ind = 0
         grouped = self.info.groupby('pids')
-        while ind_ind < len(self)//self.num_instances:
+        while ind_ind < len(self) // self.num_instances:
             if not self.queue.empty():
                 yield self.queue.get()
             else:
@@ -57,8 +57,7 @@ class RandomIdentityWeightedSampler(Sampler):
     def __init__(self, data_source, num_instances=4, batch_size=100, weights=None, subsample=None):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
-        self.subsample=np.unique(np.asarray(subsample).ravel())
-        # self.subsample=np.unique(np.asarray(self.subsample).ravel())
+        self.subsample = np.unique(np.asarray(subsample).ravel())
         self.data_source = data_source
         self.num_instances = num_instances
         self.memory = queue.Queue(maxsize=256)
@@ -80,7 +79,7 @@ class RandomIdentityWeightedSampler(Sampler):
         self.cache_ind = []
 
     def __len__(self):
-        return self.batch_size *43
+        return len(self.data_source)
 
     def get_cache(self):
         cache_ind = self.cache_ind.copy()

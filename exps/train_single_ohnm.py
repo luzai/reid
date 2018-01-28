@@ -202,11 +202,11 @@ def main(args):
         controller = np.ascontiguousarray(controller, np.float32)
         return controller
 
-    dconv_model = ZPC1Conv(2048, args.double, kernel_size=3, vector=True
-                           ).cuda() if args.double else None
+    # dconv_model = ZPC1Conv(2048, args.double, kernel_size=3, vector=True
+    #                        ).cuda() if args.double else None
     # dconv_model = TC1Conv(2048, args.double, kernel_size=3, vector=True
     #                        ).cuda() if args.double else None
-    # dconv_model = None
+    dconv_model = None
     concat_inplates = args.branchs * args.branch_dim + args.global_dim
     if args.double:
         concat_inplates += args.double
@@ -306,7 +306,7 @@ def main(args):
         res = 0
         for i, step in enumerate(args.bs_steps):
             if epoch > step:
-                res = i
+                res = i + 1
         print(epoch, res)
         if res > len(args.num_instances_l):
             res = -1
