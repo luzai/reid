@@ -243,7 +243,7 @@ class BasicBlock(nn.Module):
 
         return out
 
-
+# bn sum relu
 class BasicBlock2(nn.Module):
     expansion = 1
 
@@ -283,6 +283,53 @@ class BasicBlock2(nn.Module):
 
         residual, transient = (residual + out[0] + out[2],
                                out[1] + out[3])
+
+        return (residual, transient)
+
+# sum bn relu
+class BasicBlock3(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(BasicBlock3, self).__init__()
+        self.relu = nn.ReLU(inplace=True)
+        self.conv = []
+        self.bn = []
+        for i in range(4):
+            self.conv += [conv3x3(inplanes // 2, planes // 2, stride)]
+        self.bn += [nn.BatchNorm2d(planes // 2)]
+
+        for i in range(4, 8):
+            self.conv += [conv3x3(planes // 2, planes // 2)]
+        self.bn += [nn.BatchNorm2d(planes // 2)]
+
+        for i in range(8):
+            setattr(self, 'conv' + str(i), self.conv[i])
+        for i in range(2):
+            setattr(self, 'bn' + str(i), self.bn[i])
+
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual, transient = x
+        func = lambda ind, x: self.conv[ind](x)
+        out = [func(ind, residual) for ind in range(2)] + \
+              [func(ind, transient) for ind in range(2, 4)]
+        if self.downsample:
+            residual = self.downsample(residual)
+
+        residual, transient = (residual + out[0] + out[2],
+                               out[1] + out[3])
+        residual, transient = map(lambda x: self.relu(self.bn[0](x)), (residual, transient))
+
+        func = lambda ind, x: self.conv[ind](x)
+        out = [func(ind, residual) for ind in range(4, 6)] + \
+              [func(ind, transient) for ind in range(6, 8)]
+
+        residual, transient = (residual + out[0] + out[2],
+                               out[1] + out[3])
+        residual, transient = map(lambda x: self.relu(self.bn[1](x)), (residual, transient))
 
         return (residual, transient)
 
@@ -543,3 +590,131 @@ def resnet101(**kwargs):
 def resnet152(**kwargs):
     return ResNet(152, **kwargs)
 '''
+
+
+class Residual(nn.Module):
+    def __init__(self, in_channels, out_channels,  downsample=False):
+        super(Residual, self).__init__()
+        self.downsample = downsample
+
+        self.bn1 = nn.BatchNorm2d(in_channels)
+        self.conv1 = nn.Conv2d(in_channels, out_channels // 4, 1)
+        self.bn2 = nn.BatchNorm2d(out_channels // 4)
+        self.conv2 = nn.Conv2d(out_channels // 4, out_channels // 4, kernel_size=3, padding=1,
+                               stride=1 if not downsample else 2
+                               )
+        self.bn3 = nn.BatchNorm2d(out_channels // 4)
+        self.conv3 = nn.Conv2d(out_channels // 4, out_channels, 1)
+        if downsample:
+            self.conv4 = nn.Conv2d(in_channels, out_channels, 1,
+                                   stride=2)
+        elif in_channels != out_channels:
+            self.conv4 = nn.Conv2d(in_channels, out_channels, 1, stride=1)
+        else:
+            self.conv4 = None
+
+    def forward(self, x):
+
+        residual = x
+        x = F.relu(self.bn1(x))
+        x = self.conv1(x)
+        x = F.relu(self.bn2(x))
+        x = self.conv2(x)
+        x = F.relu(self.bn3(x))
+        x = self.conv3(x)
+
+        if self.conv4 is not None:
+            residual = self.conv4(residual)
+
+        return x + residual
+
+
+class Attention(nn.Module):
+    def __init__(self, in_channels, out_channels, unet_rep=1):
+        super(Attention, self).__init__()
+        self.residual1 = Residual(in_channels, in_channels)
+        self.unet = nn.Sequential(Unet(in_channels, rep=unet_rep),
+                                  nn.Conv2d(in_channels, in_channels, 1),
+                                  nn.Conv2d(in_channels, in_channels, 1),
+                                  nn.Sigmoid()
+                                  )
+        self.trunk = nn.Sequential(Residual(in_channels, in_channels),
+                                   Residual(in_channels, in_channels))
+        self.residual2 = Residual(in_channels, in_channels)
+
+    def forward(self, x):
+        x = self.residual1(x)
+        x1 = self.trunk(x)
+        x2 = self.unet(x)
+        x3 = x1 * x2 + x1
+        return self.residual2(x3)
+
+
+class ResAtt1(nn.Module):
+    def __init__(self, **kwargs):
+        super(ResAtt1, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.pool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.residual1 = Residual(64, 256)
+        self.attention1 = Attention(256, 256, unet_rep=3)
+        self.residual2 = Residual(256, 512, downsample=True)
+        self.attention2 = Attention(512, 512, unet_rep=2)
+        self.residual3 = Residual(512, 1024, downsample=True)
+        self.attention3 = Attention(1024, 1024, unet_rep=1)
+        self.residual4 = nn.Sequential( Residual(1024, 2048, downsample=True),
+                                        Residual(2048, 2048, ),
+                                        Residual(2048, 2048, ),
+                                        )
+        self.fc1 = nn.Linear(2048, 10)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.pool1(x)
+        x = self.residual1(x)
+        x = self.attention1(x)
+        x = self.residual2(x)
+        x = self.attention2(x)
+        x = self.residual3(x)
+        x = self.attention3(x)
+        x = self.residual4(x)
+        x = F.avg_pool2d(x, x.size()[-2:])
+        x = x.view(x.size(0), -1)
+        x = self.fc1(x)
+        return x
+
+
+class Unet(nn.Module):
+    def __init__(self, nc, rep=1):
+        super(Unet, self).__init__()
+        unet_block = UnetBlock(nc, innermost=True)
+        for i in range(rep - 1):
+            unet_block = UnetBlock(nc, submodule=unet_block)
+        self.model = unet_block
+
+    def forward(self, x):
+        return self.model(x)
+
+
+class UnetBlock(nn.Module):
+    def __init__(self, nc,
+                 submodule=None, innermost=False
+                 ):
+        super(UnetBlock, self).__init__()
+        downconv = Residual(nc, nc)
+        upconv = Residual(nc, nc)
+        down = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        up = nn.UpsamplingBilinear2d(scale_factor=2)
+
+        if innermost:
+            model = [down, downconv, upconv, up]
+        else:
+            model = [down, downconv, submodule, upconv, up]
+        self.model = nn.Sequential(*model)
+
+    def forward(self, x):
+        return x + self.model(x)
+
+def res_att1(**kwargs):
+    return ResAtt1(**kwargs)
+
+

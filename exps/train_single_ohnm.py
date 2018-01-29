@@ -229,6 +229,9 @@ def main(args):
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
+        while not osp.exists(args.resume):
+            lz.logging.warning(' no chkpoint {} '.format(args.resume))
+            time.sleep(20)
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
         load_state_dict(model, checkpoint['state_dict'])
