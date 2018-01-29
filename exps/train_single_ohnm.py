@@ -34,13 +34,16 @@ def run(_):
         if args.dbg:
             args.epochs = 1
             # args.batch_size = 32
-
+        args.log_at = np.concatenate([
+            args.log_at,
+            range(args.epochs - 9, args.epochs, 1)
+        ])
         if args.evaluate:
             args.logs_dir += '.bak'
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
             args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1], sleep=22.23)
-            # args.gpu = (0,)
+            # args.gpu = (2,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -285,7 +288,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = Trainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', loss_div_weight=args.loss_div_weight)
+    trainer = Trainer(model, criterion, dbg=False, logs_at=args.logs_dir + '/vis', loss_div_weight=args.loss_div_weight)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -302,6 +305,8 @@ def main(args):
             param_group['lr'] = lr * param_group.get('lr_mult', 1)
 
     def adjust_bs(epoch, args):
+        if args.batch_size_l == []:
+            return args
         res = 0
         for i, step in enumerate(args.bs_steps):
             if epoch > step:
@@ -375,7 +380,7 @@ def main(args):
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
             'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
+        }, is_best, fpath=osp.join(args.logs_dir, 'model_now.pth'.format(epoch)))  # checkpoint.{}.pth
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))

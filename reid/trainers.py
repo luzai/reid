@@ -206,6 +206,8 @@ class Trainer(object):
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
+        else:
+            self.writer = None
 
     def _parse_data(self, inputs):
         imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
@@ -239,7 +241,7 @@ class Trainer(object):
             prec, = accuracy(outputs.data, targets.data)
             prec = prec[0]
         elif isinstance(self.criterion, TripletLoss):
-            if self.dbg and self.iter % 1 == 0:
+            if self.dbg and self.iter % 100 == 0:
                 loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
                 diff = dist_an - dist_ap
                 self.writer.add_histogram('an-ap', diff, self.iter)
@@ -252,6 +254,8 @@ class Trainer(object):
                 self.writer.add_histogram('dist', dist, self.iter)
                 self.writer.add_histogram('ap', dist_ap, self.iter)
                 self.writer.add_histogram('an', dist_an, self.iter)
+                self.writer.add_scalar('vis/lr', self.lr,
+                                       self.iter)  # schedule.get_lr()
             else:
                 loss, prec = self.criterion(outputs, targets, dbg=False)
 
@@ -281,14 +285,14 @@ class Trainer(object):
 
         # if np.random.rand(1) < 0.005:
         #     print('global probs ', np.asarray(data_loader.sampler.info['probs']))
+
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
             inputs, targets, fnames = self._parse_data(inputs)
             if schedule is not None:
                 schedule.batch_step()
             # print('lr is ', optimizer.param_groups[0]['lr'])
-            self.writer.add_scalar('vis/lr', optimizer.param_groups[0]['lr'],
-                                   self.iter)  # schedule.get_lr()
+            self.lr = optimizer.param_groups[0]['lr']
             # global_inds = [data_loader.fname2ind[fn] for fn in fnames]
 
             # triplets = mine_hard_triplets(self.model, data_loader, margin=0.5)
