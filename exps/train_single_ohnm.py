@@ -29,11 +29,11 @@ def run(_):
     cfgs = torchpack.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        args.dbg = False
+        # args.dbg = False
         # args.dbg = True
         if args.dbg:
             args.epochs = 1
-            # args.batch_size = 32
+            args.batch_size = 32
         args.log_at = np.concatenate([
             args.log_at,
             range(args.epochs - 9, args.epochs, 1)
@@ -42,8 +42,8 @@ def run(_):
             args.logs_dir += '.bak'
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1], sleep=22.23)
-            # args.gpu = (2,)
+            # args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1], sleep=22.23)
+            args.gpu = (2,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -170,8 +170,8 @@ def main(args):
     base_model = models.create(args.arch,
                                dropout=args.dropout,
                                pretrained=args.pretrained,
-                               cut_at_pooling=True, bottleneck=args.bottleneck
-                               , convop=args.convop
+                               cut_at_pooling=True, bottleneck=args.bottleneck,
+                            convop=args.convop
                                )
     if args.branchs * args.branch_dim != 0:
         local_model = Mask(base_model.out_planes, args.branchs, args.branch_dim,
@@ -325,6 +325,9 @@ def main(args):
     schedule = None
     # Start training
     for epoch in range(start_epoch, args.epochs):
+        # warm up
+        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
         if args.hard_examples:
