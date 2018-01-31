@@ -1,4 +1,6 @@
 from __future__ import print_function, absolute_import
+from lz import *
+
 import argparse
 import os.path as osp
 
@@ -20,6 +22,7 @@ from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import RandomIdentitySampler
 from reid.utils.logging import Logger
 from reid.utils.serialization import load_checkpoint, save_checkpoint
+
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
@@ -74,7 +77,7 @@ def main(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
-
+    init_dev((0,1))
     # Redirect print to both console and log file
     if not args.evaluate:
         sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
@@ -85,7 +88,7 @@ def main(args):
         'num_instances should divide batch_size'
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
-                                  (256, 128)
+            (256, 128)
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
@@ -95,7 +98,8 @@ def main(args):
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
     model = models.create(args.arch, num_features=1024,
-                          dropout=args.dropout, num_classes=args.features)
+                          dropout=args.dropout, num_classes=args.features,
+                          pretrained=False)
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -171,7 +175,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=256)
-    parser.add_argument('-j', '--workers', type=int, default=4)
+    parser.add_argument('-j', '--workers', type=int, default=8)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int,
                         help="input height, default: 256 for resnet*, "
@@ -214,7 +218,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'data'))
+                        default='/home/xinglu/.torch/data/')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
+                        default='work/nopretrain')
     main(parser.parse_args())
