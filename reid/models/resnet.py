@@ -10,7 +10,7 @@ from .common import _make_conv
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152', 'res_att1']
 
-
+'''
 def get_loss_div(theta):
     norm = theta.norm(p=2, dim=1, keepdim=True)
     theta = theta / norm
@@ -125,7 +125,7 @@ class STN_TPS(nn.Module):
         grid = source_coordinate.view(batch_size, 256, 128, 2)
         transformed_x = grid_sample(x, grid)
         return transformed_x, 0
-''
+'''
 
 from reid.models.misc import *
 
@@ -472,9 +472,11 @@ class SELayer(nn.Module):
         super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
-            nn.Linear(channel, channel // reduction),
+            # nn.Linear(channel, channel // reduction),
+            nn.Linear(channel, 16),
             nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel),
+            # nn.Linear(channel // reduction, channel),
+            nn.Linear(16, channel),
             nn.Sigmoid()
         )
 
@@ -525,9 +527,10 @@ class SEBottleneck(nn.Module):
 
         return out
 
+
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000,**kwargs):
+    def __init__(self, block, layers, num_classes=1000, **kwargs):
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
@@ -539,7 +542,7 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-
+        self.out_planes = 2048
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -578,6 +581,7 @@ class ResNet(nn.Module):
 
         return x
 
+
 def resnet50(pretrained=True, **kwargs):
     """Constructs a ResNet-50 model.
 
@@ -587,7 +591,7 @@ def resnet50(pretrained=True, **kwargs):
     bottleneck = kwargs.get('bottleneck')
     convop = kwargs.get('convop')
     if bottleneck == 'SEBottleneck':
-        model = ResNet(eval(bottleneck), [3,4,6,3], **kwargs)
+        model = ResNet(eval(bottleneck), [3, 4, 6, 3], **kwargs)
     else:
         model = ResNet50(eval(bottleneck), [3, 4, 6, 3], **kwargs)
     if pretrained:
@@ -597,7 +601,6 @@ def resnet50(pretrained=True, **kwargs):
             load_state_dict(model, state_dict, own_de_prefix='module.')
         else:
             # model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
-            model.load_state_dict()
             load_state_dict(model, model_zoo.load_url(model_urls['resnet50']))
     return model
 
@@ -697,8 +700,10 @@ class ResNet(nn.Module):
 
 '''
 
+
 def resnet18(**kwargs):
     return ResNet(18, **kwargs)
+
 
 # def resnet34(**kwargs):
 #     return ResNet(34, **kwargs)
@@ -714,7 +719,6 @@ def resnet101(**kwargs):
 
 def resnet152(**kwargs):
     return ResNet(152, **kwargs)
-
 
 
 class Residual(nn.Module):

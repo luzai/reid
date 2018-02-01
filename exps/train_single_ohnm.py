@@ -1,3 +1,6 @@
+from lz import *
+import lz
+
 import torch, sys
 
 sys.path.insert(0, '/home/xinglu/prj/open-reid/')
@@ -33,7 +36,7 @@ def run(_):
         # args.dbg = True
         if args.dbg:
             args.epochs = 1
-            args.batch_size = 32
+            args.batch_size = 128
         args.log_at = np.concatenate([
             args.log_at,
             range(args.epochs - 9, args.epochs, 1)
@@ -42,8 +45,8 @@ def run(_):
             args.logs_dir += '.bak'
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
-            # args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1], sleep=22.23)
-            args.gpu = (2,)
+            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1], sleep=22.23)
+            # args.gpu = (2,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -171,7 +174,7 @@ def main(args):
                                dropout=args.dropout,
                                pretrained=args.pretrained,
                                cut_at_pooling=True, bottleneck=args.bottleneck,
-                            convop=args.convop
+                               convop=args.convop
                                )
     if args.branchs * args.branch_dim != 0:
         local_model = Mask(base_model.out_planes, args.branchs, args.branch_dim,
