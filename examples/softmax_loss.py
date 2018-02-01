@@ -147,14 +147,26 @@ def main(args):
         for g in optimizer.param_groups:
             g['lr'] = lr * g.get('lr_mult', 1)
 
+    print(model)
+    writer = SummaryWriter(args.logs_dir)
+
+    def add_scalars(d, epoch):
+        for k, v in d.items():
+            writer.add_scalar(k, v, epoch)
+
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        trainer.train(epoch, train_loader, optimizer)
+        train_loss, train_acc = trainer.train(epoch, train_loader, optimizer)
         if epoch < args.start_save:
             continue
         top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
-
+        add_scalars({
+            'train/loss': train_loss,
+            'train/acc': train_acc,
+            'test/top1': top1,
+            'lr': optimizer.param_groups[0]['lr']
+        }, epoch)
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
         save_checkpoint({
@@ -180,7 +192,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dataset', type=str, default='cuhk03',
                         choices=datasets.names())
     parser.add_argument('-b', '--batch-size', type=int, default=256)
-    parser.add_argument('-j', '--workers', type=int, default=4)
+    parser.add_argument('-j', '--workers', type=int, default=8)
     parser.add_argument('--split', type=int, default=0)
     parser.add_argument('--height', type=int,
                         help="input height, default: 256 for resnet*, "
@@ -206,7 +218,7 @@ if __name__ == '__main__':
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
     parser.add_argument('--evaluate', action='store_true',
                         help="evaluation only")
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--epochs', type=int, default=60)
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('--seed', type=int, default=1)

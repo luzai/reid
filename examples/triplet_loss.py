@@ -101,8 +101,7 @@ def main(args):
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
     model = models.create(args.arch, num_features=1024,
-                          dropout=args.dropout, num_classes=args.features,
-                          pretrained=False)
+                          dropout=args.dropout, num_classes=args.features)
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -145,14 +144,27 @@ def main(args):
         for g in optimizer.param_groups:
             g['lr'] = lr * g.get('lr_mult', 1)
 
-    # Start training
+    print(model)
+    writer = SummaryWriter(args.logs_dir)
+
+    def add_scalars(d, epoch):
+        for k, v in d.items():
+            writer.add_scalar(k, v, epoch)
+
+            # Start training
+
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        trainer.train(epoch, train_loader, optimizer)
+        train_loss, train_acc = trainer.train(epoch, train_loader, optimizer)
         if epoch < args.start_save:
             continue
         top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
-
+        add_scalars({
+            'train/loss': train_loss,
+            'train/acc': train_acc,
+            'test/top1': top1,
+            'lr': optimizer.param_groups[0]['lr']
+        }, epoch)
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
         save_checkpoint({
