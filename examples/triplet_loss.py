@@ -22,7 +22,7 @@ from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import RandomIdentitySampler
 from reid.utils.logging import Logger
 from reid.utils.serialization import load_checkpoint, save_checkpoint
-
+from conf import conf
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
@@ -77,7 +77,10 @@ def main(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
-    init_dev((0,1))
+
+    init_dev(get_dev(n=conf.ndevs))
+    mkdir_p(args.logs_dir)
+
     # Redirect print to both console and log file
     if not args.evaluate:
         sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
@@ -183,7 +186,7 @@ if __name__ == '__main__':
     parser.add_argument('--width', type=int,
                         help="input width, default: 128 for resnet*, "
                              "56 for inception")
-    parser.add_argument('--combine-trainval', action='store_true',
+    parser.add_argument('--combine-trainval', action='store_true', default=True,
                         help="train and val sets together for training, "
                              "val set alone for validation")
     parser.add_argument('--num-instances', type=int, default=4,
@@ -220,5 +223,6 @@ if __name__ == '__main__':
     parser.add_argument('--data-dir', type=str, metavar='PATH',
                         default='/home/xinglu/.torch/data/')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default='work/nopretrain')
+                        default='work/bak')
+    parser.set_defaults(**conf)
     main(parser.parse_args())

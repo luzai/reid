@@ -1,7 +1,10 @@
 from __future__ import print_function, absolute_import
+from lz import *
+import lz
 import argparse
-import os.path as osp
 
+import os.path as osp
+from conf import  conf
 import numpy as np
 import sys
 import torch
@@ -71,6 +74,9 @@ def main(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
+
+    init_dev(get_dev(n=conf.ndevs))
+    mkdir_p(args.logs_dir)
 
     # Redirect print to both console and log file
     if not args.evaluate:
@@ -211,7 +217,8 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'data'))
+                        default='/home/xinglu/.torch/data/')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'logs'))
+                        default='work/bak')
+    parser.set_defaults(**conf )
     main(parser.parse_args())
