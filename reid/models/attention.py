@@ -43,7 +43,7 @@ class Mask(nn.Module):
 
 
 class Global(nn.Module):
-    def __init__(self, in_planes, out_planes, dropout=0.3):
+    def __init__(self, in_planes, out_planes, dropout=0.3, ):
         super(Global, self).__init__()
         self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
 
@@ -55,7 +55,7 @@ class Global(nn.Module):
 
 
 class ConcatReduce(nn.Module):
-    def __init__(self, in_planes, out_planes, dropout=0, normalize=True):
+    def __init__(self, in_planes, out_planes, dropout=0, normalize=True, num_classes=None):
         super(ConcatReduce, self).__init__()
         self.normalize = normalize
         self.bn = nn.BatchNorm1d(in_planes)
@@ -63,6 +63,10 @@ class ConcatReduce(nn.Module):
         init.constant(self.bn.bias, 0)
         self.bn_relu = nn.ReLU()
         self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
+        if num_classes is not None:
+            self.fc2 = _make_fc(out_planes, num_classes, dp_=dropout    , with_relu=False )
+        else:
+            self.fc2 =None
 
     def forward(self, *input):
         if len(input) > 1:
@@ -72,5 +76,7 @@ class ConcatReduce(nn.Module):
         x = self.bn(x)
         x = self.bn_relu(x)
         x = self.fc(x)
-
-        return x
+        if self.fc2 is None:
+            return x
+        else:
+            return x, self.fc2(x)

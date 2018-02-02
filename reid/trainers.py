@@ -339,3 +339,103 @@ class Trainer(object):
             'loss': losses.avg,
             'prec': precisions.avg
         })
+
+
+class CombTrainer(object):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, **kwargs):
+        self.model = model
+        self.criterion = criterion[0]
+        self.criterion2 = criterion[1]
+        self.iter = 0
+        self.dbg = dbg
+        if dbg:
+            mkdir_p(logs_at, delete=True)
+            self.writer = SummaryWriter(logs_at)
+        else:
+            self.writer = None
+
+    def _parse_data(self, inputs):
+        imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
+        inputs = [imgs, npys]
+        inputs = to_variable(inputs, requires_grad=False)
+        targets = to_variable(pids, requires_grad=False)
+        return inputs, targets, fnames
+
+    def _forward(self, inputs, targets):
+        outputs, outputs2 = self.model(*inputs)
+        if self.dbg and self.iter % 1000 == 0:
+            self.writer.add_histogram('1_input', inputs[0], self.iter)
+            self.writer.add_histogram('2_feature', outputs, self.iter)
+            x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
+            self.writer.add_image('input', x, self.iter)
+
+        loss2 = self.criterion2(outputs2, targets)
+        prec2, = accuracy(outputs2.data, targets.data)
+        prec2 = prec2[0]
+
+        if self.dbg and self.iter % 100 == 0:
+            loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
+            diff = dist_an - dist_ap
+            self.writer.add_histogram('an-ap', diff, self.iter)
+            self.writer.add_scalar('vis/loss', loss, self.iter)
+            self.writer.add_scalar('vis/prec', prec, self.iter)
+            self.writer.add_histogram('dist', dist, self.iter)
+            self.writer.add_histogram('ap', dist_ap, self.iter)
+            self.writer.add_histogram('an', dist_an, self.iter)
+            self.writer.add_scalar('vis/lr', self.lr,
+                                   self.iter)
+        else:
+            loss, prec = self.criterion(outputs, targets, dbg=False)
+
+        self.iter += 1
+        alpha=1
+        loss = loss +alpha* loss2
+        prec = (prec2 + prec) // 2
+        return loss, prec
+
+    def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
+
+        batch_time = AverageMeter()
+        data_time = AverageMeter()
+        losses = AverageMeter()
+        precisions = AverageMeter()
+
+        end = time.time()
+
+        for i, inputs in enumerate(data_loader):
+            data_time.update(time.time() - end)
+            inputs, targets, fnames = self._parse_data(inputs)
+            if schedule is not None:
+                schedule.batch_step()
+            self.lr = optimizer.param_groups[0]['lr']
+            self.model.train()
+            loss, prec1 = self._forward(inputs, targets)
+            if isinstance(targets, tuple):
+                targets, _ = targets
+            losses.update(loss.data[0], targets.size(0))
+            precisions.update(prec1, targets.size(0))
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if (i + 1) % print_freq == 0:
+                print('Epoch: [{}][{}/{}]\t'
+                      'Time {:.3f} ({:.3f})\t'
+                      'Data {:.3f} ({:.3f})\t'
+                      'Loss {:.3f} ({:.3f})\t'
+                      'Prec {:.2%} ({:.2%})\t'
+                      .format(epoch, i + 1, len(data_loader),
+                              batch_time.val, batch_time.avg,
+                              data_time.val, data_time.avg,
+                              losses.val, losses.avg,
+                              precisions.val, precisions.avg))
+        return collections.OrderedDict({
+            'ttl-time': batch_time.avg,
+            'data-time': data_time.avg,
+            'loss': losses.avg,
+            'prec': precisions.avg
+        })

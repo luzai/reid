@@ -81,7 +81,7 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
           .format(i + 1, len(data_loader),
                   batch_time.val, batch_time.avg,
                   data_time.val, data_time.avg))
-    res= torch.cat(embeddings)
+    res = torch.cat(embeddings)
     print(res.shape)
     return res
 
@@ -146,22 +146,19 @@ class Evaluator(object):
 
         if not final:
             cmc_configs = {
-                # 'cuhk03': dict(separate_camera_set=True,
-                #                single_gallery_shot=True,
-                #                first_match_break=False),
-                'market1501': dict(separate_camera_set=False,  # hard
-                                   single_gallery_shot=False,  # hard
-                                   first_match_break=True)
+                'cuhk03': dict(separate_camera_set=True,
+                               single_gallery_shot=True,
+                               first_match_break=False),
+                # 'market1501': dict(separate_camera_set=False,  # hard
+                #                    single_gallery_shot=False,  # hard
+                #                    first_match_break=True)
             }
 
             cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
                                     query_cams, gallery_cams, **params)
                           for name, params in cmc_configs.items()}
-            print('cmc-1 market1501 ' + str(cmc_scores['market1501'][0]))
-            del features
-            import gc
-            gc.collect()
-            return mAP, cmc_scores['market1501'][0]
+            print('cmc-1 cuhk03 ' + str(cmc_scores['cuhk03'][0]))
+            return mAP, cmc_scores['cuhk03'][0]
         else:
             # Compute all kinds of CMC scores
             cmc_configs = {
@@ -178,19 +175,10 @@ class Evaluator(object):
                                     query_cams, gallery_cams, **params)
                           for name, params in cmc_configs.items()}
 
-            # print('CMC Scores|{:>12}|{:>12}|{:>12}'
-            #       .format('allshots', 'cuhk03', 'market1501'))
-            # print('--|--|--|--')
-            # for k in (1, 5, 10):
-            #     print('  top-{:<4}|{:12.1%}|{:12.1%}|{:12.1%}'
-            #           .format(k, cmc_scores['allshots'][k - 1],
-            #                   cmc_scores['cuhk03'][k - 1],
-            #                   cmc_scores['market1501'][k - 1]))
-            # print('cmc-1 cuhk03' + str(cmc_scores['cuhk03'][0]))
-            print('cmc-1 market1501 ', cmc_scores['market1501'][0], 'cmc-1 cuhk03 ', cmc_scores['cuhk03'][0])
-
+            print('cmc-1 market ', cmc_scores['market1501'][0],
+                  'cmc-1 cuhk03 ', cmc_scores['cuhk03'][0])
             logging.info('evaluate takes time {}'.format(timer.since_start()))
-        return mAP, cmc_scores['market1501'][0]
+        return mAP, cmc_scores['cuhk03'][0]
 
 
 class CascadeEvaluator(object):
@@ -209,7 +197,7 @@ class CascadeEvaluator(object):
         if one_stage:
             rerank_topk = len(gallery)
         # Extract features image by image
-        features, _ = extract_features(self.base_model, data_loader,)
+        features, _ = extract_features(self.base_model, data_loader, )
 
         # Compute pairwise distance and evaluate for the first stage
         distmat = pairwise_distance(features, query, gallery)
@@ -248,9 +236,8 @@ class CascadeEvaluator(object):
             else:
                 return cmc_scores['cuhk03'][0], 0
 
-
         # Sort according to the first stage distance
-        distmat =to_numpy(distmat)
+        distmat = to_numpy(distmat)
         distmat.shape
         self.distmat1 = distmat
         rank_indices = np.argsort(distmat, axis=1)
@@ -266,7 +253,7 @@ class CascadeEvaluator(object):
         data_loader = DataLoader(
             KeyValuePreprocessor(features),
             sampler=pair_samples,
-            batch_size=min(len(gallery) * rerank_topk, 1024*4),
+            batch_size=min(len(gallery) * rerank_topk, 1024 * 4),
             num_workers=4, pin_memory=False)
         # features.values().__iter__().__next__()
         # Extract embeddings of each pair
@@ -338,7 +325,7 @@ class SiameseEvaluator(object):
             KeyValuePreprocessor(features),
             sampler=ExhaustiveSampler((query_keys, gallery_keys,),
                                       return_index=False),
-            batch_size=min(len(gallery), 4096*8),
+            batch_size=min(len(gallery), 4096 * 8),
             num_workers=4, pin_memory=False)
 
         # Extract embeddings of each (query, gallery) pair
