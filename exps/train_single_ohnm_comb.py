@@ -170,58 +170,14 @@ def main(args):
         get_data(args)
     # Create model
 
-    base_model = models.create(args.arch,
-                               dropout=args.dropout,
-                               pretrained=args.pretrained,
-                               cut_at_pooling=True, bottleneck=args.bottleneck,
-                               convop=args.convop
-                               )
-    if args.branchs * args.branch_dim != 0:
-        local_model = Mask(base_model.out_planes, args.branchs, args.branch_dim,
-                           height=args.height // 32,
-                           width=args.width // 32,
-                           dopout=args.dropout
-                           )
-    else:
-        local_model = None
-    if args.global_dim != 0:
-        global_model = Global(base_model.out_planes, args.global_dim, dropout=args.dropout, )
-    else:
-        global_model = None
-    lomo_model = LomoNet() if args.has_npy else None
-
-    def get_controller(scale=args.scale, translation=args.translation, theta=args.theta):
-        controller = []
-        for sx in scale:
-            for sy in scale:
-                for tx in translation:
-                    for ty in translation:
-                        for th in theta:
-                            controller.append([sx * np.cos(th), -sx * np.sin(th), tx,
-                                               sy * np.sin(th), sy * np.cos(th), ty])
-        print('controller stride is ', len(controller))
-        controller = np.stack(controller)
-        controller = controller.reshape(-1, 2, 3)
-        controller = np.ascontiguousarray(controller, np.float32)
-        return controller
-
-    # dconv_model = ZPC1Conv(2048, args.double, kernel_size=3, vector=True
-    #                        ).cuda() if args.double else None
-    # dconv_model = TC1Conv(2048, args.double, kernel_size=3, vector=True
-    #                        ).cuda() if args.double else None
-    dconv_model = None
-    concat_inplates = args.branchs * args.branch_dim + args.global_dim
-    if args.double:
-        concat_inplates += args.double
-    if args.has_npy:
-        concat_inplates += 256
-    concat_model = ConcatReduce(concat_inplates,
-                                args.num_classes, dropout=0, num_classes=num_classes)
-
-    model = SingleNet(base_model, global_model, local_model,
-                      lomo_model,
-                      dconv_model,
-                      concat_model=concat_model)
+    model = models.create(args.arch,
+                          dropout=args.dropout,
+                          pretrained=args.pretrained,
+                          bottleneck=args.bottleneck,
+                          convop=args.convop,
+                          num_features = args.num_classes,
+                          num_classes=num_classes
+                          )
 
     print(model)
     param_mb = sum(p.numel() for p in model.parameters()) / 1000000.0
@@ -388,7 +344,7 @@ def main(args):
             'state_dict': model.module.state_dict(),
             'epoch': epoch + 1,
             'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'model_now.pth'.format(epoch)))  # checkpoint.{}.pth
+        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))

@@ -8,7 +8,9 @@ from reid.utils.serialization import load_state_dict
 from .common import _make_conv
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-           'resnet152', 'res_att1']
+           'resnet152',
+           # 'res_att1'
+           ]
 
 '''
 def get_loss_div(theta):
@@ -125,7 +127,7 @@ class STN_TPS(nn.Module):
         grid = source_coordinate.view(batch_size, 256, 128, 2)
         transformed_x = grid_sample(x, grid)
         return transformed_x, 0
-'''
+
 
 from reid.models.misc import *
 
@@ -603,122 +605,7 @@ def resnet50(pretrained=True, **kwargs):
             # model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
             load_state_dict(model, model_zoo.load_url(model_urls['resnet50']))
     return model
-
-
-'''
-
-class ResNet(nn.Module):
-    def __init__(self, depth, pretrained=True, cut_at_pooling=False,
-                 num_features=0, norm=False, dropout=0, num_classes=0, **kwargs):
-        super(ResNet, self).__init__()
-        __factory = {
-            18: torchvision.models.resnet18,
-            34: torchvision.models.resnet34,
-            50: torchvision.models.resnet50,
-            101: torchvision.models.resnet101,
-            152: torchvision.models.resnet152,
-        }
-
-        self.depth = depth
-        self.pretrained = pretrained
-        self.cut_at_pooling = cut_at_pooling
-
-        # self.stn = STN_TPS()
-        # self.stn = STN_shallow()
-
-        # Construct base (pretrained) resnet
-        if depth not in ResNet.__factory:
-            raise KeyError("Unsupported depth:", depth)
-        self.base = ResNet.__factory[depth](pretrained=pretrained)
-        out_planes = self.base.fc.in_features
-        self.out_planes = out_planes
-        if not self.cut_at_pooling:
-            self.num_features = num_features
-            self.norm = norm
-            self.dropout = dropout
-            self.has_embedding = num_features > 0
-            self.num_classes = num_classes
-
-            # Append new layers
-            if self.has_embedding:
-                self.feat = nn.Linear(out_planes, self.num_features)
-                self.feat_bn = nn.BatchNorm1d(self.num_features)
-                init.kaiming_normal(self.feat.weight, mode='fan_out')
-                init.constant(self.feat.bias, 0)
-                init.constant(self.feat_bn.weight, 1)
-                init.constant(self.feat_bn.bias, 0)
-                self.feat_relu = nn.ReLU()
-            else:
-                # Change the num_features to CNN output channels
-                self.num_features = out_planes
-            if self.dropout > 0:
-                self.drop = nn.Dropout(self.dropout)
-            if self.num_classes > 0:
-                self.classifier = nn.Linear(self.num_features, self.num_classes)
-                init.normal(self.classifier.weight, std=0.001)
-                init.constant(self.classifier.bias, 0)
-        # self.conv1 = _make_conv(out_planes, 512, kernel_size=1, stride=1, padding=0, with_relu=True)
-        if not self.pretrained:
-            self.reset_params()
-
-    def forward(self, x):
-        # x, loss = self.stn(x)
-
-        for name, module in self.base._modules.items():
-            if name == 'avgpool':
-                break
-            x = module(x)
-        if self.cut_at_pooling:
-            return x
-
-        x = F.avg_pool2d(x, x.size()[2:])
-        x = x.view(x.size(0), -1)
-
-        if self.has_embedding:
-            x = self.feat(x)
-            x = self.feat_bn(x)
-            x = self.feat_relu(x)
-        if self.dropout > 0:
-            x = self.drop(x)
-        if self.num_classes > 0:
-            x = self.classifier(x)
-        return x
-
-    def reset_params(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                init.kaiming_normal(m.weight, mode='fan_out')
-                if m.bias is not None:
-                    init.constant(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                init.constant(m.weight, 1)
-                init.constant(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                init.normal(m.weight, std=0.001)
-                if m.bias is not None:
-                    init.constant(m.bias, 0)
-
-'''
-
-
-def resnet18(**kwargs):
-    return ResNet(18, **kwargs)
-
-
-# def resnet34(**kwargs):
-#     return ResNet(34, **kwargs)
-
-
-# def resnet50(**kwargs):
-#     return ResNet(50, **kwargs)
-
-
-def resnet101(**kwargs):
-    return ResNet(101, **kwargs)
-
-
-def resnet152(**kwargs):
-    return ResNet(152, **kwargs)
+    
 
 
 class Residual(nn.Module):
@@ -847,3 +734,99 @@ class UnetBlock(nn.Module):
 
 def res_att1(**kwargs):
     return ResAtt1(**kwargs)
+    
+'''
+
+
+def reset_params(module):
+    for m in module.modules():
+        if isinstance(m, nn.Conv2d):
+            init.kaiming_normal(m.weight, mode='fan_out')
+            if m.bias is not None:
+                init.constant(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            init.constant(m.weight, 1)
+            init.constant(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            init.normal(m.weight, std=0.001)
+            if m.bias is not None:
+                init.constant(m.bias, 0)
+
+
+class ResNet(nn.Module):
+    __factory = {
+        18: torchvision.models.resnet18,
+        34: torchvision.models.resnet34,
+        50: torchvision.models.resnet50,
+        101: torchvision.models.resnet101,
+        152: torchvision.models.resnet152,
+    }
+
+    def __init__(self, depth, pretrained=True, cut_at_pooling=False,
+                 num_features=0, norm=False, dropout=0, num_classes=0, **kwargs):
+        super(ResNet, self).__init__()
+
+        self.depth = depth
+        self.pretrained = pretrained
+        self.cut_at_pooling = cut_at_pooling
+
+        # Construct base (pretrained) resnet
+        if depth not in ResNet.__factory:
+            raise KeyError("Unsupported depth:", depth)
+        self.base = ResNet.__factory[depth](pretrained=pretrained)
+
+        self.out_planes = out_planes = self.base.fc.in_features
+        self.dropout = dropout
+        self.num_classes = num_classes
+        self.num_features = num_features
+
+        self.post1 = nn.Sequential(
+            nn.BatchNorm2d(self.out_planes),
+            nn.ReLU(),
+            nn.Dropout2d(self.dropout),
+            nn.AdaptiveAvgPool2d(1),
+        )
+        self.post2 = nn.Sequential(
+            nn.Dropout(self.dropout),
+            nn.Linear(self.out_planes, self.num_features, bias=False),
+            nn.Linear(self.num_features, self.num_classes, bias=False),
+        )
+
+        reset_params(self.post1)
+        reset_params(self.post2)
+
+    def forward(self, x):
+        # x, loss = self.stn(x)
+
+        for name, module in self.base._modules.items():
+            if name == 'avgpool':
+                break
+            x = module(x)
+        if self.cut_at_pooling:
+            return x
+
+        x1 = self.post1(x)
+        x1 = x1.view(x1.size(0), -1)
+        x2 = self.post2(x1)
+
+        return x1, x2
+
+
+def resnet18(**kwargs):
+    return ResNet(18, **kwargs)
+
+
+def resnet34(**kwargs):
+    return ResNet(34, **kwargs)
+
+
+def resnet50(**kwargs):
+    return ResNet(50, **kwargs)
+
+
+def resnet101(**kwargs):
+    return ResNet(101, **kwargs)
+
+
+def resnet152(**kwargs):
+    return ResNet(152, **kwargs)

@@ -17,7 +17,7 @@ __factory = {
     'resnet50': resnet50,
     'resnet101': resnet101,
     'resnet152': resnet152,
-    'res_att1': res_att1,
+    # 'res_att1': res_att1,
 }
 
 

@@ -45,12 +45,12 @@ class Mask(nn.Module):
 class Global(nn.Module):
     def __init__(self, in_planes, out_planes, dropout=0.3, ):
         super(Global, self).__init__()
-        self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
+        # self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
 
     def forward(self, x):
         x = F.avg_pool2d(x, x.size()[2:])
         x = x.view(x.size(0), -1)
-        x = self.fc(x)
+        # x = self.fc(x)
         return x
 
 
