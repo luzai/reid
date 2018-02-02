@@ -1,4 +1,5 @@
 from lz import *
+
 cfgs = [
     # edict(
     #     logs_dir='senet.me',
@@ -58,6 +59,8 @@ cfgs = [
         evaluate=False,
         steps=[40, 60],
         epochs=65,
+        workers=0,
+        dataset_mode='label',
     ),
 ]
 

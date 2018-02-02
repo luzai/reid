@@ -22,6 +22,11 @@ def _pluck(identities, indices, relabel=False):
     return ret
 
 
+def _stats(tensor):
+    tensor = np.asarray(tensor)
+    return tensor.shape, np.unique(tensor).shape, tensor.max()
+
+
 class Dataset(object):
     def __init__(self, root, split_id=0):
         self.root = root
@@ -31,7 +36,7 @@ class Dataset(object):
         self.train, self.val, self.trainval = [], [], []
         self.query, self.gallery = [], []
         self.num_train_ids, self.num_val_ids, self.num_trainval_ids = 0, 0, 0
-        self.images_dir = osp.join(self.root,'images')
+        self.images_dir = osp.join(self.root, 'images')
 
     def load(self, num_val=0.3, verbose=True):
         splits = read_json(osp.join(self.root, 'splits.json'))
@@ -54,9 +59,10 @@ class Dataset(object):
 
         self.meta = read_json(osp.join(self.root, 'meta.json'))
         identities = self.meta['identities']
-        self.train = _pluck(identities, train_pids, relabel=False)
-        self.val = _pluck(identities, val_pids, relabel=False)
-        self.trainval = _pluck(identities, trainval_pids, relabel=False)
+        self.train = _pluck(identities, train_pids, relabel=True)
+        self.val = _pluck(identities, val_pids, relabel=True)
+        self.val = _pluck(identities, val_pids, relabel=True)
+        self.trainval = _pluck(identities, trainval_pids, relabel=True)
         self.query = _pluck(identities, self.split['query'])
         self.gallery = _pluck(identities, self.split['gallery'])
         self.num_train_ids = len(train_pids)

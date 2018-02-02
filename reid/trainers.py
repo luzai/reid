@@ -388,9 +388,9 @@ class CombTrainer(object):
             loss, prec = self.criterion(outputs, targets, dbg=False)
 
         self.iter += 1
-        alpha=1
-        loss = loss +alpha* loss2
-        prec = (prec2 + prec) // 2
+        alpha = 1
+        loss = loss + alpha * loss2
+        prec = (prec2 + prec) / 2
         return loss, prec
 
     def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):

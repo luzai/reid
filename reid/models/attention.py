@@ -64,9 +64,9 @@ class ConcatReduce(nn.Module):
         self.bn_relu = nn.ReLU()
         self.fc = _make_fc(in_planes, out_planes, dp_=dropout, with_relu=False)
         if num_classes is not None:
-            self.fc2 = _make_fc(out_planes, num_classes, dp_=dropout    , with_relu=False )
+            self.fc2 = _make_fc(out_planes, num_classes, dp_=dropout, with_relu=False)
         else:
-            self.fc2 =None
+            self.fc2 = None
 
     def forward(self, *input):
         if len(input) > 1:

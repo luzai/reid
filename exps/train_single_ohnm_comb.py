@@ -292,7 +292,8 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = CombTrainer(model, criterion, dbg=False, logs_at=args.logs_dir + '/vis', loss_div_weight=args.loss_div_weight)
+    trainer = CombTrainer(model, criterion, dbg=False, logs_at=args.logs_dir + '/vis',
+                          loss_div_weight=args.loss_div_weight)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -327,7 +328,7 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         # warm up
-        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        # mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
 
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
