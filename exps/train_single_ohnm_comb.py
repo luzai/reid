@@ -57,7 +57,7 @@ def run(_):
         proc = mp.Process(target=main, args=(args,))
         proc.start()
         lz.logging.info('next')
-        time.sleep(12)
+        time.sleep(39.46)
         procs.append(proc)
 
     for proc in procs:
