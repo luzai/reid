@@ -1,12 +1,10 @@
+import sys
+
+sys.path.insert(0, '/home/xinglu/prj/luzai-tool')
+sys.path.insert(0, '/home/xinglu/prj/open-reid')
 from lz import *
 import lz
-
-import torch, sys
-
-sys.path.insert(0, '/home/xinglu/prj/open-reid/')
 from torch.optim import Optimizer
-from lz import *
-import lz
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 import reid
@@ -169,13 +167,15 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args)
     # Create model
-
+    db = lz.Database('dop.h5','w')
+    db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
+    db.close()
     model = models.create(args.arch,
                           dropout=args.dropout,
                           pretrained=args.pretrained,
                           bottleneck=args.bottleneck,
                           convop=args.convop,
-                          num_features = args.num_classes,
+                          num_features=args.num_classes,
                           num_classes=num_classes
                           )
 
@@ -248,8 +248,8 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = CombTrainer(model, criterion, dbg=False, logs_at=args.logs_dir + '/vis',
-                          loss_div_weight=args.loss_div_weight)
+    trainer = CombTrainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis',
+                          loss_div_weight=args.loss_div_weight, alpha=args.alpha)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

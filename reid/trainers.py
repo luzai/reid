@@ -1,4 +1,3 @@
-from __future__ import print_function, absolute_import
 import torchvision.utils as vutils
 from .evaluation_metrics import accuracy
 from .loss import OIMLoss, TripletLoss, TupletLoss
@@ -341,13 +340,30 @@ class Trainer(object):
         })
 
 
+def update_dop(outputs, targets):
+    targets = to_numpy(targets)
+    targets = targets.reshape((targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
+
+    outputs = to_numpy(outputs)
+    outputs = outputs.reshape((outputs.shape[0] // 4, 4, outputs.shape[1])).sum(axis=1)
+
+    outputs[np.arange(outputs.shape[0]), targets] = -np.inf
+
+    db = Database('dop.h5', 'w')
+    dop = db['dop']
+    dop[targets] = np.argmax(outputs, axis=1)
+    db['dop'] = dop
+    db.close()
+
+
 class CombTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, **kwargs):
+    def __init__(self, model, criterion, logs_at='work/vis', alpha=0, dbg=False, **kwargs):
         self.model = model
         self.criterion = criterion[0]
         self.criterion2 = criterion[1]
         self.iter = 0
         self.dbg = dbg
+        self.alpha = alpha
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
@@ -373,23 +389,29 @@ class CombTrainer(object):
         prec2, = accuracy(outputs2.data, targets.data)
         prec2 = prec2[0]
 
+        update_dop(outputs2, targets)
+
         if self.dbg and self.iter % 100 == 0:
+            self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
+            self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
+
             loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
             diff = dist_an - dist_ap
+            self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
+            self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
+            self.writer.add_scalar('vis/lr', self.lr, self.iter)
+            self.writer.add_scalar('vis/loss-ttl', loss + self.alpha * loss2, self.iter)
+
             self.writer.add_histogram('an-ap', diff, self.iter)
-            self.writer.add_scalar('vis/loss', loss, self.iter)
-            self.writer.add_scalar('vis/prec', prec, self.iter)
             self.writer.add_histogram('dist', dist, self.iter)
             self.writer.add_histogram('ap', dist_ap, self.iter)
             self.writer.add_histogram('an', dist_an, self.iter)
-            self.writer.add_scalar('vis/lr', self.lr,
-                                   self.iter)
+
         else:
             loss, prec = self.criterion(outputs, targets, dbg=False)
 
         self.iter += 1
-        alpha = 1
-        loss = loss + alpha * loss2
+        loss = loss + self.alpha * loss2
         prec = (prec2 + prec) / 2
         return loss, prec
 

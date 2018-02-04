@@ -203,7 +203,7 @@ class DeformConv2(nn.Module):
         out = out.permute(0, 2, 1).contiguous().view(bs, -1, oh, ow)
 
         return out
-'''
+
 
 from orn.modules import ORConv2d
 from orn.functions import oralign1d
@@ -229,7 +229,7 @@ class ORNConv(nn.Module):
 
     def forward(self, input):
         return self.conv(input)
-
+'''
 
 # my designed 2048 concat 2048
 class GroupConv(nn.Module):

@@ -22,7 +22,7 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='comb.bak',
+        logs_dir='comb.clean.bak',
         arch='resnet50',
         bottleneck='Bottleneck',
         dataset='cuhk03',
@@ -39,18 +39,42 @@ cfgs = [
         evaluate=False,
         steps=[40, 60],
         epochs=65,
-        workers=0,
-        dataset_mode='label',
+        # workers=0,
+        dbg=True,
+        dataset_mode='combine',
         dropout=0.25,
         alpha=1,
     ),
+    # edict(
+    #     logs_dir='triplet.clean',
+    #     arch='resnet50',
+    #     bottleneck='Bottleneck',
+    #     dataset='cuhk03',
+    #     global_dim=1024,
+    #     lr=3e-4,
+    #     margin=0.45,
+    #     area=(0.85, 1),
+    #     dataset_val='cuhk03',
+    #     batch_size=128,
+    #     num_instances=4,
+    #     print_freq=1,
+    #     gpu=range(1),
+    #     num_classes=128,
+    #     evaluate=False,
+    #     steps=[40, 60],
+    #     epochs=65,
+    #     # workers=0,
+    #     dataset_mode='label',
+    #     dropout=0.25,
+    #     alpha=0,
+    # ),
 ]
 
 # cfgs = [cfgs[-1]]
 
 base = edict(
-    alpha =0.,
-    bs_steps=[],batch_size_l=[], num_instances_l=[],
+    alpha=0.,
+    bs_steps=[], batch_size_l=[], num_instances_l=[],
     bottleneck='Bottleneck',
     convop='nn.Conv2d',
     scale=(1,), translation=(0,), theta=(0,),
@@ -73,7 +97,7 @@ base = edict(
     steps=[100, 150, 160],
     epochs=165,
     log_at=np.concatenate([
-        range(1, 640, 7),
+        range(0, 640, 7),
     ]),
 
     weight_decay=5e-4,
