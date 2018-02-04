@@ -412,15 +412,16 @@ class CombTrainer(object):
 
         self.iter += 1
         loss = loss + self.alpha * loss2
-        prec = (prec2 + prec) / 2
-        return loss, prec
+        return loss, loss2, prec, prec2
 
     def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
 
         batch_time = AverageMeter()
         data_time = AverageMeter()
         losses = AverageMeter()
+        losses2 = AverageMeter()
         precisions = AverageMeter()
+        precisions2 = AverageMeter()
 
         end = time.time()
 
@@ -431,11 +432,13 @@ class CombTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
-            loss, prec1 = self._forward(inputs, targets)
+            loss, loss2, prec1, prec2 = self._forward(inputs, targets)
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(loss.data[0], targets.size(0))
+            losses2.update(loss2.data[0], targets.size(0))
             precisions.update(prec1, targets.size(0))
+            precisions2.update(prec2, targets.size(0))
 
             optimizer.zero_grad()
             loss.backward()
@@ -445,19 +448,26 @@ class CombTrainer(object):
             end = time.time()
 
             if (i + 1) % print_freq == 0:
-                print('Epoch: [{}][{}/{}]\t'
-                      'Time {:.3f} ({:.3f})\t'
-                      'Data {:.3f} ({:.3f})\t'
-                      'Loss {:.3f} ({:.3f})\t'
-                      'Prec {:.2%} ({:.2%})\t'
+                print('Epoch: [{}][{}/{}]  '
+                      'Time {:.3f} ({:.3f})  '
+                      'Data {:.3f} ({:.3f})  '
+                      'Loss {:.3f} ({:.3f})  '
+                      'Loss2 {:.3f} ({:.3f})  '
+                      'Prec {:.2%} ({:.2%})  '
+                      'Prec2 {:.2%} ({:.2%})  '
                       .format(epoch, i + 1, len(data_loader),
                               batch_time.val, batch_time.avg,
                               data_time.val, data_time.avg,
                               losses.val, losses.avg,
-                              precisions.val, precisions.avg))
+                              losses2.val, losses2.avg,
+                              precisions.val, precisions.avg,
+                              precisions2.val, precisions2.avg,
+                              ))
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,
             'data-time': data_time.avg,
             'loss': losses.avg,
-            'prec': precisions.avg
+            'loss2': losses2.avg,
+            'prec': precisions.avg,
+            'prec2': precisions2.avg,
         })

@@ -91,6 +91,7 @@ class RandomIdentityWeightedSampler(Sampler):
         pids = []
         with lz.Database('dop.h5') as db:
             dop = db['dop'].copy()
+        lz.logging.debug('get new inds, {} {}'.format(dop, np.count_nonzero(dop == -1)))
         pids_now = np.random.choice(self.pids,
                                     size=int(self.batch_size / self.num_instances * self.rand_ratio),
                                     replace=False)
@@ -103,7 +104,7 @@ class RandomIdentityWeightedSampler(Sampler):
                 else:
                     pids_next.append(dop[pid])
             pids.extend(pids_next)
-            pids_now=pids_next
+            pids_now = pids_next
 
         return pids
 
@@ -115,7 +116,7 @@ class RandomIdentityWeightedSampler(Sampler):
             inds.extend(
                 np.random.choice(
                     groupes.get_group(pid)['inds'].tolist(),
-                    size = (self.num_instances,)
+                    size=(self.num_instances,)
                 ).tolist()
             )
         inds = inds[:self.batch_size]
@@ -124,7 +125,6 @@ class RandomIdentityWeightedSampler(Sampler):
     def __iter__(self):
         while True:
             inds = self.get_batch_inds()
-            print('get new inds')
             for ind in inds:
                 yield ind
 

@@ -69,7 +69,7 @@ def get_data(args):
     pin_memory = args.pin_mem
     name_val = args.dataset_val
     npy = args.has_npy
-
+    rand_ratio = args.random_ratio
     if isinstance(name, list) and len(name) != 1:
         names = name
         root = '/home/xinglu/.torch/data/'
@@ -113,7 +113,9 @@ def get_data(args):
                      transform=train_transformer,
                      has_npy=npy),
         batch_size=batch_size, num_workers=workers,
-        sampler=RandomIdentityWeightedSampler(train_set, num_instances, batch_size=batch_size),
+        sampler=RandomIdentityWeightedSampler(train_set, num_instances,
+                                              batch_size=batch_size, rand_ratio=rand_ratio
+                                              ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
 
@@ -167,7 +169,7 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args)
     # Create model
-    db = lz.Database('dop.h5','w')
+    db = lz.Database('dop.h5', 'w')
     db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
     db.close()
     model = models.create(args.arch,
@@ -307,13 +309,13 @@ def main(args):
                 sampler=SubsetRandomSampler(np.unique(np.asarray(triplets).ravel())),
                 pin_memory=True, drop_last=True)
 
-        train_loader = DataLoader(
-            Preprocessor(dataset.trainval, root=dataset.images_dir,
-                         transform=train_loader.dataset.transform,
-                         has_npy=False),
-            batch_size=args.batch_size, num_workers=args.workers,
-            sampler=RandomIdentityWeightedSampler(dataset.trainval, args.num_instances, batch_size=args.batch_size),
-            pin_memory=True, drop_last=True)
+        # train_loader = DataLoader(
+        #     Preprocessor(dataset.trainval, root=dataset.images_dir,
+        #                  transform=train_loader.dataset.transform,
+        #                  has_npy=False),
+        #     batch_size=args.batch_size, num_workers=args.workers,
+        #     sampler=RandomIdentityWeightedSampler(dataset.trainval, args.num_instances, batch_size=args.batch_size),
+        #     pin_memory=True, drop_last=True)
 
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule)
         for k, v in hist.items():
