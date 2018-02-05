@@ -114,10 +114,12 @@ def get_data(args):
                      has_npy=npy),
         batch_size=batch_size, num_workers=workers,
         sampler=RandomIdentityWeightedSampler(train_set, num_instances,
-                                              batch_size=batch_size, rand_ratio=rand_ratio
+                                              batch_size=batch_size,
+                                              rand_ratio=rand_ratio
                                               ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
+
 
     fnames = np.asarray(train_set)[:, 0]
     fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))

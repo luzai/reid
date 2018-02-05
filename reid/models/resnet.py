@@ -807,7 +807,10 @@ class ResNet(nn.Module):
 
         x1 = self.post1(x)
         x1 = x1.view(x1.size(0), -1)
-        x2 = self.post2(x1)
+        x2 = self.post2(
+            # Variable(x1.data),
+            x1
+        )
 
         return x1, x2
 

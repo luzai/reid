@@ -123,9 +123,11 @@ class RandomIdentityWeightedSampler(Sampler):
         return inds
 
     def __iter__(self):
-        while True:
+        cnt = 0
+        while cnt < len(self):
             inds = self.get_batch_inds()
             for ind in inds:
+                cnt += 1
                 yield ind
 
         # ind_ind = 0
