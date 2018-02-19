@@ -180,7 +180,8 @@ def main(args):
                           bottleneck=args.bottleneck,
                           convop=args.convop,
                           num_features=args.num_classes,
-                          num_classes=num_classes
+                          num_classes=num_classes,
+                          block = args.bottleneck,
                           )
 
     print(model)
@@ -252,8 +253,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = CombTrainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis',
-                          loss_div_weight=args.loss_div_weight, alpha=args.alpha)
+    trainer = CombTrainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', args=args  )
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

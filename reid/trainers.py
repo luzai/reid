@@ -357,13 +357,14 @@ def update_dop(outputs, targets):
 
 
 class CombTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', alpha=0, dbg=False, **kwargs):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, **kwargs):
         self.model = model
         self.criterion = criterion[0]
         self.criterion2 = criterion[1]
         self.iter = 0
         self.dbg = dbg
-        self.alpha = alpha
+        self.cls_weight = args.cls_weight
+        self.tri_weight = args.tri_weight
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
@@ -400,7 +401,8 @@ class CombTrainer(object):
             self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
             self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
             self.writer.add_scalar('vis/lr', self.lr, self.iter)
-            self.writer.add_scalar('vis/loss-ttl', loss + self.alpha * loss2, self.iter)
+            self.writer.add_scalar('vis/loss-ttl',
+                                   self.tri_weight * loss + self.cls_weight * loss2, self.iter)
 
             self.writer.add_histogram('an-ap', diff, self.iter)
             self.writer.add_histogram('dist', dist, self.iter)
@@ -411,8 +413,8 @@ class CombTrainer(object):
             loss, prec = self.criterion(outputs, targets, dbg=False)
 
         self.iter += 1
-        loss = loss + self.alpha * loss2
-        return loss, loss2, prec, prec2
+        loss_comb = self.tri_weight * loss + self.cls_weight * loss2
+        return loss_comb, loss , loss2, prec, prec2
 
     def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
 
@@ -432,7 +434,7 @@ class CombTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
-            loss, loss2, prec1, prec2 = self._forward(inputs, targets)
+            loss_comb , loss, loss2, prec1, prec2 = self._forward(inputs, targets)
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(loss.data[0], targets.size(0))
@@ -441,7 +443,7 @@ class CombTrainer(object):
             precisions2.update(prec2, targets.size(0))
 
             optimizer.zero_grad()
-            loss.backward()
+            loss_comb.backward()
             optimizer.step()
 
             batch_time.update(time.time() - end)
