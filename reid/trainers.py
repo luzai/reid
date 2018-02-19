@@ -257,7 +257,6 @@ class Trainer(object):
                                        self.iter)  # schedule.get_lr()
             else:
                 loss, prec = self.criterion(outputs, targets, dbg=False)
-
         elif isinstance(self.criterion, TupletLoss):
             loss, prec = self.criterion(outputs, targets)
         else:
@@ -340,7 +339,7 @@ class Trainer(object):
         })
 
 
-def update_dop(outputs, targets):
+def update_dop_cls(outputs, targets):
     targets = to_numpy(targets)
     targets = targets.reshape((targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
 
@@ -352,6 +351,21 @@ def update_dop(outputs, targets):
     db = Database('dop.h5', 'w')
     dop = db['dop']
     dop[targets] = np.argmax(outputs, axis=1)
+    logging.debug('cls \n {} dop is \n {}'.format(targets, dop[targets]))
+    db['dop'] = dop
+    db.close()
+
+def update_dop(dist, targets):
+    targets = to_numpy(targets)
+    targets = targets.reshape((targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
+    dist = to_numpy(dist)
+    dist = dist.reshape(32, 4, 32, 4)
+    dist = np.transpose(dist, (0, 2, 1, 3)).reshape(32, 32, 16).sum(axis=2)
+    dist += np.diag([np.inf] * 32)
+    db = Database('dop.h5', 'w')
+    dop = db['dop']
+    dop[targets] = targets[np.argmin(dist, axis=1)]
+    logging.debug('tri \n {} dop is \n {}'.format(targets, dop[targets]))
     db['dop'] = dop
     db.close()
 
@@ -390,8 +404,6 @@ class CombTrainer(object):
         prec2, = accuracy(outputs2.data, targets.data)
         prec2 = prec2[0]
 
-        update_dop(outputs2, targets)
-
         if self.dbg and self.iter % 100 == 0:
             self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
             self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
@@ -408,13 +420,14 @@ class CombTrainer(object):
             self.writer.add_histogram('dist', dist, self.iter)
             self.writer.add_histogram('ap', dist_ap, self.iter)
             self.writer.add_histogram('an', dist_an, self.iter)
-
         else:
-            loss, prec = self.criterion(outputs, targets, dbg=False)
+            loss, prec, dist = self.criterion(outputs, targets, dbg=False)
+        # update_dop_cls(outputs2, targets)
+        update_dop(dist, targets)
 
         self.iter += 1
         loss_comb = self.tri_weight * loss + self.cls_weight * loss2
-        return loss_comb, loss , loss2, prec, prec2
+        return loss_comb, loss, loss2, prec, prec2
 
     def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
 
@@ -434,7 +447,7 @@ class CombTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
-            loss_comb , loss, loss2, prec1, prec2 = self._forward(inputs, targets)
+            loss_comb, loss, loss2, prec1, prec2 = self._forward(inputs, targets)
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(loss.data[0], targets.size(0))

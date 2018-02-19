@@ -2,18 +2,20 @@ from lz import *
 
 cfgs = [
     edict(
-        logs_dir='cls',
-        arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
+        logs_dir='bak',
+        arch='resnet50', bottleneck='Bottleneck',
+        dataset='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
         dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
-        workers=8,
+        workers=0,
         dataset_mode='combine',
         dropout=0,
-        cls_weight=1,
-        tri_weight=0,
+        cls_weight=0,
+        tri_weight=1,
         random_ratio=1,
-        pretrained=False
+        pretrained=True,
+        # resume='work/cls/model_best.pth',
     ),
 
 ]
@@ -21,7 +23,7 @@ cfgs = [
 # cfgs = [cfgs[-1]]
 
 base = edict(
-    cls_weight=0., random_ratio=1, tri_weight =1 ,
+    cls_weight=0., random_ratio=1, tri_weight=1,
     bs_steps=[], batch_size_l=[], num_instances_l=[],
     bottleneck='Bottleneck',
     convop='nn.Conv2d',

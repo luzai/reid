@@ -52,16 +52,16 @@ def run(_):
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
             cvb.dump(args, args.logs_dir + '/conf.pkl')
-        # main(args)
+        main(args)
 
-        proc = mp.Process(target=main, args=(args,))
-        proc.start()
-        lz.logging.info('next')
-        time.sleep(39.46)
-        procs.append(proc)
-
-    for proc in procs:
-        proc.join()
+    #     proc = mp.Process(target=main, args=(args,))
+    #     proc.start()
+    #     lz.logging.info('next')
+    #     time.sleep(39.46)
+    #     procs.append(proc)
+    #
+    # for proc in procs:
+    #     proc.join()
 
 
 def get_data(args):

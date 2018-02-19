@@ -1,11 +1,8 @@
-import torch
-from torch import nn
-from torch.autograd import Variable
-from tensorboardX import SummaryWriter
-import subprocess
-import numpy as np, numpy
 from lz import *
+import lz
 
+from tensorboardX import SummaryWriter
+import numpy as np, numpy
 
 def select(dist, range, descend=True, return_ind=False, global_ind=None):
     dist, ind = torch.sort(dist, descending=descend)
@@ -24,7 +21,6 @@ class TripletLoss(nn.Module):
 
     def forward(self, inputs, targets, dbg=False):
         n = inputs.size(0)
-
         # Compute pairwise distance, replace by the official when merged
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.t()
@@ -53,7 +49,6 @@ class TripletLoss(nn.Module):
 
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[numpy.random.randint(0, negp.size(0))])
-
             elif self.mode == 'lift':
                 negp = dist[i][mask[i] == 0]
                 posp = (dist[i][mask[i]].max()).expand(negp.size(0))
@@ -84,7 +79,7 @@ class TripletLoss(nn.Module):
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
         if not dbg:
-            return loss, prec
+            return loss, prec, dist
         else:
             return loss, prec, dist, dist_ap, dist_an
 
