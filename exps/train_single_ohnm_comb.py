@@ -2,6 +2,7 @@ import sys
 
 sys.path.insert(0, '/home/xinglu/prj/luzai-tool')
 sys.path.insert(0, '/home/xinglu/prj/open-reid')
+
 from lz import *
 import lz
 from torch.optim import Optimizer
@@ -70,6 +71,7 @@ def get_data(args):
     name_val = args.dataset_val
     npy = args.has_npy
     rand_ratio = args.random_ratio
+
     if isinstance(name, list) and len(name) != 1:
         names = name
         root = '/home/xinglu/.torch/data/'
@@ -113,13 +115,14 @@ def get_data(args):
                      transform=train_transformer,
                      has_npy=npy),
         batch_size=batch_size, num_workers=workers,
-        sampler=RandomIdentityWeightedSampler(train_set, num_instances,
-                                              batch_size=batch_size,
-                                              rand_ratio=rand_ratio
-                                              ),
+        sampler=RandomIdentityWeightedSampler(
+            train_set, num_instances,
+            batch_size=batch_size,
+            rand_ratio=rand_ratio,
+            dop_file=args.logs_dir+'/dop.h5'
+        ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
-
 
     fnames = np.asarray(train_set)[:, 0]
     fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
@@ -171,7 +174,7 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args)
     # Create model
-    db = lz.Database('dop.h5', 'w')
+    db = lz.Database(args.logs_dir+ '/dop.h5', 'w')
     db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
     db.close()
     model = models.create(args.arch,
@@ -181,7 +184,7 @@ def main(args):
                           convop=args.convop,
                           num_features=args.num_classes,
                           num_classes=num_classes,
-                          block = args.bottleneck,
+                          block=args.bottleneck,
                           )
 
     print(model)
@@ -253,7 +256,7 @@ def main(args):
     else:
         raise NotImplementedError
     # Trainer
-    trainer = CombTrainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', args=args  )
+    trainer = CombTrainer(model, criterion, dbg=True, logs_at=args.logs_dir + '/vis', args=args)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

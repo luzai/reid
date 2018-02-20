@@ -339,7 +339,7 @@ class Trainer(object):
         })
 
 
-def update_dop_cls(outputs, targets):
+def update_dop_cls(outputs, targets, dop_file):
     targets = to_numpy(targets)
     targets = targets.reshape((targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
 
@@ -348,21 +348,22 @@ def update_dop_cls(outputs, targets):
 
     outputs[np.arange(outputs.shape[0]), targets] = -np.inf
 
-    db = Database('dop.h5', 'w')
+    db = Database(dop_file, 'w')
     dop = db['dop']
     dop[targets] = np.argmax(outputs, axis=1)
     logging.debug('cls \n {} dop is \n {}'.format(targets, dop[targets]))
     db['dop'] = dop
     db.close()
 
-def update_dop(dist, targets):
+
+def update_dop(dist, targets, dop_file):
     targets = to_numpy(targets)
     targets = targets.reshape((targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
     dist = to_numpy(dist)
     dist = dist.reshape(32, 4, 32, 4)
     dist = np.transpose(dist, (0, 2, 1, 3)).reshape(32, 32, 16).sum(axis=2)
     dist += np.diag([np.inf] * 32)
-    db = Database('dop.h5', 'w')
+    db = Database(dop_file, 'w')
     dop = db['dop']
     dop[targets] = targets[np.argmin(dist, axis=1)]
     logging.debug('tri \n {} dop is \n {}'.format(targets, dop[targets]))
@@ -379,6 +380,7 @@ class CombTrainer(object):
         self.dbg = dbg
         self.cls_weight = args.cls_weight
         self.tri_weight = args.tri_weight
+        self.dop_file = args.logs_dir + '/dop.h5'
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
@@ -423,8 +425,8 @@ class CombTrainer(object):
             self.writer.add_histogram('an', dist_an, self.iter)
         else:
             loss, prec, dist = self.criterion(outputs, targets, dbg=False)
-        # update_dop_cls(outputs2, targets)
-        update_dop(dist, targets)
+        update_dop_cls(outputs2, targets, self.dop_file)
+        # update_dop(dist, targets, self.dop_file)
 
         self.iter += 1
         loss_comb = self.tri_weight * loss + self.cls_weight * loss2

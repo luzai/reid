@@ -780,7 +780,7 @@ class ResNet(nn.Module):
 
     def __init__(self, depth=50, pretrained=True,
                  cut_at_pooling=False,
-                 num_features=0, norm=False, dropout=0,
+                 num_features=0, dropout=0,
                  num_classes=0, block='Bottleneck', **kwargs):
         super(ResNet, self).__init__()
         depth = str(depth)
