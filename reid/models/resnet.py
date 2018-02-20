@@ -817,13 +817,17 @@ class ResNet(nn.Module):
             nn.AdaptiveAvgPool2d(1),
         )
         self.post2 = nn.Sequential(
-            nn.Dropout(self.dropout),
+            # nn.Dropout(self.dropout),
             nn.Linear(self.out_planes, self.num_features, bias=False),
+        )
+        self.post3 = nn.Sequential(
+            # nn.Dropout(self.dropout),
             nn.Linear(self.num_features, self.num_classes, bias=False),
         )
 
         reset_params(self.post1)
         reset_params(self.post2)
+        reset_params(self.post3)
         if pretrained:
             logging.info('load resnet')
             load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
@@ -841,7 +845,9 @@ class ResNet(nn.Module):
 
         x1 = self.post1(x)
         x1 = x1.view(x1.size(0), -1)
-        x2 = self.post2(
+        x1 = self.post2(x1)
+
+        x2 = self.post3(
             # Variable(x1.data),
             x1
         )

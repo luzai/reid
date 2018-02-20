@@ -394,6 +394,7 @@ class CombTrainer(object):
 
     def _forward(self, inputs, targets):
         outputs, outputs2 = self.model(*inputs)
+        # logging.info('{} {}'.format(outputs.size(), outputs2.size()))
         if self.dbg and self.iter % 1000 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', outputs, self.iter)
