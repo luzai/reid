@@ -44,7 +44,7 @@ def run(_):
             args.logs_dir += '.bak'
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.1, 0.1], sleep=22.23)
+            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.05, 0.05], sleep=33.23)
             # args.gpu = (2,)
 
         if isinstance(args.gpu, int):
@@ -66,31 +66,41 @@ def run(_):
 
 
 def get_data(args):
-    name, split_id, data_dir, height, width, batch_size, num_instances, workers, combine_trainval = args.dataset, args.split, args.data_dir, args.height, args.width, args.batch_size, args.num_instances, args.workers, args.combine_trainval,
+    (
+        name, split_id,
+        data_dir, height, width,
+        batch_size, num_instances,
+        workers, combine_trainval
+    ) = (
+        args.dataset, args.split,
+        args.data_dir, args.height, args.width,
+        args.batch_size, args.num_instances,
+        args.workers, args.combine_trainval,
+    )
     pin_memory = args.pin_mem
     name_val = args.dataset_val
     npy = args.has_npy
     rand_ratio = args.random_ratio
 
-    if isinstance(name, list) and len(name) != 1:
-        names = name
-        root = '/home/xinglu/.torch/data/'
-        roots = [root + name_ for name_ in names]
-        dataset = datasets.creates(name, roots=roots)
-    else:
-        root = osp.join(data_dir, name)
-        dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
+    # if isinstance(name, list) and len(name) != 1:
+    #     names = name
+    #     root = '/home/xinglu/.torch/data/'
+    #     roots = [root + name_ for name_ in names]
+    #     dataset = datasets.creates(name, roots=roots)
+    # else:
+    root = osp.join(data_dir, name)
+    dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
 
-    if isinstance(name_val, list) and len(name_val) != 1:
-        raise NotImplementedError
-    else:
-        root = osp.join(data_dir, name_val)
-        dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
-        if name_val == 'market1501':
-            lim_query = cvb.load(work_path + '/mk.query.pkl')
-            dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
-            lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
-            dataset_val.gallery = [ds for ds in dataset_val.gallery if ds[0] in lim_gallery + lim_query]
+    # if isinstance(name_val, list) and len(name_val) != 1:
+    #     raise NotImplementedError
+    # else:
+    root = osp.join(data_dir, name_val)
+    dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
+    # if name_val == 'market1501':
+        #     lim_query = cvb.load(work_path + '/mk.query.pkl')
+        #     dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
+        #     lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
+        #     dataset_val.gallery = [ds for ds in dataset_val.gallery if ds[0] in lim_gallery + lim_query]
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -119,7 +129,7 @@ def get_data(args):
             train_set, num_instances,
             batch_size=batch_size,
             rand_ratio=rand_ratio,
-            dop_file=args.logs_dir+'/dop.h5'
+            dop_file=args.logs_dir + '/dop.h5'
         ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
@@ -174,7 +184,7 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args)
     # Create model
-    db = lz.Database(args.logs_dir+ '/dop.h5', 'w')
+    db = lz.Database(args.logs_dir + '/dop.h5', 'w')
     db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
     db.close()
     model = models.create(args.arch,

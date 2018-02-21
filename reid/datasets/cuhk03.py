@@ -1,11 +1,10 @@
-from __future__ import print_function, absolute_import
 import os.path as osp
 
 import numpy as np
 
-from ..utils.data import Dataset
-from ..utils.osutils import mkdir_if_missing
-from ..utils.serialization import write_json, read_json
+from reid.utils.data import Dataset
+from reid.utils.osutils import mkdir_if_missing
+from reid.utils.serialization import write_json, read_json
 
 
 def _pluck(identities, indices, relabel=False):
@@ -33,10 +32,10 @@ class CUHK03(Dataset):
                osp.isfile(osp.join(self.root, mode, 'meta.json')) and \
                osp.isfile(osp.join(self.root, mode, 'splits.json'))
 
-    def __init__(self, root, split_id=0, num_val=100, download=True, mode='combine', check_integrity=True):
+    def __init__(self, root, split_id=0, num_val=100, download=True, mode='combine', check_integrity=True, **kwargs):
         super(CUHK03, self).__init__(root, split_id=split_id)
         self.mode = mode
-        print('use mode ', mode )
+        print('use mode ', mode)
         if download:
             self.download(check_integrity)
 
@@ -44,7 +43,7 @@ class CUHK03(Dataset):
             raise RuntimeError("Dataset not found or corrupted. " +
                                "You can use download=True to download it.")
         self.root = osp.join(self.root, self.mode)
-        self.images_dir = osp.join(self.root,'images')
+        self.images_dir = osp.join(self.root, 'images')
         self.load(num_val)
 
     def download(self, check_integrity=True):
@@ -134,3 +133,10 @@ class CUHK03(Dataset):
                      'gallery': test_pids}
             splits.append(split)
         write_json(splits, osp.join(self.root, self.mode, 'splits.json'))
+
+
+if __name__ == '__main__':
+    CUHK03('/home/xinglu/.torch/data/cuhk03', mode='label')
+    CUHK03('/home/xinglu/.torch/data/cuhk03', mode='detect')
+    CUHK03('/home/xinglu/.torch/data/cuhk03', mode='combine')
+

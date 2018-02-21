@@ -469,10 +469,10 @@ class CombTrainer(object):
                 print('Epoch: [{}][{}/{}]  '
                       'Time {:.3f} ({:.3f})  '
                       'Data {:.3f} ({:.3f})  '
-                      'Loss {:.3f} ({:.3f})  '
-                      'Loss2 {:.3f} ({:.3f})  '
-                      'Prec {:.2%} ({:.2%})  '
-                      'Prec2 {:.2%} ({:.2%})  '
+                      'Loss_tri {:.3f} ({:.3f})  '
+                      'Loss_cls {:.3f} ({:.3f})  '
+                      'Prec_tri {:.2%} ({:.2%})  '
+                      'Prec_cls {:.2%} ({:.2%})  '
                       .format(epoch, i + 1, len(data_loader),
                               batch_time.val, batch_time.avg,
                               data_time.val, data_time.avg,
@@ -484,8 +484,8 @@ class CombTrainer(object):
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,
             'data-time': data_time.avg,
-            'loss': losses.avg,
-            'loss2': losses2.avg,
-            'prec': precisions.avg,
-            'prec2': precisions2.avg,
+            'loss_tri': losses.avg,
+            'loss_cls': losses2.avg,
+            'prec_tri': precisions.avg,
+            'prec_cls': precisions2.avg,
         })

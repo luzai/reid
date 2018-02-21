@@ -693,11 +693,11 @@ class SELayer(nn.Module):
         super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
-            nn.Linear(channel, channel // reduction),
-            # nn.Linear(channel, 16),
+            # nn.Linear(channel, channel // reduction),
+            nn.Linear(channel, 16),
             nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel),
-            # nn.Linear(16, channel),
+            # nn.Linear(channel // reduction, channel),
+            nn.Linear(16, channel),
             nn.Sigmoid()
         )
 
@@ -798,6 +798,7 @@ class ResNet(nn.Module):
         if depth not in ResNet.__factory:
             raise KeyError("Unsupported depth:", depth)
         layers = ResNet.__factory[depth]
+        block_name =block
         block = eval(block)
         self.conv1 = nn.Conv2d(3, 64,
                                kernel_size=7, stride=2, padding=3,
@@ -828,9 +829,18 @@ class ResNet(nn.Module):
         reset_params(self.post1)
         reset_params(self.post2)
         reset_params(self.post3)
+
         if pretrained:
             logging.info('load resnet')
-            load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+
+            if block_name == 'SEBottleneck':
+                state_dict = torch.load('/data1/xinglu/prj/senet.pytorch/weight-99.pkl')['weight']
+                # print(state_dict.keys())
+                load_state_dict(self, state_dict,
+                                own_de_prefix='module.'
+                                )
+            else:
+                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 
     def forward(self, x):
         x = self.conv1(x)

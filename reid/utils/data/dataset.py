@@ -61,7 +61,7 @@ class Dataset(object):
         identities = self.meta['identities']
         self.train = _pluck(identities, train_pids, relabel=True)
         self.val = _pluck(identities, val_pids, relabel=True)
-        self.val = _pluck(identities, val_pids, relabel=True)
+        # self.val = _pluck(identities, val_pids, relabel=True)
         self.trainval = _pluck(identities, trainval_pids, relabel=True)
         self.query = _pluck(identities, self.split['query'])
         self.gallery = _pluck(identities, self.split['gallery'])

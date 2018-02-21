@@ -1,61 +1,22 @@
-from .cuhk01 import CUHK01
-from .cuhk03 import CUHK03
-from .dukemtmc import DukeMTMC
-from .market1501 import Market1501
-from reid.datasets.cdm import CDM
-from .viper import VIPeR
-from lz import *
+import os.path as osp
+
 from reid.utils.data import Dataset
+from reid.utils.osutils import mkdir_if_missing
+from reid.utils.serialization import write_json
+from reid.datasets import *
 
-__factory = {
-    'viper': VIPeR,
-    'cuhk01': CUHK01,
-    'cuhk03': CUHK03,  # is 'cuhk03/label' default
-    'cuhk03/label': CUHK03, 'cuhk03/detect': CUHK03, 'cuhk03/combine': CUHK03,
-    'market1501': Market1501,
-    'dukemtmc': DukeMTMC,
-    'cdm':CDM
-}
-
-
-def names():
-    return sorted(__factory.keys())
-
-
-def create(name, root, *args, **kwargs):
-    """
-    Create a dataset instance.
-
-    Parameters
-    ----------
-    name : str
-        The dataset name. Can be one of 'viper', 'cuhk01', 'cuhk03',
-        'market1501', and 'dukemtmc'.
-    root : str
-        The path to the dataset directory.
-    split_id : int, optional
-        The index of data split. Default: 0
-    num_val : int or float, optional
-        When int, it means the number of validation identities. When float,
-        it means the proportion of validation to all the trainval. Default: 100
-    download : bool, optional
-        If True, will download the dataset. Default: False
-    """
-    if name not in __factory:
-        raise KeyError("Unknown dataset:", name)
-    return __factory[name](root, *args, **kwargs)
-
+from lz import *
 
 def creates(names, roots, *args, **kwargs):
     dss = [create(name, root, *args, **kwargs) for name, root in zip(names, roots)]
     dsf = Dataset(root='', split_id=0)
 
-    # if osp.exists('/home/xinglu/work/cache.pkl'):
-    #     dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
-    #     for k, v in dsf_dict.items():
-    #         setattr(dsf, k, v)
-    #
-    #     return dsf
+    if osp.exists('/home/xinglu/work/cache.pkl'):
+        dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
+        for k, v in dsf_dict.items():
+            setattr(dsf, k, v)
+
+        return dsf
 
     def to_df(rec):
         return pd.DataFrame.from_records(rec, columns=['fname', 'pid', 'cid'])
@@ -109,3 +70,23 @@ def creates(names, roots, *args, **kwargs):
         setattr(dsf, name, dff)
 
     return dsf
+
+
+class CDM(Dataset):
+    def __init__(self, root, split_id=0, num_val=0.3,
+                 **kwargs):
+        super(CDM, self).__init__(root, split_id=split_id)
+
+        ds = self.combine()
+        print(len(ds.trainval))
+
+    def combine(self):
+        names = ['cuhk03', 'market1501', 'dukemtmc']
+        root = '/home/xinglu/.torch/data/'
+        roots = [root + name_ for name_ in names]
+        return creates(names, roots)
+
+
+if __name__ == '__main__':
+    CDM('/home/xinglu/.torch/cdm')
+
