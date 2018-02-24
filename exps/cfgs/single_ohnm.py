@@ -9,7 +9,7 @@ cfgs = [
 
     edict(
         logs_dir='deform.3',
-        arch='deform_resnet50', bottleneck='Bottleneck', dataset='cuhk03',
+        arch='resnet50', block_name='Bottleneck', block_name2='DeformBottleneck' , dataset='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
         dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
@@ -20,46 +20,10 @@ cfgs = [
         random_ratio=1,
         num_deform=3
     ),
-    edict(
-        logs_dir='deform.6',
-        arch='deform_resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=8,
-        dataset_mode='combine',
-        dropout=0,
-        cls_weight=0, tri_weight=1,
-        random_ratio=1,
-        num_deform=6
-    ),
-    edict(
-        logs_dir='deform.1',
-        arch='deform_resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=8,
-        dataset_mode='combine',
-        dropout=0,
-        cls_weight=0, tri_weight=1,
-        random_ratio=1, num_deform=1
-    ),
-    edict(
-        logs_dir='deform.2',
-        arch='deform_resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=8,
-        dataset_mode='combine',
-        dropout=0,
-        cls_weight=0, tri_weight=1,
-        random_ratio=1, num_deform=2
-    ),
+
     edict(
         logs_dir='resnet',
-        arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
+        arch='resnet50', block_name='Bottleneck', dataset='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
         dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
@@ -73,7 +37,7 @@ cfgs = [
 
     edict(
         logs_dir='senet',
-        arch='resnet50', bottleneck='SEBottleneck', dataset='cuhk03',
+        arch='resnet50', block_name='SEBottleneck', block_name2= 'SEBottleneck',  dataset='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
         dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
@@ -92,7 +56,8 @@ cfgs = [
 base = edict(
     cls_weight=0., random_ratio=1, tri_weight=1, num_deform=3,
     bs_steps=[], batch_size_l=[], num_instances_l=[],
-    bottleneck='Bottleneck',
+    block_name='Bottleneck',
+    block_name2='Bottleneck',
     convop='nn.Conv2d',
     scale=(1,), translation=(0,), theta=(0,),
     hard_examples=False,

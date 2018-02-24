@@ -178,121 +178,6 @@ class ResNet(nn.Module):
     }
 
     def _make_layer(self, block, planes, blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
-            )
-
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
-        self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
-        return nn.Sequential(*layers)
-
-    def __init__(self, depth=50, pretrained=True,
-                 cut_at_pooling=False,
-                 num_features=0, dropout=0,
-                 num_classes=0, block='Bottleneck', **kwargs):
-        super(ResNet, self).__init__()
-        depth = str(depth)
-        self.depth = depth
-        self.inplanes = 64
-        self.pretrained = pretrained
-        self.cut_at_pooling = cut_at_pooling
-
-        self.out_planes = 512 if block == 'BasicBlock' else 2048
-        self.dropout = dropout
-        self.num_classes = num_classes
-        self.num_features = num_features
-
-        # Construct base (pretrained) resnet
-        if depth not in ResNet.__factory:
-            raise KeyError("Unsupported depth:", depth)
-        layers = ResNet.__factory[depth]
-        block_name = block
-        block = eval(block)
-        self.conv1 = nn.Conv2d(3, 64,
-                               kernel_size=7, stride=2, padding=3,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-
-        self.post1 = nn.Sequential(
-            nn.BatchNorm2d(self.out_planes),
-            nn.ReLU(),
-            nn.Dropout2d(self.dropout),
-            nn.AdaptiveAvgPool2d(1),
-        )
-        self.post2 = nn.Sequential(
-            # nn.Dropout(self.dropout),
-            nn.Linear(self.out_planes, self.num_features, bias=False),
-        )
-        self.post3 = nn.Sequential(
-            # nn.Dropout(self.dropout),
-            nn.Linear(self.num_features, self.num_classes, bias=False),
-        )
-
-        reset_params(self.post1)
-        reset_params(self.post2)
-        reset_params(self.post3)
-
-        if pretrained:
-            logging.info('load resnet')
-
-            # if block_name == 'SEBottleneck':
-            #     logging.error('pls change //16 to 16 until he finish the promised update')
-            #     state_dict = torch.load('/data1/xinglu/prj/senet.pytorch/weight-99.pkl')['weight']
-            #     # print(state_dict.keys())
-            #     load_state_dict(
-            #         self, state_dict,
-            #         own_de_prefix='module.'
-            #     )
-            # else:
-            load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-
-        x1 = self.post1(x)
-        x1 = x1.view(x1.size(0), -1)
-        x1 = self.post2(x1)
-
-        x2 = self.post3(
-            # Variable(x1.data),
-            x1
-        )
-
-        return x1, x2
-
-
-class DeformResNet(nn.Module):
-    __factory = {
-        '18': [2, 2, 2, 2],
-        '34': [3, 4, 6, 3],
-        '50': [3, 4, 6, 3],
-        '101': [3, 4, 23, 3],
-        '152': [3, 8, 36, 3],
-    }
-
-    def _make_layer(self, block, planes, blocks, stride=1):
         if not isinstance(block, list):
             block = [block] * blocks
         downsample = None
@@ -314,25 +199,27 @@ class DeformResNet(nn.Module):
     def __init__(self, depth=50, pretrained=True,
                  cut_at_pooling=False,
                  num_features=0, dropout=0,
-                 num_classes=0, block='Bottleneck', num_deform=3, **kwargs):
-        super(DeformResNet, self).__init__()
+                 num_classes=0, block_name='Bottleneck',
+                 block_name2='Bottleneck',
+                 num_deform=3, **kwargs):
+        super(ResNet, self).__init__()
         depth = str(depth)
         self.depth = depth
         self.inplanes = 64
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
 
-        self.out_planes = 512 if block == 'BasicBlock' else 2048
+        self.out_planes = 512 if block_name == 'BasicBlock' else 2048
         self.dropout = dropout
         self.num_classes = num_classes
         self.num_features = num_features
 
         # Construct base (pretrained) resnet
-        if depth not in DeformResNet.__factory:
+        if depth not in ResNet.__factory:
             raise KeyError("Unsupported depth:", depth)
-        layers = DeformResNet.__factory[depth]
-        block_name = block
-        block = eval(block)
+        layers = ResNet.__factory[depth]
+        block = eval(block_name)
+        block2 = eval(block_name2)
         self.conv1 = nn.Conv2d(3, 64,
                                kernel_size=7, stride=2, padding=3,
                                bias=False)
@@ -342,12 +229,12 @@ class DeformResNet(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         if num_deform > 3:
-            self.layer3 = self._make_layer([block] * 3 + [eval('DeformBottleneck')] * (num_deform - 3), 256, layers[2],
+            self.layer3 = self._make_layer([block] * 3 + [block2] * (num_deform - 3), 256, layers[2],
                                            stride=2)
-            self.layer4 = self._make_layer([eval('DeformBottleneck')] * 3, 512, layers[3], stride=2)
+            self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=2)
         else:
             self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
-            self.layer4 = self._make_layer([eval('DeformBottleneck')] * num_deform + [block] * (3 - num_deform), 512,
+            self.layer4 = self._make_layer([block2] * num_deform + [block] * (3 - num_deform), 512,
                                            layers[3], stride=2)
         self.post1 = nn.Sequential(
             nn.BatchNorm2d(self.out_planes),
@@ -405,10 +292,6 @@ def resnet34(**kwargs):
 
 def resnet50(**kwargs):
     return ResNet(50, **kwargs)
-
-
-def deform_resnet50(**kwargs):
-    return DeformResNet(50, **kwargs)
 
 
 def resnet101(**kwargs):

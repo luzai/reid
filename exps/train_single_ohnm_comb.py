@@ -194,8 +194,9 @@ def main(args):
                           convop=args.convop,
                           num_features=args.num_classes,
                           num_classes=num_classes,
-                          block=args.bottleneck,
-                          num_deform=args.num_deform
+                          block_name=args.block_name,
+                          block_name2=args.block_name2,
+                          num_deform=args.num_deform ,
                           )
 
     print(model)
