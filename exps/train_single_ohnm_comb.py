@@ -32,7 +32,7 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
         # args.dbg = False
-        # args.dbg = True
+        args.dbg = True
         if args.dbg:
             args.epochs = 1
             args.batch_size = 128
@@ -43,6 +43,8 @@ def run(_):
         if args.evaluate:
             args.logs_dir += '.bak'
         args.logs_dir = 'work/' + args.logs_dir
+        if args.dbg:
+            args.logs_dir += '.bak'
         if args.gpu is not None:
             args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.05, 0.05], sleep=33.23)
             # args.gpu = (2,)
@@ -97,10 +99,10 @@ def get_data(args):
     root = osp.join(data_dir, name_val)
     dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
     # if name_val == 'market1501':
-        #     lim_query = cvb.load(work_path + '/mk.query.pkl')
-        #     dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
-        #     lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
-        #     dataset_val.gallery = [ds for ds in dataset_val.gallery if ds[0] in lim_gallery + lim_query]
+    #     lim_query = cvb.load(work_path + '/mk.query.pkl')
+    #     dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
+    #     lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
+    #     dataset_val.gallery = [ds for ds in dataset_val.gallery if ds[0] in lim_gallery + lim_query]
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -190,13 +192,12 @@ def main(args):
     model = models.create(args.arch,
                           dropout=args.dropout,
                           pretrained=args.pretrained,
-                          bottleneck=args.bottleneck,
-                          convop=args.convop,
-                          num_features=args.num_classes,
-                          num_classes=num_classes,
                           block_name=args.block_name,
                           block_name2=args.block_name2,
-                          num_deform=args.num_deform ,
+                          # convop=args.convop,
+                          num_features=args.num_classes,
+                          num_classes=num_classes,
+                          num_deform=args.num_deform,
                           )
 
     print(model)
