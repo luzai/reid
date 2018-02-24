@@ -1,28 +1,27 @@
-from reid.models.inception import inception_v3
 from .inception import *
 from .resnet import *
 from .attention import *
-from .transform import Transform
+from .transform import *
 from .multi_branch import *
 from .embedding import *
 from .darknet import *
 from .mobilenet import *
 from .misc import *
 
-__factory = {
-    'inception': inception,
-    'inception_v3': inception_v3,
-    'resnet18': resnet18,
-    'resnet34': resnet34,
-    'resnet50': resnet50,
-    'resnet101': resnet101,
-    'resnet152': resnet152,
-    # 'res_att1': res_att1,
-}
-
-
-def names():
-    return sorted(__factory.keys())
+# __factory = {
+#     'inception': inception,
+#     'inception_v3': inception_v3,
+#     'resnet18': resnet18,
+#     'resnet34': resnet34,
+#     'resnet50': resnet50,
+#     'resnet101': resnet101,
+#     'resnet152': resnet152,
+#     # 'res_att1': res_att1,
+# }
+#
+#
+# def names():
+#     return sorted(__factory.keys())
 
 
 def create(name, *args, **kwargs):
@@ -56,6 +55,8 @@ def create(name, *args, **kwargs):
         If positive, will append a Linear layer at the end as the classifier
         with this number of output units. Default: 0
     """
-    if name not in __factory:
-        raise KeyError("Unknown model:", name)
-    return __factory[name](*args, **kwargs)
+    # if name not in __factory:
+    #     raise KeyError("Unknown model:", name)
+    # return __factory[name](*args, **kwargs)
+
+    return eval(name)(*args,**kwargs)

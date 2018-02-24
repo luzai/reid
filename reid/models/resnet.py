@@ -4,10 +4,420 @@ from lz import *
 from reid.utils.serialization import load_state_dict
 from .common import _make_conv
 
-__all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-           'resnet152',
-           # 'res_att1'
-           ]
+# __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
+#            'resnet152',
+#            # 'res_att1'
+#            ]
+
+import sys
+
+sys.path.insert(0, '/data1/xinglu/prj/deformable-convolution-pytorch/')
+
+from modules import ConvOffset2d
+from functions import conv_offset2d
+
+
+# deform conv
+class DeformConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False,
+                 num_deformable_groups=1):
+        super(DeformConv, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+
+        self.conv_offset = nn.Conv2d(in_channels, num_deformable_groups * 2 * kernel_size * kernel_size,
+                                     kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+        self.conv = ConvOffset2d(in_channels, out_channels, stride=stride, padding=padding,
+                                 kernel_size=kernel_size,
+                                 num_deformable_groups=num_deformable_groups)
+        self.weight = self.conv.weight
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        n = self.in_channels * self.kernel_size * self.kernel_size
+        stdv = 1. / math.sqrt(n)
+        self.conv_offset.weight.data.uniform_(-stdv, stdv)  # todo close to 0
+        self.conv.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, x):
+        offset = self.conv_offset(x)
+        output = self.conv(x, offset)
+        return output
+
+
+def reset_params(module):
+    for m in module.modules():
+        if isinstance(m, nn.Conv2d):
+            init.kaiming_normal(m.weight, mode='fan_out')
+            if m.bias is not None:
+                init.constant(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            init.constant(m.weight, 1)
+            init.constant(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            init.normal(m.weight, std=0.001)
+            if m.bias is not None:
+                init.constant(m.bias, 0)
+
+
+class SELayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction),
+            # nn.Linear(channel, 16),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel),
+            # nn.Linear(16, channel),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        # logging.info('ori is {}, now is {}'.format(x.mean(), (x * y).mean()))
+        return x * y
+
+
+class SEBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=16, **kwargs):
+        super(SEBottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes,
+                               planes,
+                               kernel_size=3, stride=stride,
+                               padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        self.se = SELayer(planes * 4, reduction)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+        out = self.se(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class DeformBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, **kwargs):
+        super(DeformBottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = DeformConv(planes,
+                                planes,
+                                kernel_size=3, stride=stride,
+                                padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class ResNet(nn.Module):
+    __factory = {
+        '18': [2, 2, 2, 2],
+        '34': [3, 4, 6, 3],
+        '50': [3, 4, 6, 3],
+        '101': [3, 4, 23, 3],
+        '152': [3, 8, 36, 3],
+    }
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def __init__(self, depth=50, pretrained=True,
+                 cut_at_pooling=False,
+                 num_features=0, dropout=0,
+                 num_classes=0, block='Bottleneck', **kwargs):
+        super(ResNet, self).__init__()
+        depth = str(depth)
+        self.depth = depth
+        self.inplanes = 64
+        self.pretrained = pretrained
+        self.cut_at_pooling = cut_at_pooling
+
+        self.out_planes = 512 if block == 'BasicBlock' else 2048
+        self.dropout = dropout
+        self.num_classes = num_classes
+        self.num_features = num_features
+
+        # Construct base (pretrained) resnet
+        if depth not in ResNet.__factory:
+            raise KeyError("Unsupported depth:", depth)
+        layers = ResNet.__factory[depth]
+        block_name = block
+        block = eval(block)
+        self.conv1 = nn.Conv2d(3, 64,
+                               kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+
+        self.post1 = nn.Sequential(
+            nn.BatchNorm2d(self.out_planes),
+            nn.ReLU(),
+            nn.Dropout2d(self.dropout),
+            nn.AdaptiveAvgPool2d(1),
+        )
+        self.post2 = nn.Sequential(
+            # nn.Dropout(self.dropout),
+            nn.Linear(self.out_planes, self.num_features, bias=False),
+        )
+        self.post3 = nn.Sequential(
+            # nn.Dropout(self.dropout),
+            nn.Linear(self.num_features, self.num_classes, bias=False),
+        )
+
+        reset_params(self.post1)
+        reset_params(self.post2)
+        reset_params(self.post3)
+
+        if pretrained:
+            logging.info('load resnet')
+
+            # if block_name == 'SEBottleneck':
+            #     logging.error('pls change //16 to 16 until he finish the promised update')
+            #     state_dict = torch.load('/data1/xinglu/prj/senet.pytorch/weight-99.pkl')['weight']
+            #     # print(state_dict.keys())
+            #     load_state_dict(
+            #         self, state_dict,
+            #         own_de_prefix='module.'
+            #     )
+            # else:
+            load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x1 = self.post1(x)
+        x1 = x1.view(x1.size(0), -1)
+        x1 = self.post2(x1)
+
+        x2 = self.post3(
+            # Variable(x1.data),
+            x1
+        )
+
+        return x1, x2
+
+
+class DeformResNet(nn.Module):
+    __factory = {
+        '18': [2, 2, 2, 2],
+        '34': [3, 4, 6, 3],
+        '50': [3, 4, 6, 3],
+        '101': [3, 4, 23, 3],
+        '152': [3, 8, 36, 3],
+    }
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        if not isinstance(block, list):
+            block = [block] * blocks
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block[0].expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block[0].expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block[0].expansion),
+            )
+
+        layers = []
+        layers.append(block[0](self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block[0].expansion
+        for i in range(1, blocks):
+            layers.append(block[i](self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def __init__(self, depth=50, pretrained=True,
+                 cut_at_pooling=False,
+                 num_features=0, dropout=0,
+                 num_classes=0, block='Bottleneck', num_deform=3, **kwargs):
+        super(DeformResNet, self).__init__()
+        depth = str(depth)
+        self.depth = depth
+        self.inplanes = 64
+        self.pretrained = pretrained
+        self.cut_at_pooling = cut_at_pooling
+
+        self.out_planes = 512 if block == 'BasicBlock' else 2048
+        self.dropout = dropout
+        self.num_classes = num_classes
+        self.num_features = num_features
+
+        # Construct base (pretrained) resnet
+        if depth not in DeformResNet.__factory:
+            raise KeyError("Unsupported depth:", depth)
+        layers = DeformResNet.__factory[depth]
+        block_name = block
+        block = eval(block)
+        self.conv1 = nn.Conv2d(3, 64,
+                               kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        if num_deform > 3:
+            self.layer3 = self._make_layer([block] * 3 + [eval('DeformBottleneck')] * (num_deform - 3), 256, layers[2],
+                                           stride=2)
+            self.layer4 = self._make_layer([eval('DeformBottleneck')] * 3, 512, layers[3], stride=2)
+        else:
+            self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
+            self.layer4 = self._make_layer([eval('DeformBottleneck')] * num_deform + [block] * (3 - num_deform), 512,
+                                           layers[3], stride=2)
+        self.post1 = nn.Sequential(
+            nn.BatchNorm2d(self.out_planes),
+            nn.ReLU(),
+            nn.Dropout2d(self.dropout),
+            nn.AdaptiveAvgPool2d(1),
+        )
+        self.post2 = nn.Sequential(
+            # nn.Dropout(self.dropout),
+            nn.Linear(self.out_planes, self.num_features, bias=False),
+        )
+        self.post3 = nn.Sequential(
+            # nn.Dropout(self.dropout),
+            nn.Linear(self.num_features, self.num_classes, bias=False),
+        )
+
+        reset_params(self.post1)
+        reset_params(self.post2)
+        reset_params(self.post3)
+
+        if pretrained:
+            logging.info('load resnet')
+            load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x1 = self.post1(x)
+        x1 = x1.view(x1.size(0), -1)
+        x1 = self.post2(x1)
+
+        x2 = self.post3(
+            # Variable(x1.data),
+            x1
+        )
+
+        return x1, x2
+
+
+def resnet18(**kwargs):
+    return ResNet(18, **kwargs)
+
+
+def resnet34(**kwargs):
+    return ResNet(34, **kwargs)
+
+
+def resnet50(**kwargs):
+    return ResNet(50, **kwargs)
+
+
+def deform_resnet50(**kwargs):
+    return DeformResNet(50, **kwargs)
+
+
+def resnet101(**kwargs):
+    return ResNet(101, **kwargs)
+
+
+def resnet152(**kwargs):
+    return ResNet(152, **kwargs)
+
 
 '''
 def get_loss_div(theta):
@@ -540,7 +950,7 @@ def resnet50(pretrained=True, **kwargs):
             # model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
             load_state_dict(model, model_zoo.load_url(model_urls['resnet50']))
     return model
-    
+
 
 
 class Residual(nn.Module):
@@ -669,217 +1079,5 @@ class UnetBlock(nn.Module):
 
 def res_att1(**kwargs):
     return ResAtt1(**kwargs)
-    
+
 '''
-
-
-def reset_params(module):
-    for m in module.modules():
-        if isinstance(m, nn.Conv2d):
-            init.kaiming_normal(m.weight, mode='fan_out')
-            if m.bias is not None:
-                init.constant(m.bias, 0)
-        elif isinstance(m, nn.BatchNorm2d):
-            init.constant(m.weight, 1)
-            init.constant(m.bias, 0)
-        elif isinstance(m, nn.Linear):
-            init.normal(m.weight, std=0.001)
-            if m.bias is not None:
-                init.constant(m.bias, 0)
-
-
-class SELayer(nn.Module):
-    def __init__(self, channel, reduction=16):
-        super(SELayer, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-            # nn.Linear(channel, channel // reduction),
-            nn.Linear(channel, 16),
-            nn.ReLU(inplace=True),
-            # nn.Linear(channel // reduction, channel),
-            nn.Linear(16, channel),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        # logging.info('ori is {}, now is {}'.format(x.mean(), (x * y).mean()))
-        return x * y
-
-
-class SEBottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=16, **kwargs):
-        super(SEBottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes,
-                               planes,
-                               kernel_size=3, stride=stride,
-                               padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * 4)
-        self.relu = nn.ReLU(inplace=True)
-        self.se = SELayer(planes * 4, reduction)
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-        out = self.se(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-
-
-class ResNet(nn.Module):
-    __factory = {
-        '18': [2, 2, 2, 2],
-        '34': [3, 4, 6, 3],
-        '50': [3, 4, 6, 3],
-        '101': [3, 4, 23, 3],
-        '152': [3, 8, 36, 3],
-    }
-
-    def _make_layer(self, block, planes, blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
-            )
-
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
-        self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
-        return nn.Sequential(*layers)
-
-    def __init__(self, depth=50, pretrained=True,
-                 cut_at_pooling=False,
-                 num_features=0, dropout=0,
-                 num_classes=0, block='Bottleneck', **kwargs):
-        super(ResNet, self).__init__()
-        depth = str(depth)
-        self.depth = depth
-        self.inplanes = 64
-        self.pretrained = pretrained
-        self.cut_at_pooling = cut_at_pooling
-
-        self.out_planes = 512 if block == 'BasicBlock' else 2048
-        self.dropout = dropout
-        self.num_classes = num_classes
-        self.num_features = num_features
-
-        # Construct base (pretrained) resnet
-        if depth not in ResNet.__factory:
-            raise KeyError("Unsupported depth:", depth)
-        layers = ResNet.__factory[depth]
-        block_name =block
-        block = eval(block)
-        self.conv1 = nn.Conv2d(3, 64,
-                               kernel_size=7, stride=2, padding=3,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-
-        self.post1 = nn.Sequential(
-            nn.BatchNorm2d(self.out_planes),
-            nn.ReLU(),
-            nn.Dropout2d(self.dropout),
-            nn.AdaptiveAvgPool2d(1),
-        )
-        self.post2 = nn.Sequential(
-            # nn.Dropout(self.dropout),
-            nn.Linear(self.out_planes, self.num_features, bias=False),
-        )
-        self.post3 = nn.Sequential(
-            # nn.Dropout(self.dropout),
-            nn.Linear(self.num_features, self.num_classes, bias=False),
-        )
-
-        reset_params(self.post1)
-        reset_params(self.post2)
-        reset_params(self.post3)
-
-        if pretrained:
-            logging.info('load resnet')
-
-            if block_name == 'SEBottleneck':
-                state_dict = torch.load('/data1/xinglu/prj/senet.pytorch/weight-99.pkl')['weight']
-                # print(state_dict.keys())
-                load_state_dict(self, state_dict,
-                                own_de_prefix='module.'
-                                )
-            else:
-                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-
-        x1 = self.post1(x)
-        x1 = x1.view(x1.size(0), -1)
-        x1 = self.post2(x1)
-
-        x2 = self.post3(
-            # Variable(x1.data),
-            x1
-        )
-
-        return x1, x2
-
-
-def resnet18(**kwargs):
-    return ResNet(18, **kwargs)
-
-
-def resnet34(**kwargs):
-    return ResNet(34, **kwargs)
-
-
-def resnet50(**kwargs):
-    return ResNet(50, **kwargs)
-
-
-def resnet101(**kwargs):
-    return ResNet(101, **kwargs)
-
-
-def resnet152(**kwargs):
-    return ResNet(152, **kwargs)

@@ -4,6 +4,8 @@ import lz
 import torch, sys
 
 sys.path.insert(0, '/home/xinglu/prj/open-reid/')
+sys.path.insert(0, '/home/xinglu/prj/luzai-tool/')
+
 from torch.optim import Optimizer
 from lz import *
 import lz
@@ -119,9 +121,9 @@ def get_data(args):
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
 
-    fnames = np.asarray(train_set)[:, 0]
-    fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
-    setattr(train_loader, 'fname2ind', fname2ind)
+    # fnames = np.asarray(train_set)[:, 0]
+    # fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
+    # setattr(train_loader, 'fname2ind', fname2ind)
 
     val_loader = DataLoader(
         Preprocessor(dataset_val.val, root=dataset_val.images_dir,
@@ -189,24 +191,24 @@ def main(args):
     else:
         global_model = None
     lomo_model = LomoNet() if args.has_npy else None
-
+    #
     # np.random.seed(16)
 
-    def get_controller(scale=args.scale, translation=args.translation, theta=args.theta):
-        controller = []
-        for sx in scale:
-            for sy in scale:
-                for tx in translation:
-                    for ty in translation:
-                        for th in theta:
-                            controller.append([sx * np.cos(th), -sx * np.sin(th), tx,
-                                               sy * np.sin(th), sy * np.cos(th), ty])
-        print('controller stride is ', len(controller))
-        controller = np.stack(controller)
-        controller = controller.reshape(-1, 2, 3)
-        controller = np.ascontiguousarray(controller, np.float32)
-        return controller
-
+    # def get_controller(scale=args.scale, translation=args.translation, theta=args.theta):
+    #     controller = []
+    #     for sx in scale:
+    #         for sy in scale:
+    #             for tx in translation:
+    #                 for ty in translation:
+    #                     for th in theta:
+    #                         controller.append([sx * np.cos(th), -sx * np.sin(th), tx,
+    #                                            sy * np.sin(th), sy * np.cos(th), ty])
+    #     print('controller stride is ', len(controller))
+    #     controller = np.stack(controller)
+    #     controller = controller.reshape(-1, 2, 3)
+    #     controller = np.ascontiguousarray(controller, np.float32)
+    #     return controller
+    #
     # dconv_model = ZPC1Conv(2048, args.double, kernel_size=3, vector=True
     #                        ).cuda() if args.double else None
     # dconv_model = TC1Conv(2048, args.double, kernel_size=3, vector=True

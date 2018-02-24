@@ -1,7 +1,7 @@
 import sys
 
-sys.path.insert(0, '/home/xinglu/prj/luzai-tool')
-sys.path.insert(0, '/home/xinglu/prj/open-reid')
+sys.path.insert(0, '/data1/xinglu/prj/luzai-tool')
+sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 
 from lz import *
 import lz
@@ -195,6 +195,7 @@ def main(args):
                           num_features=args.num_classes,
                           num_classes=num_classes,
                           block=args.bottleneck,
+                          num_deform=args.num_deform
                           )
 
     print(model)
