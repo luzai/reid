@@ -97,6 +97,21 @@ class Bottleneck(nn.Module):
         return out
 
 
+def reset_params(module):
+    for m in module.modules():
+        if isinstance(m, nn.Conv2d):
+            init.kaiming_normal(m.weight, mode='fan_out')
+            if m.bias is not None:
+                init.constant(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            init.constant(m.weight, 1)
+            init.constant(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            init.normal(m.weight, std=0.001)
+            if m.bias is not None:
+                init.constant(m.bias, 0)
+
+
 # deform conv
 class DeformConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False,
@@ -132,33 +147,20 @@ class DeformConv(nn.Module):
         return output
 
 
-def reset_params(module):
-    for m in module.modules():
-        if isinstance(m, nn.Conv2d):
-            init.kaiming_normal(m.weight, mode='fan_out')
-            if m.bias is not None:
-                init.constant(m.bias, 0)
-        elif isinstance(m, nn.BatchNorm2d):
-            init.constant(m.weight, 1)
-            init.constant(m.bias, 0)
-        elif isinstance(m, nn.Linear):
-            init.normal(m.weight, std=0.001)
-            if m.bias is not None:
-                init.constant(m.bias, 0)
-
-
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=16):
         super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
             nn.Linear(channel, channel // reduction),
-            # nn.Linear(channel, 16),
             nn.ReLU(inplace=True),
             nn.Linear(channel // reduction, channel),
-            # nn.Linear(16, channel),
             nn.Sigmoid()
         )
+        self.reset_params()
+
+    def reset_params(self):
+        pass
 
     def forward(self, x):
         b, c, _, _ = x.size()
@@ -500,8 +502,8 @@ class SERIRBasicBlock(nn.Module):
         for i in range(4, 8):
             self.conv += [conv3x3(planes // 2, planes // 2)]
             self.bn += [nn.BatchNorm2d(planes // 2)]
-        self.se1 = SELayer(planes//2)
-        self.se2 = SELayer(planes//2)
+        self.se1 = SELayer(planes // 2)
+        self.se2 = SELayer(planes // 2)
         for i in range(8):
             setattr(self, 'conv' + str(i), self.conv[i])
             setattr(self, 'bn' + str(i), self.bn[i])
@@ -629,15 +631,14 @@ class ResNet(nn.Module):
         reset_params(self.post3)
 
         if pretrained:
-            # logging.info('load senet')
-            # if block_name == 'SEBottleneck' or block_name2 == 'SEDeformBottleneck':
-            #     # state_dict = torch.load('/data1/xinglu/prj/senet.pytorch/weight-99.pkl')['weight']
-            #     state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/checkpoint.pth.tar')[
-            #         'state_dict']
-            #     load_state_dict(self, state_dict, own_de_prefix='module.')
-            # else:
-            logging.info('load resnet')
-            load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+            logging.info('load senet')
+            if block_name == 'SEBottleneck' or block_name2 == 'SEDeformBottleneck':
+                state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
+                    'state_dict']
+                load_state_dict(self, state_dict, own_de_prefix='module.')
+            else:
+                logging.info('load resnet')
+                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 
     def forward(self, x):
         x = self.conv1(x)

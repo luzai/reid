@@ -6,32 +6,7 @@ sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 from lz import *
 
 cfgs = [
-    # edict(
-    #     logs_dir='resnet.bak',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', dataset='cuhk03',
-    #     mode='hard',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='combine',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1,
-    # ),
-    # edict(
-    #     logs_dir='deform.3.init_zero.lr_mult.0.2',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='DeformBottleneck', dataset='cuhk03',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='combine',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1,
-    #     num_deform=3
-    # ),
+
 
     # edict(
     #     logs_dir='res.basic.scratch',
@@ -45,18 +20,18 @@ cfgs = [
     #     cls_pretrain=True,
     # ),
 
-    edict(
-        logs_dir='rir',
-        arch='resnet50', block_name='RIRBasicBlock', block_name2='RIRBasicBlock',
-        dataset='cuhk03',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=8, dataset_mode='combine', dropout=0,
-        cls_weight=0, tri_weight=1, random_ratio=1,
-        cls_pretrain=True,
-    ),
-
+    # edict(
+    #     logs_dir='rir',
+    #     arch='resnet50', block_name='RIRBasicBlock', block_name2='RIRBasicBlock',
+    #     dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8, dataset_mode='combine', dropout=0,
+    #     cls_weight=0, tri_weight=1, random_ratio=1,
+    #     cls_pretrain=True,
+    # ),
+    #
     # edict(
     #     logs_dir='serir',
     #     arch='resnet50', block_name='SERIRBasicBlock', block_name2='SERIRBasicBlock', dataset='cuhk03',
@@ -74,24 +49,53 @@ cfgs = [
     #     lr=3e-4, margin=0.5, area=(0.85, 1),
     #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
     #     steps=[40, 60], epochs=65,
-    #     workers=0,
+    #     workers=8,
+    #     dataset_mode='combine',
+    #     dropout=0,
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, cls_pretrain=True,
+    # ),
+
+    edict(
+        logs_dir='senet.init_senet.dop',
+        arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck', dataset='cuhk03',
+        lr=3e-4, margin=0.5, area=(0.85, 1),
+        dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=0,
+        dataset_mode='combine',
+        dropout=0,
+        cls_weight=0, tri_weight=1,
+        random_ratio=0.5,
+    ),
+
+    # edict(
+    #     logs_dir='resnet.bak',
+    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8,
     #     dataset_mode='combine',
     #     dropout=0,
     #     cls_weight=0, tri_weight=1,
     #     random_ratio=1,
     # ),
+
     # edict(
-    #     logs_dir='senet.init_senet.dop',
-    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck', dataset='cuhk03',
+    #     logs_dir='deform.3.init_zero.lr_mult.0.2',
+    #     arch='resnet50', block_name='Bottleneck', block_name2='DeformBottleneck', dataset='cuhk03',
     #     lr=3e-4, margin=0.5, area=(0.85, 1),
     #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
     #     steps=[40, 60], epochs=65,
-    #     workers=0,
+    #     workers=8,
     #     dataset_mode='combine',
     #     dropout=0,
     #     cls_weight=0, tri_weight=1,
-    #     random_ratio=0.5,
+    #     random_ratio=1,
+    #     num_deform=3
     # ),
+
 
     # edict(
     #     logs_dir='sedeform.all_se.afterlast1x1',

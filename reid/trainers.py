@@ -425,8 +425,10 @@ class CombTrainer(object):
             self.writer.add_histogram('an', dist_an, self.iter)
         else:
             loss, prec, dist = self.criterion(outputs, targets, dbg=False)
-        update_dop_cls(outputs2, targets, self.dop_file)
-        # update_dop(dist, targets, self.dop_file)
+        # if self.cls_weight !=0:
+        #     update_dop_cls(outputs2, targets, self.dop_file)
+        if self.tri_weight != 0:
+            update_dop(dist, targets, self.dop_file)
 
         self.iter += 1
         loss_comb = self.tri_weight * loss + self.cls_weight * loss2
@@ -467,12 +469,12 @@ class CombTrainer(object):
 
             if (i + 1) % print_freq == 0:
                 print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
-                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '  
-                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  ' 
-                      f'loss {losses.val:.1f}/{losses.avg:.1f}  '
-                      f'loss_cls {loss2.val:.1f}/{loss2.avg:.1f}  '
+                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
+                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
+                      f'loss {losses.val:.2f}/{losses.avg:.2f}  '
+                      f'loss_cls {losses2.val:.2f}/{losses2.avg:.2f}  '
                       f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
-                      f'prec_cls {precisions2.val:.1%}/{precisions2.avg:.1%}  '
+                      f'prec_cls {precisions2.val:.2%}/{precisions2.avg:.2%}  '
                       )
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,
