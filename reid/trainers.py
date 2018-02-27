@@ -466,11 +466,11 @@ class CombTrainer(object):
             end = time.time()
 
             if (i + 1) % print_freq == 0:
-                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]\t'
-                      f'Time {batch_time.val:.3f} {batch_time.avg:.3f}\t'  
-                      f'Data {data_time.val:.3f} {data_time.avg:.3f}\t' 
-                      f'loss {losses.val:.3f} {losses.avg:.3f}\t'
-                      f'prec {precisions.val:.2%} {precisions.avg:.2%}\t'
+                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
+                      f'Time {batch_time.val:.3f} {batch_time.avg:.3f}  '  
+                      f'Data {data_time.val:.3f} {data_time.avg:.3f}  ' 
+                      f'loss {losses.val:.3f} {losses.avg:.3f}  '
+                      f'prec {precisions.val:.2%} {precisions.avg:.2%}  '
                       )
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,

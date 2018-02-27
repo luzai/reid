@@ -7,7 +7,7 @@ from lz import *
 
 cfgs = [
     # edict(
-    #     logs_dir='deform.3',
+    #     logs_dir='deform.3.init_zero.reg.0.2',
     #     arch='resnet50', block_name='Bottleneck', block_name2='DeformBottleneck', dataset='cuhk03',
     #     lr=3e-4, margin=0.5, area=(0.85, 1),
     #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
@@ -19,11 +19,22 @@ cfgs = [
     #     random_ratio=1,
     #     num_deform=3
     # ),
-
+    # edict(
+    #     logs_dir='sedeform.3.init_zero.reg.0.2',
+    #     arch='resnet50', block_name='Bottleneck', block_name2='SEDeformBottleneck', dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8,
+    #     dataset_mode='combine',
+    #     dropout=0,
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, num_deform=3,
+    # ),
     edict(
-        logs_dir='resnet.pos.moderate',
-        arch='resnet50', block_name='Bottleneck', dataset='cuhk03',
-        mode = 'pos.moderate',
+        logs_dir='resnet.rir',
+        arch='resnet50', block_name='Bottleneck', block_name2='RIRBottoleneck', dataset='cuhk03',
+        mode='hard',
         lr=3e-4, margin=0.5, area=(0.85, 1),
         dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
@@ -47,7 +58,6 @@ cfgs = [
     #     random_ratio=0.5,
     # ),
 
-    #
     # edict(
     #     logs_dir='sedeform.all_se.afterlast1x1',
     #     arch='resnet50', block_name='SEBottleneck', block_name2='SEDeformBottleneck', dataset='cuhk03',
@@ -73,19 +83,7 @@ cfgs = [
     #     cls_weight=0, tri_weight=1,
     #     random_ratio=1, num_deform=3,
     # ),
-    #
-    # edict(
-    #     logs_dir='sedeform.3.long',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='SEDeformBottleneck', dataset='cuhk03',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[80, 120], epochs=125,
-    #     workers=8,
-    #     dataset_mode='combine',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, num_deform=3,
-    # ),
+
     # edict(
     #     logs_dir='sedeform.1',
     #     arch='resnet50', block_name='Bottleneck', block_name2='SEDeformBottleneck', dataset='cuhk03',

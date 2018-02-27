@@ -27,6 +27,7 @@ class DeformConv(nn.Module):
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
+        self.bias=bias
 
         self.conv_offset = nn.Conv2d(in_channels, num_deformable_groups * 2 * kernel_size * kernel_size,
                                      kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
@@ -39,7 +40,10 @@ class DeformConv(nn.Module):
     def reset_parameters(self):
         n = self.in_channels * self.kernel_size * self.kernel_size
         stdv = 1. / math.sqrt(n)
-        self.conv_offset.weight.data.uniform_(-stdv, stdv)  # todo close to 0
+        # self.conv_offset.weight.data.uniform_(-stdv, stdv)
+        self.conv_offset.weight.data.fill_(0)
+        if self.bias:
+            self.conv_offset.bias.data.zero_()
         self.conv.weight.data.uniform_(-stdv, stdv)
 
     def forward(self, x):
@@ -176,7 +180,7 @@ class SEDeformBottleneck(nn.Module):
 
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        # self.se = SELayer(planes, reduction)
+        self.se = SELayer(planes, reduction)
         self.conv2 = DeformConv(planes,
                                 planes,
                                 kernel_size=3, stride=stride,
@@ -184,7 +188,7 @@ class SEDeformBottleneck(nn.Module):
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
-        self.se = SELayer(planes * 4, reduction)
+        # self.se = SELayer(planes * 4, reduction)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
@@ -196,7 +200,7 @@ class SEDeformBottleneck(nn.Module):
         out = self.bn1(out)
         out = self.relu(out)
 
-        # out = self.se(out)
+        out = self.se(out)
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu(out)
@@ -204,7 +208,7 @@ class SEDeformBottleneck(nn.Module):
 
         out = self.conv3(out)
         out = self.bn3(out)
-        out = self.se(out)
+        # out = self.se(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)
@@ -303,13 +307,13 @@ class ResNet(nn.Module):
         reset_params(self.post3)
 
         if pretrained:
-            logging.info('load senet')
-            if block_name == 'SEBottleneck' or block_name2 == 'SEDeformBottleneck':
-                # state_dict = torch.load('/data1/xinglu/prj/senet.pytorch/weight-99.pkl')['weight']
-                state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/checkpoint.pth.tar')[
-                    'state_dict']
-                load_state_dict(self, state_dict, own_de_prefix='module.')
-            else:
+            # logging.info('load senet')
+            # if block_name == 'SEBottleneck' or block_name2 == 'SEDeformBottleneck':
+            #     # state_dict = torch.load('/data1/xinglu/prj/senet.pytorch/weight-99.pkl')['weight']
+            #     state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/checkpoint.pth.tar')[
+            #         'state_dict']
+            #     load_state_dict(self, state_dict, own_de_prefix='module.')
+            # else:
                 logging.info('load resnet')
                 load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 

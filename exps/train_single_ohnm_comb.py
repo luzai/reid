@@ -44,7 +44,7 @@ def run(_):
             args.logs_dir += '.bak0'
         args.logs_dir = 'work/' + args.logs_dir
         if args.dbg:
-            args.logs_dir += '.bak'
+            args.logs_dir += '.bak0'
         if args.gpu is not None:
             args.gpu = lz.get_dev(n=len(args.gpu), ok=range(4), mem=[0.05, 0.05], sleep=33.23)
             # args.gpu = (2,)
@@ -244,9 +244,9 @@ def main(args):
 
     # Criterion
     if args.gpu is not None:
-        criterion = [TripletLoss(margin=args.margin, mode = args.mode).cuda(), nn.CrossEntropyLoss().cuda()]
+        criterion = [TripletLoss(margin=args.margin, mode=args.mode).cuda(), nn.CrossEntropyLoss().cuda()]
     else:
-        criterion = TripletLoss(margin=args.margin,mode=args.mode)
+        criterion = TripletLoss(margin=args.margin, mode=args.mode)
 
     # Optimizer
 
@@ -256,16 +256,28 @@ def main(args):
     #                              model.module.classifier.parameters()
     #                              ):
     #     param.requires_grad = False
-
+    slow_params = []
+    for name, param in model.named_parameters():
+        if 'conv_offset' in name:
+            slow_params.append(param)
+    slow_params_ids = set(map(id, slow_params))
+    normal_params = [p for p in model.parameters() if id(p) not in slow_params_ids]
+    param_groups = [
+        {'params': slow_params, 'lr_mult': 0.2},
+        {'params': normal_params, 'lr_mult': 1.},
+    ]
     if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=3e-4,
-                                     weight_decay=args.weight_decay)
+        optimizer = torch.optim.Adam(
+            # model.parameters(),
+            param_groups,
+            lr=3e-4,
+            weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
-        optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-                                    lr=1e-3,
-                                    weight_decay=args.weight_decay, momentum=0.9,
-                                    nesterov=True)
+        optimizer = torch.optim.SGD(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=1e-3,
+            weight_decay=args.weight_decay, momentum=0.9,
+            nesterov=True)
     else:
         raise NotImplementedError
     # Trainer
