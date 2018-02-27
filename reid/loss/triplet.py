@@ -4,6 +4,7 @@ import lz
 from tensorboardX import SummaryWriter
 import numpy as np, numpy
 
+
 def select(dist, range, descend=True, return_ind=False, global_ind=None):
     dist, ind = torch.sort(dist, descending=descend)
     if not return_ind:
@@ -42,7 +43,17 @@ class TripletLoss(nn.Module):
                     for neg in select(some_neg, (0, 1), descend=False):
                         dist_ap.append(pos)
                         dist_an.append(neg)
-
+            elif self.mode == 'pos.moderate':
+                some_neg = dist[i][mask[i] == 0]
+                neg = some_neg.min()
+                some_pos = dist[i][mask[i]]
+                some_pos_moderate = some_pos[(some_pos < neg).data]
+                if not some_pos_moderate.shape:
+                    pos = some_pos.min()
+                else:
+                    pos = some_pos_moderate.max()
+                dist_ap.append(pos)
+                dist_an.append(neg)
             elif self.mode == 'rand':
                 posp = dist[i][mask[i]]
                 dist_ap.append(posp[numpy.random.randint(0, posp.size(0))])

@@ -466,26 +466,17 @@ class CombTrainer(object):
             end = time.time()
 
             if (i + 1) % print_freq == 0:
-                print('Epoch: [{}][{}/{}]  '
-                      'Time {:.3f} ({:.3f})  '
-                      'Data {:.3f} ({:.3f})  '
-                      'Loss_tri {:.3f} ({:.3f})  '
-                      'Loss_cls {:.3f} ({:.3f})  '
-                      'Prec_tri {:.2%} ({:.2%})  '
-                      'Prec_cls {:.2%} ({:.2%})  '
-                      .format(epoch, i + 1, len(data_loader),
-                              batch_time.val, batch_time.avg,
-                              data_time.val, data_time.avg,
-                              losses.val, losses.avg,
-                              losses2.val, losses2.avg,
-                              precisions.val, precisions.avg,
-                              precisions2.val, precisions2.avg,
-                              ))
+                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]\t'
+                      f'Time {batch_time.val:.3f} {batch_time.avg:.3f}\t'  
+                      f'Data {data_time.val:.3f} {data_time.avg:.3f}\t' 
+                      f'loss {losses.val:.3f} {losses.avg:.3f}\t'
+                      f'prec {precisions.val:.2%} {precisions.avg:.2%}\t'
+                      )
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,
             'data-time': data_time.avg,
             'loss_tri': losses.avg,
-            'loss_cls': losses2.avg,
+            # 'loss_cls': losses2.avg,
             'prec_tri': precisions.avg,
-            'prec_cls': precisions2.avg,
+            # 'prec_cls': precisions2.avg,
         })

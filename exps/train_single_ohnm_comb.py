@@ -41,7 +41,7 @@ def run(_):
             range(args.epochs - 9, args.epochs, 1)
         ])
         if args.evaluate:
-            args.logs_dir += '.bak'
+            args.logs_dir += '.bak0'
         args.logs_dir = 'work/' + args.logs_dir
         if args.dbg:
             args.logs_dir += '.bak'
@@ -136,9 +136,9 @@ def get_data(args):
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
 
-    fnames = np.asarray(train_set)[:, 0]
-    fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
-    setattr(train_loader, 'fname2ind', fname2ind)
+    # fnames = np.asarray(train_set)[:, 0]
+    # fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
+    # setattr(train_loader, 'fname2ind', fname2ind)
 
     val_loader = DataLoader(
         Preprocessor(dataset_val.val, root=dataset_val.images_dir,
@@ -244,9 +244,9 @@ def main(args):
 
     # Criterion
     if args.gpu is not None:
-        criterion = [TripletLoss(margin=args.margin).cuda(), nn.CrossEntropyLoss().cuda()]
+        criterion = [TripletLoss(margin=args.margin, mode = args.mode).cuda(), nn.CrossEntropyLoss().cuda()]
     else:
-        criterion = TripletLoss(margin=args.margin)
+        criterion = TripletLoss(margin=args.margin,mode=args.mode)
 
     # Optimizer
 
