@@ -33,10 +33,22 @@ cfgs = [
     #     num_deform=3
     # ),
 
+    # edict(
+    #     logs_dir='res.basic.scratch',
+    #     arch='resnet50', block_name='BasicBlock', block_name2='BasicBlock',
+    #     dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8, dataset_mode='combine', dropout=0,
+    #     cls_weight=0, tri_weight=1, random_ratio=1,
+    #     cls_pretrain=True,
+    # ),
+
     edict(
-        logs_dir='resnet.rir',
-        arch='resnet50', block_name='RIRBottleneck', block_name2='RIRBottleneck', dataset='cuhk03',
-        mode='hard',
+        logs_dir='rir',
+        arch='resnet50', block_name='RIRBasicBlock', block_name2='RIRBasicBlock',
+        dataset='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
         dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
@@ -44,6 +56,17 @@ cfgs = [
         cls_weight=0, tri_weight=1, random_ratio=1,
         cls_pretrain=True,
     ),
+
+    # edict(
+    #     logs_dir='serir',
+    #     arch='resnet50', block_name='SERIRBasicBlock', block_name2='SERIRBasicBlock', dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8, dataset_mode='combine', dropout=0,
+    #     cls_weight=0, tri_weight=1, random_ratio=1,
+    #     cls_pretrain=True,
+    # ),
 
     # edict(
     #     logs_dir='att_res',

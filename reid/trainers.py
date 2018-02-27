@@ -467,10 +467,12 @@ class CombTrainer(object):
 
             if (i + 1) % print_freq == 0:
                 print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
-                      f'Time {batch_time.val:.3f} {batch_time.avg:.3f}  '  
-                      f'Data {data_time.val:.3f} {data_time.avg:.3f}  ' 
-                      f'loss {losses.val:.3f} {losses.avg:.3f}  '
-                      f'prec {precisions.val:.2%} {precisions.avg:.2%}  '
+                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '  
+                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  ' 
+                      f'loss {losses.val:.1f}/{losses.avg:.1f}  '
+                      f'loss_cls {loss2.val:.1f}/{loss2.avg:.1f}  '
+                      f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
+                      f'prec_cls {precisions2.val:.1%}/{precisions2.avg:.1%}  '
                       )
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,

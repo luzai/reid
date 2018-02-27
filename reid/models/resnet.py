@@ -12,6 +12,45 @@ from modules import ConvOffset2d
 from functions import conv_offset2d
 
 
+class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(BasicBlock, self).__init__()
+        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(planes, planes)
+        self.bn2 = nn.BatchNorm2d(planes)
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -395,6 +434,111 @@ class RIRBottleneck(nn.Module):
         return torch.cat((residual, transient), dim=1).contiguous()
 
 
+class RIRBasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(RIRBasicBlock, self).__init__()
+        self.relu = nn.ReLU(inplace=True)
+        self.conv = []
+        self.bn = []
+        for i in range(4):
+            self.conv += [conv3x3(inplanes // 2, planes // 2, stride)]
+            self.bn += [nn.BatchNorm2d(planes // 2)]
+
+        for i in range(4, 8):
+            self.conv += [conv3x3(planes // 2, planes // 2)]
+            self.bn += [nn.BatchNorm2d(planes // 2)]
+        for i in range(8):
+            setattr(self, 'conv' + str(i), self.conv[i])
+            setattr(self, 'bn' + str(i), self.bn[i])
+
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0] // 2, downsample[1] // 2,
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1] // 2),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual, transient = x[:, :x.size(1) // 2, :, :].contiguous(), x[:, x.size(1) // 2:, :, :].contiguous()
+        func = lambda ind, x: self.bn[ind](self.conv[ind](x))
+        out = [func(ind, residual) for ind in range(2)] + \
+              [func(ind, transient) for ind in range(2, 4)]
+        if self.downsample:
+            residual = self.downsample(residual)
+
+        residual, transient = (residual + out[0] + out[2],
+                               out[1] + out[3])
+        residual, transient = map(self.relu, (residual, transient))
+
+        func = lambda ind, x: self.bn[ind](self.conv[ind](x))
+        out = [func(ind, residual) for ind in range(4, 6)] + \
+              [func(ind, transient) for ind in range(6, 8)]
+
+        residual, transient = (residual + out[0] + out[2],
+                               out[1] + out[3])
+        residual, transient = map(self.relu, (residual, transient))
+        return torch.cat((residual, transient), dim=1).contiguous()
+
+
+class SERIRBasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(SERIRBasicBlock, self).__init__()
+        self.relu = nn.ReLU(inplace=True)
+        self.conv = []
+        self.bn = []
+        for i in range(4):
+            self.conv += [conv3x3(inplanes // 2, planes // 2, stride)]
+            self.bn += [nn.BatchNorm2d(planes // 2)]
+
+        for i in range(4, 8):
+            self.conv += [conv3x3(planes // 2, planes // 2)]
+            self.bn += [nn.BatchNorm2d(planes // 2)]
+        self.se1 = SELayer(planes//2)
+        self.se2 = SELayer(planes//2)
+        for i in range(8):
+            setattr(self, 'conv' + str(i), self.conv[i])
+            setattr(self, 'bn' + str(i), self.bn[i])
+
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0] // 2, downsample[1] // 2,
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1] // 2),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual, transient = x[:, :x.size(1) // 2, :, :].contiguous(), x[:, x.size(1) // 2:, :, :].contiguous()
+        func = lambda ind, x: self.bn[ind](self.conv[ind](x))
+        out = [func(ind, residual) for ind in range(2)] + \
+              [func(ind, transient) for ind in range(2, 4)]
+        if self.downsample:
+            residual = self.downsample(residual)
+
+        residual, transient = (residual + out[0] + out[2],
+                               out[1] + out[3])
+        residual, transient = map(self.relu, (residual, transient))
+
+        func = lambda ind, x: self.bn[ind](self.conv[ind](x))
+        out = [func(ind, residual) for ind in range(4, 6)] + \
+              [func(ind, transient) for ind in range(6, 8)]
+        out[2] = self.se1(out[2])
+        out[3] = self.se2(out[3])
+        residual, transient = (residual + out[0] + out[2],
+                               out[1] + out[3])
+        residual, transient = map(self.relu, (residual, transient))
+        return torch.cat((residual, transient), dim=1).contiguous()
+
+
 class ResNet(nn.Module):
     __factory = {
         '18': [2, 2, 2, 2],
@@ -437,7 +581,6 @@ class ResNet(nn.Module):
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
 
-        self.out_planes = 512 if block_name == 'BasicBlock' else 2048
         self.dropout = dropout
         self.num_classes = num_classes
         self.num_features = num_features
@@ -448,6 +591,8 @@ class ResNet(nn.Module):
         layers = ResNet.__factory[depth]
         block = eval(block_name)
         block2 = eval(block_name2)
+        self.out_planes = 512 * block2.expansion
+        logging.info(f'out_planes is {self.out_planes}')
         self.conv1 = nn.Conv2d(3, 64,
                                kernel_size=7, stride=2, padding=3,
                                bias=False)

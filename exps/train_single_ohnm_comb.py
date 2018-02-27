@@ -286,8 +286,8 @@ def main(args):
         args_cp.cls_weight=1
         args_cp.tri_weight=0
         trainer = CombTrainer(model, criterion, dbg=False,
-                              logs_at=args.logs_dir + '/vis', args=args)
-        for epoch in range(start_epoch,args.epochs):
+                              logs_at=args_cp.logs_dir + '/vis', args=args_cp)
+        for epoch in range(start_epoch,args_cp.epochs):
             hist = trainer.train(epoch,train_loader, optimizer )
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
