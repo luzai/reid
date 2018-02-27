@@ -35,7 +35,7 @@ def run(_):
         # args.dbg = True
         if args.dbg:
             args.epochs = 1
-            args.batch_size = 128
+            args.batch_size = 16
         args.log_at = np.concatenate([
             args.log_at,
             range(args.epochs - 9, args.epochs, 1)
@@ -246,9 +246,9 @@ def main(args):
     if args.gpu is not None:
         criterion = [TripletLoss(margin=args.margin, mode=args.mode).cuda(), nn.CrossEntropyLoss().cuda()]
     else:
-        criterion = TripletLoss(margin=args.margin, mode=args.mode)
+        criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
 
-    # Optimizer
+        # Optimizer
 
     # for param in itertools.chain(model.module.base.parameters(),
     #                              model.module.feat.parameters(),
@@ -270,16 +270,32 @@ def main(args):
         optimizer = torch.optim.Adam(
             # model.parameters(),
             param_groups,
-            lr=3e-4,
+            lr=args.lr,
             weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(
             filter(lambda p: p.requires_grad, model.parameters()),
-            lr=1e-3,
+            lr=args.lr,
             weight_decay=args.weight_decay, momentum=0.9,
             nesterov=True)
     else:
         raise NotImplementedError
+
+    if args.cls_pretrain:
+        args_cp = copy.deepcopy(args)
+        args_cp.cls_weight=1
+        args_cp.tri_weight=0
+        trainer = CombTrainer(model, criterion, dbg=False,
+                              logs_at=args.logs_dir + '/vis', args=args)
+        for epoch in range(start_epoch,args.epochs):
+            hist = trainer.train(epoch,train_loader, optimizer )
+            save_checkpoint({
+                'state_dict': model.module.state_dict(),
+                'epoch': epoch + 1,
+                'best_top1': best_top1,
+            }, True, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
+            print('Finished epoch {:3d} hist {}'.
+                  format(epoch, hist) )
     # Trainer
     trainer = CombTrainer(model, criterion, dbg=False,
                           logs_at=args.logs_dir + '/vis', args=args)

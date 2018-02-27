@@ -1,13 +1,8 @@
 from torch.nn import init
-from torchvision.models.resnet import conv3x3, BasicBlock, Bottleneck, model_urls, model_zoo
+from torchvision.models.resnet import conv3x3, model_urls, model_zoo
 from lz import *
 from reid.utils.serialization import load_state_dict
 from .common import _make_conv
-
-# __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-#            'resnet152',
-#            # 'res_att1'
-#            ]
 
 import sys
 
@@ -15,6 +10,52 @@ sys.path.insert(0, '/data1/xinglu/prj/deformable-convolution-pytorch/')
 
 from modules import ConvOffset2d
 from functions import conv_offset2d
+
+
+class Bottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(Bottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
+                               padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
 
 
 # deform conv
@@ -27,7 +68,7 @@ class DeformConv(nn.Module):
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
-        self.bias=bias
+        self.bias = bias
 
         self.conv_offset = nn.Conv2d(in_channels, num_deformable_groups * 2 * kernel_size * kernel_size,
                                      kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
@@ -104,7 +145,14 @@ class SEBottleneck(nn.Module):
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
         self.se = SELayer(planes * 4, reduction)
-        self.downsample = downsample
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
         self.stride = stride
 
     def forward(self, x):
@@ -131,6 +179,55 @@ class SEBottleneck(nn.Module):
         return out
 
 
+class AttResBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=16, **kwargs):
+        super(AttResBottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes,
+                               planes,
+                               kernel_size=3, stride=stride,
+                               padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        self.se = SELayer(planes * 4, reduction)
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += self.se(residual)
+        out = self.relu(out)
+
+        return out
+
+
 class DeformBottleneck(nn.Module):
     expansion = 4
 
@@ -146,7 +243,14 @@ class DeformBottleneck(nn.Module):
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
         self.stride = stride
 
     def forward(self, x):
@@ -190,7 +294,14 @@ class SEDeformBottleneck(nn.Module):
         self.bn3 = nn.BatchNorm2d(planes * 4)
         # self.se = SELayer(planes * 4, reduction)
         self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
         self.stride = stride
 
     def forward(self, x):
@@ -219,6 +330,71 @@ class SEDeformBottleneck(nn.Module):
         return out
 
 
+class RIRBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(RIRBottleneck, self).__init__()
+        self.relu = nn.ReLU(inplace=True)
+        self.conv = []
+        self.bn = []
+        for i in range(4):
+            self.conv += [nn.Conv2d(inplanes // 2, planes // 2, kernel_size=1, bias=False), ]
+            self.bn += [nn.BatchNorm2d(planes // 2)]
+
+        for i in range(4, 8):
+            self.conv += [conv3x3(planes // 2, planes // 2, stride)]
+            self.bn += [nn.BatchNorm2d(planes // 2)]
+
+        for i in range(8, 10):
+            self.conv += [nn.Conv2d(planes // 2, planes * 2, kernel_size=1, bias=False)]
+            self.bn += [nn.BatchNorm2d(planes * 2)]
+
+        for i in range(10):
+            setattr(self, 'conv' + str(i), self.conv[i])
+            setattr(self, 'bn' + str(i), self.bn[i])
+
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0] // 2, downsample[1] // 2,
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1] // 2),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual, transient = [x[:, :x.size(1) // 2, :, :].contiguous(), x[:, x.size(1) // 2:, :, :].contiguous()]
+        init_residual = residual
+        func = lambda ind, x: self.bn[ind](self.conv[ind](x))
+        out = [func(ind, residual) for ind in range(2)] + \
+              [func(ind, transient) for ind in range(2, 4)]
+
+        residual, transient = (
+            # residual +
+            out[0] + out[2],
+            out[1] + out[3])
+        residual, transient = map(self.relu, (residual, transient))
+
+        func = lambda ind, x: self.bn[ind](self.conv[ind](x))
+        out = [func(ind, residual) for ind in range(4, 6)] + \
+              [func(ind, transient) for ind in range(6, 8)]
+        residual, transient = (
+            # residual +
+            out[0] + out[2],
+            out[1] + out[3])
+        residual, transient = map(self.relu, (residual, transient))
+
+        func = lambda ind, x: self.bn[ind](self.conv[ind](x))
+        out = [func(8, residual), func(9, transient)]
+        if self.downsample:
+            init_residual = self.downsample(init_residual)
+        residual, transient = (init_residual + out[0]), out[1]
+        residual, transient = map(self.relu, (residual, transient))
+        return torch.cat((residual, transient), dim=1).contiguous()
+
+
 class ResNet(nn.Module):
     __factory = {
         '18': [2, 2, 2, 2],
@@ -233,11 +409,12 @@ class ResNet(nn.Module):
             block = [block] * blocks
         downsample = None
         if stride != 1 or self.inplanes != planes * block[0].expansion:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block[0].expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block[0].expansion),
-            )
+            downsample = (self.inplanes, planes * block[0].expansion, stride)
+            # downsample = nn.Sequential(
+            #     nn.Conv2d(self.inplanes, planes * block[0].expansion,
+            #               kernel_size=1, stride=stride, bias=False),
+            #     nn.BatchNorm2d(planes * block[0].expansion),
+            # )
 
         layers = []
         layers.append(block[0](self.inplanes, planes, stride, downsample))
@@ -314,8 +491,8 @@ class ResNet(nn.Module):
             #         'state_dict']
             #     load_state_dict(self, state_dict, own_de_prefix='module.')
             # else:
-                logging.info('load resnet')
-                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+            logging.info('load resnet')
+            load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 
     def forward(self, x):
         x = self.conv1(x)
