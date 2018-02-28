@@ -6,8 +6,48 @@ sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 from lz import *
 
 cfgs = [
+    edict(
+        logs_dir='senet.scratch',
+        arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck', dataset='cuhk03',
+        lr=3e-4, margin=0.5, area=(0.85, 1),
+        dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=0,
+        dataset_mode='combine',
+        dropout=0,
+        cls_weight=0, tri_weight=1,
+        random_ratio=1,
+        cls_pretrain=True,
+    ),
+    # edict(
+    #     logs_dir='x_sex_fx',
+    #     arch='resnet50', block_name='XSEXFXBottleneck', block_name2='XSEXFXBottleneck', dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8,
+    #     dataset_mode='combine',
+    #     dropout=0,
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1,
+    #     # cls_pretrain=True,
+    # ),
 
 
+    # edict(
+    #     logs_dir='att_res',
+    #     arch='resnet50', block_name='AttResBottleneck', block_name2='AttResBottleneck', dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8,
+    #     dataset_mode='combine',
+    #     dropout=0,
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1,
+    #     # cls_pretrain=True,
+    # ),
+    #
     # edict(
     #     logs_dir='res.basic.scratch',
     #     arch='resnet50', block_name='BasicBlock', block_name2='BasicBlock',
@@ -19,7 +59,7 @@ cfgs = [
     #     cls_weight=0, tri_weight=1, random_ratio=1,
     #     cls_pretrain=True,
     # ),
-
+    #
     # edict(
     #     logs_dir='rir',
     #     arch='resnet50', block_name='RIRBasicBlock', block_name2='RIRBasicBlock',
@@ -44,8 +84,20 @@ cfgs = [
     # ),
 
     # edict(
-    #     logs_dir='att_res',
-    #     arch='resnet50', block_name='AttResBottleneck', block_name2='AttResBottleneck', dataset='cuhk03',
+    #     logs_dir='senet.init_senet.dop',
+    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck', dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=0,
+    #     dataset_mode='combine',
+    #     dropout=0,
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=0.5,
+    # ),
+    # edict(
+    #     logs_dir='senet.init_senet.dop.rand.0.25.worker8',
+    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck', dataset='cuhk03',
     #     lr=3e-4, margin=0.5, area=(0.85, 1),
     #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
     #     steps=[40, 60], epochs=65,
@@ -53,22 +105,20 @@ cfgs = [
     #     dataset_mode='combine',
     #     dropout=0,
     #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, cls_pretrain=True,
+    #     random_ratio=0.25,
     # ),
-
-    edict(
-        logs_dir='senet.init_senet.dop',
-        arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck', dataset='cuhk03',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=0,
-        dataset_mode='combine',
-        dropout=0,
-        cls_weight=0, tri_weight=1,
-        random_ratio=0.5,
-    ),
-
+    # edict(
+    #     logs_dir='senet.init_senet.dop.worker8',
+    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck', dataset='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8,
+    #     dataset_mode='combine',
+    #     dropout=0,
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=0.25,
+    # ),
     # edict(
     #     logs_dir='resnet.bak',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', dataset='cuhk03',
@@ -96,24 +146,10 @@ cfgs = [
     #     num_deform=3
     # ),
 
-
     # edict(
     #     logs_dir='sedeform.all_se.afterlast1x1',
     #     arch='resnet50', block_name='SEBottleneck', block_name2='SEDeformBottleneck', dataset='cuhk03',
     #     lr=3e-4, margi1n=0.5, area=(0.85, 1),
-    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='combine',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, num_deform=3,
-    # ),
-
-    # edict(
-    #     logs_dir='sedeform.3.again.2',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='SEDeformBottleneck', dataset='cuhk03',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
     #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
     #     steps=[40, 60], epochs=65,
     #     workers=8,
@@ -219,251 +255,3 @@ if __name__ == '__main__':
     df1.index = df1.logs_dir
     del df1['logs_dir']
     print(tabulate.tabulate(df1, headers="keys", tablefmt="pipe"))
-
-# edict(
-#     logs_dir='senet',
-#     arch='resnet50', bottleneck='SEBottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='label',
-#     dropout=0.25,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=1,
-#     pretrained=True, resume=None
-# ),
-
-# edict(
-#     logs_dir='dop.tri.0.25',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.5, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=0,
-#     dataset_mode='combine',
-#     dropout=0,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=0.25,
-#     pretrained=True, resume=None
-# ),
-# edict(
-#     logs_dir='dop.tri.0.25.worker8',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.5, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='combine',
-#     dropout=0,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=0.25,
-#     pretrained=True, resume=None
-# ),
-# edict(
-#     logs_dir='dop.tri.0.5',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.5, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=0,
-#     dataset_mode='combine',
-#     dropout=0,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=0.5,
-#     pretrained=True, resume=None
-# ),
-# edict(
-#     logs_dir='dop.tri.0.3',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.5, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=0,
-#     dataset_mode='combine',
-#     dropout=0,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=0.3,
-#     pretrained=True, resume=None
-# ),
-# edict(
-#     logs_dir='dop.tri.0.2',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.5, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=0,
-#     dataset_mode='combine',
-#     dropout=0,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=0.2,
-#     pretrained=True, resume=None
-# ),
-# edict(
-#     logs_dir='area.64',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.5, area=(0.64, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='combine',
-#     dropout=0,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=1,
-#     pretrained=True, resume=None
-# ),
-# edict(
-#     logs_dir='area.96',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.5, area=(0.96, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='combine',
-#     dropout=0,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=1,
-#     pretrained=True, resume=None
-# ),
-
-#
-# edict(
-#     logs_dir='senet.cls.0.1',
-#     arch='resnet50', bottleneck='SEBottleneck', dataset='cuhk03',
-#     lr=1e-1, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='label',
-#     dropout=0.25,
-#     cls_weight=1, tri_weight=0,
-#     random_ratio=1,
-#     pretrained=False, resume=None
-# ),
-
-# edict(
-#     logs_dir='senet.cls.resume',
-#     arch='resnet50', bottleneck='SEBottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='label',
-#     dropout=0.25,
-#     cls_weight=1, tri_weight=0,
-#     random_ratio=1,
-#     pretrained=False, resume='work/senet.cls/model_best.pth'
-# ),
-
-# edict(
-#     logs_dir='senet.use_resnet',
-#     arch='resnet50', bottleneck='SEBottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='label',
-#     dropout=0.25,
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=1,
-#     pretrained=True, resume=None
-# ),
-
-# edict(
-#     logs_dir='dop.0.5.freeze',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=0,
-#     dataset_mode='label',
-#     dropout=0,
-#     cls_weight=0.5,
-#     tri_weight=0.5,
-#     random_ratio=0.5,
-# ),
-
-# edict(
-#     logs_dir='dop.0.5.worker.8',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='label',
-#     dropout=0.25,
-#     cls_weight=0.5,
-#     tri_weight=0.5,
-#     random_ratio=0.5,
-# ),
-
-# edict(
-#     logs_dir='data.comb',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='combine',
-#     dropout=0.25,
-#     cls_weight=0,
-#     tri_weight=1,
-#     random_ratio=1,
-# ),
-#
-# edict(
-#     logs_dir='loss.comb',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='label',
-#     dropout=0.25,
-#     cls_weight=0.5,
-#     tri_weight=0.5,
-#     random_ratio=1,
-# ),
-#
-# edict(
-#     logs_dir='loss.comb.0.1',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='label',
-#     dropout=0.25,
-#     cls_weight=0.1,
-#     tri_weight=0.9,
-#     random_ratio=1,
-# ),
-#
-# edict(
-#     logs_dir='no.dropout',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=8,
-#     dataset_mode='label',
-#     dropout=0,
-#     cls_weight=0,
-#     tri_weight=1,
-#     random_ratio=1,
-# ),
-#
-# edict(
-#     logs_dir='dop.0.25',
-#     arch='resnet50', bottleneck='Bottleneck', dataset='cuhk03',
-#     lr=3e-4, margin=0.45, area=(0.85, 1),
-#     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     steps=[40, 60], epochs=65,
-#     workers=0,
-#     dataset_mode='label',
-#     dropout=0.25,
-#     cls_weight=0.5,
-#     tri_weight=0.5,
-#     random_ratio=0.25,
-# ),
-#

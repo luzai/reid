@@ -147,8 +147,16 @@ class DeformConv(nn.Module):
         return output
 
 
+def get_norm(x):
+    x2 = x * x
+    x2 = x2.sum()
+    x2 = to_numpy(x2)
+    x2 = np.sqrt(x2)
+    return x2
+
+
 class SELayer(nn.Module):
-    def __init__(self, channel, reduction=16):
+    def __init__(self, channel, reduction=16, mult=1):
         super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
@@ -157,6 +165,7 @@ class SELayer(nn.Module):
             nn.Linear(channel // reduction, channel),
             nn.Sigmoid()
         )
+        self.mult = mult
         self.reset_params()
 
     def reset_params(self):
@@ -166,8 +175,8 @@ class SELayer(nn.Module):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
-        # logging.info('ori is {}, now is {}'.format(x.mean(), (x * y).mean()))
-        return x * y
+        # logging.info('se: ori is {}, now is {}'.format(get_norm(x), get_norm(x * y)))
+        return x * y * self.mult
 
 
 class SEBottleneck(nn.Module):
@@ -220,11 +229,11 @@ class SEBottleneck(nn.Module):
         return out
 
 
-class AttResBottleneck(nn.Module):
+class XSEXFXBottleneck(nn.Module):
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=16, **kwargs):
-        super(AttResBottleneck, self).__init__()
+        super(XSEXFXBottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(planes,
@@ -235,7 +244,7 @@ class AttResBottleneck(nn.Module):
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
-        self.se = SELayer(planes * 4, reduction)
+        self.se = SELayer(planes * 4, reduction, mult=1)
         if downsample is not None:
             self.downsample = nn.Sequential(
                 nn.Conv2d(downsample[0], downsample[1],
@@ -262,6 +271,59 @@ class AttResBottleneck(nn.Module):
 
         if self.downsample is not None:
             residual = self.downsample(x)
+
+        # logging.info('after1x1conv: residual is {}, identity is {}'.format(get_norm(out), get_norm(residual)))
+
+        out += (residual + self.se(residual))
+        out = self.relu(out)
+
+        return out
+
+
+class AttResBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=16, **kwargs):
+        super(AttResBottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes,
+                               planes,
+                               kernel_size=3, stride=stride,
+                               padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        self.se = SELayer(planes * 4, reduction, mult=2)
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        # logging.info('after1x1conv: residual is {}, identity is {}'.format(get_norm(out), get_norm(residual)))
 
         out += self.se(residual)
         out = self.relu(out)
@@ -631,14 +693,14 @@ class ResNet(nn.Module):
         reset_params(self.post3)
 
         if pretrained:
-            logging.info('load senet')
-            if block_name == 'SEBottleneck' or block_name2 == 'SEDeformBottleneck':
-                state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
-                    'state_dict']
-                load_state_dict(self, state_dict, own_de_prefix='module.')
-            else:
-                logging.info('load resnet')
-                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+            # if 'SE' in block_name or 'SE' in block_name2:
+            #     logging.info('load senet')
+            #     state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
+            #         'state_dict']
+            #     load_state_dict(self, state_dict, own_de_prefix='module.')
+            # else:
+            logging.info('load resnet')
+            load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 
     def forward(self, x):
         x = self.conv1(x)
