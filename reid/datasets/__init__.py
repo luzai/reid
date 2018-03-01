@@ -50,12 +50,12 @@ def creates(names, roots, *args, **kwargs):
     dss = [create(name, root, *args, **kwargs) for name, root in zip(names, roots)]
     dsf = Dataset(root='', split_id=0)
 
-    # if osp.exists('/home/xinglu/work/cache.pkl'):
-    #     dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
-    #     for k, v in dsf_dict.items():
-    #         setattr(dsf, k, v)
-    #
-    #     return dsf
+    if osp.exists('/home/xinglu/work/cache.pkl'):
+        dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
+        for k, v in dsf_dict.items():
+            setattr(dsf, k, v)
+
+        return dsf
 
     def to_df(rec):
         return pd.DataFrame.from_records(rec, columns=['fname', 'pid', 'cid'])
@@ -109,3 +109,10 @@ def creates(names, roots, *args, **kwargs):
         setattr(dsf, name, dff)
 
     return dsf
+
+# if __name__ == '__main__':
+#     root = '/data1/xinglu/.torch/data/'
+#     names = ['cuhk03', 'market1501', 'dukemtmc']
+#     roots = [root + name  for name in names]
+#     dataset = creates( names , roots)
+#     print(dataset)

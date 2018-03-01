@@ -8,17 +8,18 @@ from lz import *
 cfgs = [
     edict(
         logs_dir='senet.scratch',
-        arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck', dataset='cuhk03',
+        arch='resnet50', block_name='SEBasicBlock', block_name2='SEBasicBlock', dataset='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
         dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
-        workers=0,
+        workers=8,
         dataset_mode='combine',
         dropout=0,
         cls_weight=0, tri_weight=1,
         random_ratio=1,
         cls_pretrain=True,
     ),
+
     # edict(
     #     logs_dir='x_sex_fx',
     #     arch='resnet50', block_name='XSEXFXBottleneck', block_name2='XSEXFXBottleneck', dataset='cuhk03',
@@ -146,18 +147,18 @@ cfgs = [
     #     num_deform=3
     # ),
 
-    # edict(
-    #     logs_dir='sedeform.all_se.afterlast1x1',
-    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEDeformBottleneck', dataset='cuhk03',
-    #     lr=3e-4, margi1n=0.5, area=(0.85, 1),
-    #     dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='combine',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, num_deform=3,
-    # ),
+    edict(
+        logs_dir='sedeform.1.all_se.init_zeo.lr_mult.0.01',
+        arch='resnet50', block_name='SEBottleneck', block_name2='SEDeformBottleneck', dataset='cuhk03',
+        lr=3e-4, margin=0.5, area=(0.85, 1),
+        dataset_val='cuhk03', batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=8,
+        dataset_mode='combine',
+        dropout=0,
+        cls_weight=0, tri_weight=1,
+        random_ratio=1, num_deform=1,
+    ),
 
 ]
 

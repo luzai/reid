@@ -8,16 +8,13 @@ from reid.datasets import *
 from lz import *
 
 def creates(names, roots, *args, **kwargs):
+    # if osp.exists('/home/xinglu/work/cache.pkl'):
+    #     dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
+    #     for k, v in dsf_dict.items():
+    #         setattr(dsf, k, v)
+    #     return dsf
     dss = [create(name, root, *args, **kwargs) for name, root in zip(names, roots)]
     dsf = Dataset(root='', split_id=0)
-
-    if osp.exists('/home/xinglu/work/cache.pkl'):
-        dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
-        for k, v in dsf_dict.items():
-            setattr(dsf, k, v)
-
-        return dsf
-
     def to_df(rec):
         return pd.DataFrame.from_records(rec, columns=['fname', 'pid', 'cid'])
 
