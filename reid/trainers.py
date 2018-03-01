@@ -358,11 +358,12 @@ def update_dop_cls(outputs, targets, dop_file):
 
 def update_dop(dist, targets, dop_file):
     targets = to_numpy(targets)
-    targets = targets.reshape((targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
+    bs = targets.shape[0] // 4
+    targets = targets.reshape(bs, 4).mean(axis=1).astype(np.int64)
     dist = to_numpy(dist)
-    dist = dist.reshape(32, 4, 32, 4)
-    dist = np.transpose(dist, (0, 2, 1, 3)).reshape(32, 32, 16).sum(axis=2)
-    dist += np.diag([np.inf] * 32)
+    dist = dist.reshape(bs, 4, bs, 4)
+    dist = np.transpose(dist, (0, 2, 1, 3)).reshape(bs, bs, 16).sum(axis=2)
+    dist += np.diag([np.inf] * bs)
     db = Database(dop_file, 'w')
     dop = db['dop']
     dop[targets] = targets[np.argmin(dist, axis=1)]

@@ -7,6 +7,7 @@ from reid.datasets import *
 
 from lz import *
 
+
 def creates(names, roots, *args, **kwargs):
     # if osp.exists('/home/xinglu/work/cache.pkl'):
     #     dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
@@ -15,6 +16,7 @@ def creates(names, roots, *args, **kwargs):
     #     return dsf
     dss = [create(name, root, *args, **kwargs) for name, root in zip(names, roots)]
     dsf = Dataset(root='', split_id=0)
+
     def to_df(rec):
         return pd.DataFrame.from_records(rec, columns=['fname', 'pid', 'cid'])
 
@@ -74,8 +76,9 @@ class CDM(Dataset):
                  **kwargs):
         super(CDM, self).__init__(root, split_id=split_id)
 
-        ds = self.combine()
-        print(len(ds.trainval))
+        # ds = self.combine()
+        # print(len(ds.trainval))
+        self.load()
 
     def combine(self):
         names = ['cuhk03', 'market1501', 'dukemtmc']
@@ -85,5 +88,5 @@ class CDM(Dataset):
 
 
 if __name__ == '__main__':
-    CDM('/home/xinglu/.torch/cdm')
-
+    ds = CDM('/home/xinglu/.torch/data/cdm')
+    len(ds.trainval)

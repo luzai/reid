@@ -264,7 +264,7 @@ def main(args):
     slow_params_ids = set(map(id, slow_params))
     normal_params = [p for p in model.parameters() if id(p) not in slow_params_ids]
     param_groups = [
-        {'params': slow_params, 'lr_mult': 0.01 },
+        {'params': slow_params, 'lr_mult': args.lr_mult},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.optimizer == 'adam':
@@ -284,19 +284,19 @@ def main(args):
 
     if args.cls_pretrain:
         args_cp = copy.deepcopy(args)
-        args_cp.cls_weight=1
-        args_cp.tri_weight=0
+        args_cp.cls_weight = 1
+        args_cp.tri_weight = 0
         trainer = CombTrainer(model, criterion, dbg=False,
                               logs_at=args_cp.logs_dir + '/vis', args=args_cp)
-        for epoch in range(start_epoch,args_cp.epochs):
-            hist = trainer.train(epoch,train_loader, optimizer )
+        for epoch in range(start_epoch, args_cp.epochs):
+            hist = trainer.train(epoch, train_loader, optimizer)
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
             }, True, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
             print('Finished epoch {:3d} hist {}'.
-                  format(epoch, hist) )
+                  format(epoch, hist))
     # Trainer
     trainer = CombTrainer(model, criterion, dbg=False,
                           logs_at=args.logs_dir + '/vis', args=args)

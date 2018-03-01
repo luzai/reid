@@ -97,10 +97,13 @@ class Bottleneck(nn.Module):
         return out
 
 
-def reset_params(module):
+def reset_params(module, zero=False):
     for m in module.modules():
         if isinstance(m, nn.Conv2d):
-            init.kaiming_normal(m.weight, mode='fan_out')
+            if zero:
+                m.weight.data.fill_(0)
+            else:
+                init.kaiming_normal(m.weight, mode='fan_out')
             if m.bias is not None:
                 init.constant(m.bias, 0)
         elif isinstance(m, nn.BatchNorm2d):
@@ -112,10 +115,57 @@ def reset_params(module):
                 init.constant(m.bias, 0)
 
 
+class Unet(nn.Module):
+    def __init__(self, inchannels, outchannels, rep=1):
+        super(Unet, self).__init__()
+        unet_block = UnetBlock(inchannels, outchannels, innermost=True)
+        for i in range(rep - 1):
+            unet_block = UnetBlock(inchannels, outchannels, submodule=unet_block)
+        self.model = unet_block
+
+    def forward(self, x):
+        return self.model(x)
+
+
+class UnetBlock(nn.Module):
+    def __init__(self, inchannels, outchannels,
+                 submodule=None, innermost=False
+                 ):
+        super(UnetBlock, self).__init__()
+        down = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        up = nn.UpsamplingBilinear2d(scale_factor=2)
+
+        if innermost:
+            conv = nn.Sequential(
+                conv3x3(inchannels, outchannels),
+                nn.BatchNorm2d(outchannels),
+                nn.ReLU()
+            )
+            model = [down, conv, up]
+        else:
+            downconv = nn.Sequential(
+                conv3x3(inchannels, inchannels),
+                nn.BatchNorm2d(inchannels),
+                nn.ReLU()
+            )
+            upconv = nn.Sequential(
+                conv3x3(outchannels, outchannels),
+                nn.BatchNorm2d(outchannels),
+                nn.ReLU()
+            )
+            model = [down, downconv, submodule, upconv, up]
+        self.model = nn.Sequential(*model)
+
+    def forward(self, x):
+        return x + self.model(x)
+
+
 # deform conv
 class DeformConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False,
-                 num_deformable_groups=1):
+    def __init__(self, in_channels, out_channels,
+                 kernel_size, stride=1, padding=0, bias=False,
+                 num_deformable_groups=1,
+                 unet_rep=0):
         super(DeformConv, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -123,9 +173,15 @@ class DeformConv(nn.Module):
         self.stride = stride
         self.padding = padding
         self.bias = bias
-
-        self.conv_offset = nn.Conv2d(in_channels, num_deformable_groups * 2 * kernel_size * kernel_size,
-                                     kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+        self.unet_rep = unet_rep
+        if unet_rep == 0:
+            self.conv_offset = nn.Conv2d(in_channels,
+                                         num_deformable_groups * 2 * kernel_size * kernel_size,
+                                         kernel_size=kernel_size,
+                                         stride=stride, padding=padding, bias=bias)
+        else:
+            self.conv_offset = Unet(in_channels,
+                                    num_deformable_groups * 2 * kernel_size * kernel_size, rep=unet_rep)
         self.conv = ConvOffset2d(in_channels, out_channels, stride=stride, padding=padding,
                                  kernel_size=kernel_size,
                                  num_deformable_groups=num_deformable_groups)
@@ -135,8 +191,7 @@ class DeformConv(nn.Module):
     def reset_parameters(self):
         n = self.in_channels * self.kernel_size * self.kernel_size
         stdv = 1. / math.sqrt(n)
-        # self.conv_offset.weight.data.uniform_(-stdv, stdv)
-        self.conv_offset.weight.data.fill_(0)
+        reset_params(self.conv_offset, True)
         if self.bias:
             self.conv_offset.bias.data.zero_()
         self.conv.weight.data.uniform_(-stdv, stdv)
@@ -384,6 +439,54 @@ class DeformBottleneck(nn.Module):
                                 planes,
                                 kernel_size=3, stride=stride,
                                 padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class UnetDeformBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, **kwargs):
+        super(UnetDeformBottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = DeformConv(planes,
+                                planes,
+                                kernel_size=3, stride=stride,
+                                padding=1, bias=False, unet_rep=2)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
@@ -713,7 +816,7 @@ class ResNet(nn.Module):
             self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=2)
         else:
             self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
-            self.layer4 = self._make_layer([block2] * num_deform + [block] * (3 - num_deform), 512,
+            self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
                                            layers[3], stride=2)
         self.post1 = nn.Sequential(
             nn.BatchNorm2d(self.out_planes),
