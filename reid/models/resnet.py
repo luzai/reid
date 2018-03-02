@@ -1,6 +1,7 @@
+from lz import *
+
 from torch.nn import init
 from torchvision.models.resnet import conv3x3, model_urls, model_zoo
-from lz import *
 from reid.utils.serialization import load_state_dict
 from .common import _make_conv
 
@@ -98,30 +99,39 @@ class Bottleneck(nn.Module):
 
 
 def reset_params(module, zero=False):
-    for m in module.modules():
-        if isinstance(m, nn.Conv2d):
-            if zero:
-                m.weight.data.fill_(0)
-            else:
-                init.kaiming_normal(m.weight, mode='fan_out')
-            if m.bias is not None:
+    if isinstance(module, list):
+        for m in module:
+            reset_params(m)
+    else:
+        for m in module.modules():
+            if isinstance(m, nn.Conv2d):
+                if zero:
+                    m.weight.data.fill_(0)
+                else:
+                    init.kaiming_normal(m.weight, mode='fan_out')
+                if m.bias is not None:
+                    init.constant(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                init.constant(m.weight, 1)
                 init.constant(m.bias, 0)
-        elif isinstance(m, nn.BatchNorm2d):
-            init.constant(m.weight, 1)
-            init.constant(m.bias, 0)
-        elif isinstance(m, nn.Linear):
-            init.normal(m.weight, std=0.001)
-            if m.bias is not None:
-                init.constant(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                init.normal(m.weight, std=0.001)
+                if m.bias is not None:
+                    init.constant(m.bias, 0)
 
 
 class Unet(nn.Module):
     def __init__(self, inchannels, outchannels, rep=1):
         super(Unet, self).__init__()
-        unet_block = UnetBlock(inchannels, outchannels, innermost=True)
+        unet_block = UnetBlock(inchannels, inchannels, innermost=True)
         for i in range(rep - 1):
-            unet_block = UnetBlock(inchannels, outchannels, submodule=unet_block)
-        self.model = unet_block
+            unet_block = UnetBlock(inchannels, inchannels, submodule=unet_block)
+        self.model = nn.Sequential(
+            unet_block,
+            conv3x3(inchannels, outchannels),
+            nn.BatchNorm2d(outchannels),
+            nn.ReLU()
+        )
 
     def forward(self, x):
         return self.model(x)
@@ -227,12 +237,16 @@ class SELayer(nn.Module):
     # def reset_params(self):
     #     pass
 
-    def forward(self, x):
+    def forward(self, x, require_y=False):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
+        y_sav = y
         y = self.fc(y).view(b, c, 1, 1)
         # logging.info('se: ori is {}, now is {}'.format(get_norm(x), get_norm(x * y)))
-        return x * y * self.mult
+        if not require_y:
+            return x * y * self.mult
+        else:
+            return x * y * self.mult, y_sav
 
 
 class SEBasicBlock(nn.Module):
@@ -303,6 +317,8 @@ class SEBottleneck(nn.Module):
         self.stride = stride
 
     def forward(self, x):
+        if isinstance(x, tuple):
+            x, last = x
         residual = x
 
         out = self.conv1(x)
@@ -315,15 +331,14 @@ class SEBottleneck(nn.Module):
 
         out = self.conv3(out)
         out = self.bn3(out)
-        out = self.se(out)
+        out, last = self.se(out, require_y=True)
 
         if self.downsample is not None:
             residual = self.downsample(x)
-
         out += residual
         out = self.relu(out)
 
-        return out
+        return out, last
 
 
 class XSEXFXBottleneck(nn.Module):
@@ -782,10 +797,12 @@ class ResNet(nn.Module):
                  num_features=0, dropout=0,
                  num_classes=0, block_name='Bottleneck',
                  block_name2='Bottleneck',
-                 num_deform=3, **kwargs):
+                 num_deform=3, fusion=None,  # 'sum' , 'concat'
+                 **kwargs):
         super(ResNet, self).__init__()
         depth = str(depth)
         self.depth = depth
+        self.fusion = fusion
         self.inplanes = 64
         self.pretrained = pretrained
         self.cut_at_pooling = cut_at_pooling
@@ -819,33 +836,63 @@ class ResNet(nn.Module):
             self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
                                            layers[3], stride=2)
         self.post1 = nn.Sequential(
-            nn.BatchNorm2d(self.out_planes),
-            nn.ReLU(),
-            nn.Dropout2d(self.dropout),
+            # nn.BatchNorm2d(self.out_planes),
+            # nn.ReLU(),
+            # nn.Dropout2d(self.dropout),
             nn.AdaptiveAvgPool2d(1),
         )
-        self.post2 = nn.Sequential(
-            # nn.Dropout(self.dropout),
-            nn.Linear(self.out_planes, self.num_features, bias=False),
-        )
+
+        if self.fusion == 'concat':
+            num_in = self.out_planes + self.out_planes // 2 + self.out_planes // 4 + self.out_planes // 8
+            self.post2 = nn.Sequential(
+                nn.BatchNorm1d(num_in),
+                nn.ReLU(),
+                nn.Dropout(self.dropout),
+                nn.Linear(num_in, self.num_features, bias=False),
+            )
+            reset_params(self.post2)
+
+        elif self.fusion == 'sum':
+            def get_embed(inchannels, out):
+                return nn.Sequential(
+                    nn.BatchNorm1d(inchannels),
+                    nn.ReLU(),
+                    nn.Linear(inchannels, out)
+                )
+
+            self.embed1 = get_embed(self.out_planes // 8, self.num_features)
+            self.embed2 = get_embed(self.out_planes // 4, self.num_features)
+            self.embed3 = get_embed(self.out_planes // 2, self.num_features)
+            self.embed4 = get_embed(self.out_planes, self.num_features)
+            self.embed_weight = nn.Parameter(to_torch(np.array([0, 0, 0, 1.], dtype=np.float32)))
+            reset_params([self.embed1, self.embed2, self.embed3, self.embed4])
+
+        else:
+            self.post2 = nn.Sequential(
+                nn.BatchNorm1d(self.out_planes),
+                nn.ReLU(),
+                # nn.Dropout(0.45),
+                nn.Linear(self.out_planes, self.num_features, bias=False),
+            )
+            reset_params(self.post2)
+
         self.post3 = nn.Sequential(
             # nn.Dropout(self.dropout),
             nn.Linear(self.num_features, self.num_classes, bias=False),
         )
 
         reset_params(self.post1)
-        reset_params(self.post2)
         reset_params(self.post3)
 
         if pretrained:
-            # if 'SE' in block_name or 'SE' in block_name2:
-            #     logging.info('load senet')
-            #     state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
-            #         'state_dict']
-            #     load_state_dict(self, state_dict, own_de_prefix='module.')
-            # else:
-            logging.info('load resnet')
-            load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+            if 'SE' in block_name or 'SE' in block_name2:
+                logging.info('load senet')
+                state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
+                    'state_dict']
+                load_state_dict(self, state_dict, own_de_prefix='module.')
+            else:
+                logging.info('load resnet')
+                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 
     def forward(self, x):
         x = self.conv1(x)
@@ -853,21 +900,29 @@ class ResNet(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+        x1, y1 = self.layer1(x)
+        x2, y2 = self.layer2(x1)
+        x3, y3 = self.layer3(x2)
+        x4, y4 = self.layer4(x3)
 
-        x1 = self.post1(x)
-        x1 = x1.view(x1.size(0), -1)
-        x1 = self.post2(x1)
+        x5 = self.post1(x4)
+        x5 = x5.view(x5.size(0), -1)
+
+        if self.fusion == 'concat':
+            x5 = torch.cat((y1, y2, y3, x5), dim=1)
+            x5 = self.post2(x5)
+        elif self.fusion == 'sum':
+            x5 = self.embed_weight[0] * self.embed1(y1) + self.embed_weight[1] * self.embed2(y2) + self.embed_weight[
+                2] * self.embed3(y3) + self.embed_weight[3] * self.embed4(x5)
+        else:
+            x5 = self.post2(x5)
 
         x2 = self.post3(
-            # Variable(x1.data),
-            x1
+            # Variable(x5.data),
+            x5
         )
 
-        return x1, x2
+        return x5, x2
 
 
 def resnet18(**kwargs):

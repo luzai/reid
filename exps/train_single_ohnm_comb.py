@@ -32,7 +32,7 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
         # args.dbg = False
-        # args.dbg = True
+        args.dbg = True
         if args.dbg:
             args.epochs = 1
             args.batch_size = 16
@@ -46,7 +46,9 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu), ok=range(3),
+            args.gpu = lz.get_dev(n=len(args.gpu),
+                                  # ok=range(3,4),
+                                  ok=range(4),
                                   mem=[0.05, 0.05], sleep=32.3)
             # args.gpu = (2,)
 
@@ -195,10 +197,10 @@ def main(args):
                           pretrained=args.pretrained,
                           block_name=args.block_name,
                           block_name2=args.block_name2,
-                          # convop=args.convop,
                           num_features=args.num_classes,
                           num_classes=num_classes,
                           num_deform=args.num_deform,
+                          fusion = args.fusion,
                           )
 
     print(model)

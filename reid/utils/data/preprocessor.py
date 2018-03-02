@@ -40,8 +40,8 @@ class Preprocessor(object):
         res['pid'] = pid
         res['cid'] = cid
 
-        fpath2 = '/home/xinglu/prj/openpose/cu.out/' + fname.split('.')[0] + '_rendered.png'
-        fpath3 = '/home/xinglu/.torch/data/cuhk03/label/npy/' + fname.split('.')[0] + '.npy'
+        # fpath2 = '/home/xinglu/prj/openpose/cu.out/' + fname.split('.')[0] + '_rendered.png'
+        # fpath3 = '/home/xinglu/.torch/data/cuhk03/label/npy/' + fname.split('.')[0] + '.npy'
         fpath = fname
         if not osp.exists(fpath) and self.root is not None:
             fpath = osp.join(self.root, fpath)
