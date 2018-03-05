@@ -32,7 +32,7 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
         # args.dbg = False
-        args.dbg = True
+        # args.dbg = True
         if args.dbg:
             args.epochs = 1
             args.batch_size = 16
@@ -200,7 +200,7 @@ def main(args):
                           num_features=args.num_classes,
                           num_classes=num_classes,
                           num_deform=args.num_deform,
-                          fusion = args.fusion,
+                          fusion=args.fusion,
                           )
 
     print(model)
@@ -237,12 +237,10 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu)
+    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf)
     if args.evaluate:
-        acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        # acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric, final=True)
+        mAP, acc ,rank5 = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         lz.logging.info('eval cmc-1 is {}'.format(acc))
-        # db.close()
         return 0
 
     # Criterion
@@ -336,7 +334,7 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         # warm up
-        # mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        # mAP, acc,rank5 = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
 
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
@@ -380,13 +378,15 @@ def main(args):
         if epoch not in args.log_at:
             continue
 
-        mAP, acc = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        mAP, acc, rank5 = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
         writer.add_scalar('train/top-1', acc, epoch)
         writer.add_scalar('train/mAP', mAP, epoch)
+        writer.add_scalar('test/top-5', rank5, args.epochs)
 
-        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        mAP, acc, rank5 = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
         writer.add_scalar('test/top-1', acc, epoch)
         writer.add_scalar('test/mAP', mAP, epoch)
+        writer.add_scalar('test/top-5', rank5, args.epochs)
 
         top1 = acc
         is_best = top1 > best_top1
@@ -402,17 +402,20 @@ def main(args):
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    mAP, acc, rank5, = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
     writer.add_scalar('test/top-1', acc, args.epochs)
     writer.add_scalar('test/mAP', mAP, args.epochs)
+    writer.add_scalar('test/top-5', rank5, args.epochs)
+
     if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
         print('Test with best model:')
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
         model.module.load_state_dict(checkpoint['state_dict'])
         metric.train(model, train_loader)
-        mAP, acc = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        mAP, acc, rank5 = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         writer.add_scalar('test/top-1', acc, args.epochs + 1)
         writer.add_scalar('test/mAP', mAP, args.epochs + 1)
+        writer.add_scalar('test/top-5', rank5, args.epochs + 1)
         lz.logging.info('final rank1 is {}'.format(acc))
 
 

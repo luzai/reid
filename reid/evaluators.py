@@ -120,13 +120,14 @@ def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=Fa
 
 
 class Evaluator(object):
-    def __init__(self, model, gpu=(0,)):
+    def __init__(self, model, gpu=(0,), conf='cuhk03'):
         super(Evaluator, self).__init__()
         self.model = model
         self.gpu = gpu
         self.distmat = None
+        self.conf = conf
 
-    def evaluate(self, data_loader, query, gallery, metric=None, final=False, ):
+    def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
         timer = cvb.Timer()
         timer.start()
         self.model.eval()
@@ -137,48 +138,29 @@ class Evaluator(object):
 
         features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
-        # list(features.keys())
         distmat = pairwise_distance(features, query, gallery, metric=metric)
         self.distmat = to_numpy(distmat)
 
         mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
         print('Mean AP: {:4.1%}'.format(mAP))
 
-        if not final:
-            cmc_configs = {
-                'cuhk03': dict(separate_camera_set=True,
-                               single_gallery_shot=True,
-                               first_match_break=False),
-                # 'market1501': dict(separate_camera_set=False,  # hard
-                #                    single_gallery_shot=False,  # hard
-                #                    first_match_break=True)
-            }
-
-            cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
-                                    query_cams, gallery_cams, **params)
-                          for name, params in cmc_configs.items()}
-            print('cmc-1 cuhk03 ' + str(cmc_scores['cuhk03'][0]))
-            return mAP, cmc_scores['cuhk03'][0]
-        else:
-            # Compute all kinds of CMC scores
-            cmc_configs = {
-                # 'allshots': dict(separate_camera_set=False,  # hard
-                #                  single_gallery_shot=False,  # hard
-                #                  first_match_break=False),
-                'cuhk03': dict(separate_camera_set=True,
-                               single_gallery_shot=True,
-                               first_match_break=False),
-                'market1501': dict(separate_camera_set=False,  # hard
-                                   single_gallery_shot=False,  # hard
-                                   first_match_break=True)}
-            cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
-                                    query_cams, gallery_cams, **params)
-                          for name, params in cmc_configs.items()}
-
-            print('cmc-1 market ', cmc_scores['market1501'][0],
-                  'cmc-1 cuhk03 ', cmc_scores['cuhk03'][0])
-            logging.info('evaluate takes time {}'.format(timer.since_start()))
-        return mAP, cmc_scores['cuhk03'][0]
+        cmc_configs = {
+            'cuhk03': dict(separate_camera_set=True,
+                           single_gallery_shot=True,
+                           first_match_break=False),
+            'market1501': dict(separate_camera_set=False,  # hard
+                               single_gallery_shot=False,  # hard
+                               first_match_break=True),
+            'allshots': dict(separate_camera_set=False,  # hard
+                             single_gallery_shot=False,  # hard
+                             first_match_break=False),
+        }
+        cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
+        cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
+                                query_cams, gallery_cams, **params)
+                      for name, params in cmc_configs.items()}
+        print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
+        return mAP, cmc_scores[self.conf][0], cmc_scores[self.conf][5]
 
 
 class CascadeEvaluator(object):

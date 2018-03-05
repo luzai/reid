@@ -866,7 +866,6 @@ class ResNet(nn.Module):
             self.embed4 = get_embed(self.out_planes, self.num_features)
             self.embed_weight = nn.Parameter(to_torch(np.array([0, 0, 0, 1.], dtype=np.float32)))
             reset_params([self.embed1, self.embed2, self.embed3, self.embed4])
-
         else:
             self.post2 = nn.Sequential(
                 nn.BatchNorm1d(self.out_planes),
@@ -895,27 +894,36 @@ class ResNet(nn.Module):
                 load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 
     def forward(self, x):
+        bs = x.size(0)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
+        if self.fusion:
+            x1, y1 = self.layer1(x)
+            x2, y2 = self.layer2(x1)
+            x3, y3 = self.layer3(x2)
+            x4, y4 = self.layer4(x3)
+            x4 = self.post1(x4).view(bs, -1)
 
-        x1, y1 = self.layer1(x)
-        x2, y2 = self.layer2(x1)
-        x3, y3 = self.layer3(x2)
-        x4, y4 = self.layer4(x3)
-
-        x5 = self.post1(x4)
-        x5 = x5.view(x5.size(0), -1)
+            y1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
+            y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
+            y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
+        else:
+            x1 = self.layer1(x)
+            x2 = self.layer2(x1)
+            x3 = self.layer3(x2)
+            x4 = self.layer4(x3)
+            x4 = self.post1(x4).view(bs, -1)
 
         if self.fusion == 'concat':
-            x5 = torch.cat((y1, y2, y3, x5), dim=1)
+            x5 = torch.cat((y1, y2, y3, x4), dim=1)
             x5 = self.post2(x5)
         elif self.fusion == 'sum':
             x5 = self.embed_weight[0] * self.embed1(y1) + self.embed_weight[1] * self.embed2(y2) + self.embed_weight[
-                2] * self.embed3(y3) + self.embed_weight[3] * self.embed4(x5)
+                2] * self.embed3(y3) + self.embed_weight[3] * self.embed4(x4)
         else:
-            x5 = self.post2(x5)
+            x5 = self.post2(x4)
 
         x2 = self.post3(
             # Variable(x5.data),
