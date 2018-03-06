@@ -239,8 +239,8 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf)
     if args.evaluate:
-        mAP, acc ,rank5 = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        lz.logging.info('eval cmc-1 is {}'.format(acc))
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        lz.logging.info('eval {}'.format(res))
         return 0
 
     # Criterion
@@ -378,17 +378,15 @@ def main(args):
         if epoch not in args.log_at:
             continue
 
-        mAP, acc, rank5 = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-        writer.add_scalar('train/top-1', acc, epoch)
-        writer.add_scalar('train/mAP', mAP, epoch)
-        writer.add_scalar('test/top-5', rank5, args.epochs)
+        res = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        for n, v in res.items():
+            writer.add_scalar(n, v, epoch)
 
-        mAP, acc, rank5 = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-        writer.add_scalar('test/top-1', acc, epoch)
-        writer.add_scalar('test/mAP', mAP, epoch)
-        writer.add_scalar('test/top-5', rank5, args.epochs)
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        for n, v in res.items():
+            writer.add_scalar(n, v, epoch)
 
-        top1 = acc
+        top1 = res['top-1']
         is_best = top1 > best_top1
 
         best_top1 = max(top1, best_top1)
@@ -402,21 +400,19 @@ def main(args):
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    mAP, acc, rank5, = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-    writer.add_scalar('test/top-1', acc, args.epochs)
-    writer.add_scalar('test/mAP', mAP, args.epochs)
-    writer.add_scalar('test/top-5', rank5, args.epochs)
+    res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    for n, v in res.items():
+        writer.add_scalar(n, v, args.epochs)
 
     if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
         print('Test with best model:')
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
         model.module.load_state_dict(checkpoint['state_dict'])
         metric.train(model, train_loader)
-        mAP, acc, rank5 = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        writer.add_scalar('test/top-1', acc, args.epochs + 1)
-        writer.add_scalar('test/mAP', mAP, args.epochs + 1)
-        writer.add_scalar('test/top-5', rank5, args.epochs + 1)
-        lz.logging.info('final rank1 is {}'.format(acc))
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        for n, v in res.items():
+            writer.add_scalar(n, v, args.epochs+1)
+        lz.logging.info('final eval is {}'.format(res))
 
 
 if __name__ == '__main__':

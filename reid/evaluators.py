@@ -138,29 +138,43 @@ class Evaluator(object):
 
         features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
-        distmat = pairwise_distance(features, query, gallery, metric=metric)
-        self.distmat = to_numpy(distmat)
+        res = {}
+        for rerank in [True, False]:
+            distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+            self.distmat = to_numpy(distmat)
 
-        mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
-        print('Mean AP: {:4.1%}'.format(mAP))
+            mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+            print('Mean AP: {:4.1%}'.format(mAP))
 
-        cmc_configs = {
-            'cuhk03': dict(separate_camera_set=True,
-                           single_gallery_shot=True,
-                           first_match_break=False),
-            'market1501': dict(separate_camera_set=False,  # hard
-                               single_gallery_shot=False,  # hard
-                               first_match_break=True),
-            'allshots': dict(separate_camera_set=False,  # hard
-                             single_gallery_shot=False,  # hard
-                             first_match_break=False),
-        }
-        cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
-        cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
-                                query_cams, gallery_cams, **params)
-                      for name, params in cmc_configs.items()}
-        print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
-        return mAP, cmc_scores[self.conf][0], cmc_scores[self.conf][5]
+            cmc_configs = {
+                'cuhk03': dict(separate_camera_set=True,
+                               single_gallery_shot=True,
+                               first_match_break=False),
+                'market1501': dict(separate_camera_set=False,  # hard
+                                   single_gallery_shot=False,  # hard
+                                   first_match_break=True),
+                'allshots': dict(separate_camera_set=False,  # hard
+                                 single_gallery_shot=False,  # hard
+                                 first_match_break=False),
+            }
+            cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
+            cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
+                                    query_cams, gallery_cams, **params)
+                          for name, params in cmc_configs.items()}
+            print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
+            if rerank:
+                res = lz.dict_concat([res,
+                                      {'mAP.rk': mAP,
+                                       'top-1.rk':   cmc_scores[self.conf][0],
+                                       'top-5.rk': cmc_scores[self.conf][4],
+                                       }])
+            else:
+                res = lz.dict_concat([res,
+                                      {'mAP': mAP,
+                                       'top-1':   cmc_scores[self.conf][0],
+                                       'top-5': cmc_scores[self.conf][4],
+                                       }])
+        return res
 
 
 class CascadeEvaluator(object):
@@ -220,7 +234,6 @@ class CascadeEvaluator(object):
 
         # Sort according to the first stage distance
         distmat = to_numpy(distmat)
-        distmat.shape
         self.distmat1 = distmat
         rank_indices = np.argsort(distmat, axis=1)
 
