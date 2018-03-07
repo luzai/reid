@@ -72,13 +72,13 @@ def creates(names, roots, *args, **kwargs):
 
 
 class CDM(Dataset):
-    def __init__(self, root, split_id=0, num_val=0.3,
+    def __init__(self, root, split_id=0, num_val=100,
                  **kwargs):
         super(CDM, self).__init__(root, split_id=split_id)
 
         # ds = self.combine()
         # print(len(ds.trainval))
-        self.load()
+        self.load(num_val)
 
     def combine(self):
         names = ['cuhk03', 'market1501', 'dukemtmc']

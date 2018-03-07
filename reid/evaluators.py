@@ -139,7 +139,7 @@ class Evaluator(object):
         features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
         res = {}
-        for rerank in [True, False]:
+        for rerank in [False, True]:
             distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
             self.distmat = to_numpy(distmat)
 
@@ -165,14 +165,16 @@ class Evaluator(object):
             if rerank:
                 res = lz.dict_concat([res,
                                       {'mAP.rk': mAP,
-                                       'top-1.rk':   cmc_scores[self.conf][0],
+                                       'top-1.rk': cmc_scores[self.conf][0],
                                        'top-5.rk': cmc_scores[self.conf][4],
+                                       'top-10.rk': cmc_scores[self.conf][9],
                                        }])
             else:
                 res = lz.dict_concat([res,
                                       {'mAP': mAP,
-                                       'top-1':   cmc_scores[self.conf][0],
+                                       'top-1': cmc_scores[self.conf][0],
                                        'top-5': cmc_scores[self.conf][4],
+                                       'top-10.rk': cmc_scores[self.conf][9],
                                        }])
         return res
 

@@ -38,7 +38,7 @@ def run(_):
             args.batch_size = 16
         args.log_at = np.concatenate([
             args.log_at,
-            range(args.epochs - 9, args.epochs, 1)
+            range(args.epochs - 8, args.epochs, 1)
         ])
         if args.evaluate:
             args.logs_dir += '.bak0'
@@ -46,11 +46,11 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu),
-                                  # ok=range(3,4),
-                                  ok=range(4),
-                                  mem=[0.05, 0.05], sleep=32.3)
-            # args.gpu = (2,)
+            # args.gpu = lz.get_dev(n=len(args.gpu),
+            #                       # ok=range(3,4),
+            #                       ok=range(4),
+            #                       mem=[0.05, 0.05], sleep=32.3)
+            args.gpu = (0,1)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -378,13 +378,13 @@ def main(args):
         if epoch not in args.log_at:
             continue
 
-        res = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-        for n, v in res.items():
-            writer.add_scalar(n, v, epoch)
+        # res = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        # for n, v in res.items():
+        #     writer.add_scalar('train/'+n, v, epoch)
 
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
         for n, v in res.items():
-            writer.add_scalar(n, v, epoch)
+            writer.add_scalar('test/'+n, v, epoch)
 
         top1 = res['top-1']
         is_best = top1 > best_top1
@@ -402,7 +402,7 @@ def main(args):
     # Final test
     res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
     for n, v in res.items():
-        writer.add_scalar(n, v, args.epochs)
+        writer.add_scalar('test/'+n, v, args.epochs)
 
     if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
         print('Test with best model:')
@@ -411,7 +411,7 @@ def main(args):
         metric.train(model, train_loader)
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         for n, v in res.items():
-            writer.add_scalar(n, v, args.epochs+1)
+            writer.add_scalar('test/'+n, v, args.epochs+1)
         lz.logging.info('final eval is {}'.format(res))
 
 

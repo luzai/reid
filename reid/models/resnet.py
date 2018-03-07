@@ -899,8 +899,9 @@ class ResNet(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        if self.fusion:
-            x1, y1 = self.layer1(x)
+        x1 = self.layer1(x)
+        if isinstance(x1, tuple):
+            x1, y1 = x1
             x2, y2 = self.layer2(x1)
             x3, y3 = self.layer3(x2)
             x4, y4 = self.layer4(x3)
@@ -910,7 +911,6 @@ class ResNet(nn.Module):
             y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
             y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
         else:
-            x1 = self.layer1(x)
             x2 = self.layer2(x1)
             x3 = self.layer3(x2)
             x4 = self.layer4(x3)

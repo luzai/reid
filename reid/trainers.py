@@ -477,7 +477,7 @@ class CombTrainer(object):
                       f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
                       f'prec_cls {precisions2.val:.2%}/{precisions2.avg:.2%}  '
                       )
-            break
+            # break
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,
             'data-time': data_time.avg,
