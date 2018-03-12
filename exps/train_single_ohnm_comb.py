@@ -245,15 +245,13 @@ def main(args):
 
     # Criterion
     if args.loss == 'triplet':
-        if args.gpu is not None:
-            criterion = [TripletLoss(margin=args.margin, mode=args.mode).cuda(), nn.CrossEntropyLoss().cuda()]
-        else:
             criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
     elif args.loss == 'quad':
-        criterion = [QuadLoss(margin=args.margin, mode=args.mode)]
+        criterion = [QuadLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss() ]
     else:
         raise NotImplementedError('loss ...')
-
+    if args.gpu is not None:
+        criterion = [c.cuda() for c in criterion]
     # Optimizer
 
     # for param in itertools.chain(model.module.base.parameters(),
