@@ -76,6 +76,8 @@ class Bottleneck(nn.Module):
         self.stride = stride
 
     def forward(self, x):
+        if isinstance(x, tuple):
+            x, last = x
         residual = x
 
         out = self.conv1(x)
@@ -95,7 +97,7 @@ class Bottleneck(nn.Module):
         out += residual
         out = self.relu(out)
 
-        return out
+        return out, out
 
 
 def reset_params(module, zero=False):

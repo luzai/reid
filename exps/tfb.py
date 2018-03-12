@@ -57,7 +57,7 @@ class ScalarLoader(Loader):
 # path = 'work/cuhk03label.res'
 dfs = []
 names = []
-for path in glob.glob('work/*'):
+for path in glob.glob('work.3.8/*'):
     assert osp.exists(path)
     df = ScalarLoader(path=path).load_scalars()
     if df.index.max() != 66: continue
@@ -69,9 +69,10 @@ for path in glob.glob('work/*'):
 
 df = pd.concat(dfs, axis=1)
 df = df.transpose()
-df2 = df[['top-1', 'top-5', 'mAP']]
-df3 = df[['top-1.rk', 'top-5.rk', 'mAP.rk']]
+df2 = df[['top-1', 'top-1.rk', 'mAP']]
+# df3 = df[['top-1.rk', 'top-5.rk', 'mAP.rk']]
 # print(df)
 # print(df2md(df))
+# print(df.to_latex())
 print(df2.to_latex())
-print(df3.to_latex())
+# print(df3.to_latex())

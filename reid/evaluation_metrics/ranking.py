@@ -16,7 +16,7 @@ def _unique_sample(ids_dict, num):
 
 
 def cmc(distmat, query_ids=None, gallery_ids=None,
-        query_cams=None, gallery_cams=None, topk=20,
+        query_cams=None, gallery_cams=None, topk=11,
         separate_camera_set=False,
         single_gallery_shot=False,
         first_match_break=False):

@@ -1,14 +1,14 @@
 from __future__ import absolute_import
 
 from .oim import oim, OIM, OIMLoss
-from .triplet import TripletLoss
+from .triplet import *
 from .tuplet import TupletLoss
-from . contrastive import ContrastiveLoss
+from .contrastive import ContrastiveLoss
 
-__all__ = [
-    'oim',
-    'OIM',
-    'OIMLoss',
-    'TripletLoss',
-    'TupletLoss',
-]
+# __all__ = [
+#     'oim',
+#     'OIM',
+#     'OIMLoss',
+#     'TripletLoss',
+#     'TupletLoss',
+# ]

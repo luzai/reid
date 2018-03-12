@@ -13,6 +13,16 @@ def select(dist, range, descend=True, return_ind=False, global_ind=None):
         return global_ind[dist[range[0]:range[1]]], global_ind[ind[range[0]:range[1]]]
 
 
+class QuadLoss(nn.Module):
+    def __init__(self, margin=0, mode='hard', **kwargs):
+        super(QuadLoss, self).__init__()
+        self.margin = margin
+        self.mode = mode
+
+    def forward(self, inputs, targes, dbg=False):
+        pass
+
+
 class TripletLoss(nn.Module):
     def __init__(self, margin=0, mode='hard'):
         super(TripletLoss, self).__init__()

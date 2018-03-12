@@ -46,11 +46,11 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            # args.gpu = lz.get_dev(n=len(args.gpu),
-            #                       # ok=range(3,4),
-            #                       ok=range(4),
-            #                       mem=[0.05, 0.05], sleep=32.3)
-            args.gpu = (0,1)
+            args.gpu = lz.get_dev(n=len(args.gpu),
+                                  # ok=range(3,4),
+                                  ok=range(4),
+                                  mem=[0.05, 0.05], sleep=32.3)
+            # args.gpu = (0,1)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -244,12 +244,17 @@ def main(args):
         return 0
 
     # Criterion
-    if args.gpu is not None:
-        criterion = [TripletLoss(margin=args.margin, mode=args.mode).cuda(), nn.CrossEntropyLoss().cuda()]
+    if args.loss == 'triplet':
+        if args.gpu is not None:
+            criterion = [TripletLoss(margin=args.margin, mode=args.mode).cuda(), nn.CrossEntropyLoss().cuda()]
+        else:
+            criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+    elif args.loss == 'quad':
+        criterion = [QuadLoss(margin=args.margin, mode=args.mode)]
     else:
-        criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+        raise NotImplementedError('loss ...')
 
-        # Optimizer
+    # Optimizer
 
     # for param in itertools.chain(model.module.base.parameters(),
     #                              model.module.feat.parameters(),
@@ -384,7 +389,7 @@ def main(args):
 
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
         for n, v in res.items():
-            writer.add_scalar('test/'+n, v, epoch)
+            writer.add_scalar('test/' + n, v, epoch)
 
         top1 = res['top-1']
         is_best = top1 > best_top1
@@ -402,7 +407,7 @@ def main(args):
     # Final test
     res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
     for n, v in res.items():
-        writer.add_scalar('test/'+n, v, args.epochs)
+        writer.add_scalar('test/' + n, v, args.epochs)
 
     if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
         print('Test with best model:')
@@ -411,7 +416,7 @@ def main(args):
         metric.train(model, train_loader)
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         for n, v in res.items():
-            writer.add_scalar('test/'+n, v, args.epochs+1)
+            writer.add_scalar('test/' + n, v, args.epochs + 1)
         lz.logging.info('final eval is {}'.format(res))
 
 

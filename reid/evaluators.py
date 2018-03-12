@@ -48,7 +48,7 @@ def extract_features(model, data_loader, print_freq=1, limit=None, ):
           .format(i + 1, len(data_loader),
                   batch_time.val, batch_time.avg,
                   data_time.val, data_time.avg))
-    print(features.values().__iter__().__next__().shape)
+    print(f'{len(features)} features, each of len {features.values().__iter__().__next__().shape[0]}')
     return features, labels
 
 
@@ -142,6 +142,14 @@ class Evaluator(object):
         for rerank in [False, True]:
             distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
             self.distmat = to_numpy(distmat)
+            # self.conf = 'market1501'
+            # db = lz.Database('tmp.h5')
+            # for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+            #     if rerank:
+            #         db['rk/'+ name] = eval(name)
+            #     else:
+            #         db[name] = eval(name)
+            # db.close()
 
             mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
             print('Mean AP: {:4.1%}'.format(mAP))
