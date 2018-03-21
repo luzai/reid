@@ -26,8 +26,8 @@ def extract_features(model, data_loader, print_freq=1, limit=None, ):
         outputs = extract_cnn_feature(model,
                                       [imgs, npys])
         for fname, output, pid in zip(fnames, outputs, pids):
-            if limit is not None and int(pid) not in limit.tolist():
-                continue
+            # if limit is not None and int(pid) not in limit.tolist():
+            #     continue
             features[fname] = output
             labels[fname] = pid
 
@@ -119,6 +119,10 @@ def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=Fa
         return to_numpy(dist)
 
 
+def query_to_df(query):
+    return pd.DataFrame(query, columns=['fns', 'pids', 'cids'])
+
+
 class Evaluator(object):
     def __init__(self, model, gpu=(0,), conf='cuhk03'):
         super(Evaluator, self).__init__()
@@ -143,13 +147,20 @@ class Evaluator(object):
             distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
             self.distmat = to_numpy(distmat)
             # self.conf = 'market1501'
-            # db = lz.Database('tmp.h5')
-            # for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-            #     if rerank:
-            #         db['rk/'+ name] = eval(name)
-            #     else:
-            #         db[name] = eval(name)
-            # db.close()
+            db_name = 'det.cat.h5'
+            with  lz.Database(db_name) as db:
+                for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+                    if rerank:
+                        db['rk/' + name] = eval(name)
+                    else:
+                        db[name] = eval(name)
+
+            with pd.HDFStore(db_name) as db:
+                db['query'] = query_to_df(query)
+                db['gallery'] = query_to_df(gallery)
+
+            # with lz.Database(db_name) as db:
+            #     print(list(db.keys()))
 
             mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
             print('Mean AP: {:4.1%}'.format(mAP))

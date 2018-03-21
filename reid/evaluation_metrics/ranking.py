@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from lz import *
 from collections import defaultdict
 
 import numpy as np
@@ -103,13 +103,20 @@ def mean_ap(distmat, query_ids=None, gallery_ids=None,
     # Compute AP for each query
     aps = []
     for i in range(m):
-        # Filter out the same id and same camera
+        # Filter out the (same id and same camera)
+        # i.e. keep (!same id || !same camera)
         valid = ((gallery_ids[indices[i]] != query_ids[i]) |
                  (gallery_cams[indices[i]] != query_cams[i]))
         y_true = matches[i, valid]
         y_score = -distmat[i][indices[i]][valid]
-        if not np.any(y_true): continue
+        if not np.any(y_true):
+            print('warning! this query is distractor! no y_true, ')
+            continue
         aps.append(average_precision_score(y_true, y_score))
+        # from sklearn.metrics import  precision_recall_curve
+        # precision,recall ,_= precision_recall_curve(y_true,y_score)
+        # plt.step(recall,precision, where='post')
     if len(aps) == 0:
         raise RuntimeError("No valid query")
     return np.mean(aps)
+

@@ -2,6 +2,7 @@ from .cuhk01 import CUHK01
 from .cuhk03 import CUHK03
 from .dukemtmc import DukeMTMC
 from .market1501 import Market1501
+from .msmt17 import MSMT17
 from reid.datasets.cdm import CDM
 from .viper import VIPeR
 from lz import *
@@ -14,7 +15,8 @@ __factory = {
     'cuhk03/label': CUHK03, 'cuhk03/detect': CUHK03, 'cuhk03/combine': CUHK03,
     'market1501': Market1501,
     'dukemtmc': DukeMTMC,
-    'cdm':CDM
+    'cdm':CDM,
+    'msmt17': MSMT17,
 }
 
 

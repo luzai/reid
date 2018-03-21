@@ -36,21 +36,21 @@ def run(_):
         if args.dbg:
             args.epochs = 1
             args.batch_size = 16
-        args.log_at = np.concatenate([
-            args.log_at,
-            range(args.epochs - 8, args.epochs, 1)
-        ])
+        # args.log_at = np.concatenate([
+        #     args.log_at,
+        #     range(args.epochs - 8, args.epochs, 1)
+        # ])
         if args.evaluate:
             args.logs_dir += '.bak0'
         args.logs_dir = 'work/' + args.logs_dir
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu),
-                                  # ok=range(3,4),
-                                  ok=range(4),
-                                  mem=[0.05, 0.05], sleep=32.3)
-            # args.gpu = (0,1)
+            # args.gpu = lz.get_dev(n=len(args.gpu),
+            #                       # ok=range(3,4),
+            #                       ok=range(4),
+            #                       mem=[0.05, 0.05], sleep=32.3)
+            args.gpu = (0,1)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -245,9 +245,9 @@ def main(args):
 
     # Criterion
     if args.loss == 'triplet':
-            criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+        criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
     elif args.loss == 'quad':
-        criterion = [QuadLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss() ]
+        criterion = [QuadLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
     else:
         raise NotImplementedError('loss ...')
     if args.gpu is not None:

@@ -81,9 +81,9 @@ class Market1501(Dataset):
 
         trainval_pids, _ = register('bounding_box_train')
         gallery_pids, fnames = register('bounding_box_test')
-        cvb.dump(fnames, work_path+'/mk.gallery.pkl')
+        # cvb.dump(fnames, work_path+'/mk.gallery.pkl')
         query_pids, fnames = register('query')
-        cvb.dump(fnames, work_path + '/mk.query.pkl')
+        # cvb.dump(fnames, work_path + '/mk.query.pkl')
         assert query_pids <= gallery_pids
         assert trainval_pids.isdisjoint(gallery_pids)
 

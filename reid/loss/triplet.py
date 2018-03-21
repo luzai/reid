@@ -18,6 +18,8 @@ class QuadLoss(nn.Module):
         super(QuadLoss, self).__init__()
         self.margin = margin
         self.mode = mode
+        self.ranking_loss = nn.MarginRankingLoss(margin=margin)
+
 
     def forward(self, inputs, targets, dbg=False):
         n = inputs.size(0)
@@ -52,7 +54,7 @@ class QuadLoss(nn.Module):
         else:
             y = Variable(to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
 
-        loss = self.ranking_loss(dist_an, dist_ap, y) + 0.1 * self.rank_loss(dist_n12, dist_ap, y)
+        loss = self.ranking_loss(dist_an, dist_ap, y) + 0.1 * self.ranking_loss(dist_n12, dist_ap, y)
         # todo 0.1 and different margin
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
