@@ -20,7 +20,6 @@ class QuadLoss(nn.Module):
         self.mode = mode
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
 
-
     def forward(self, inputs, targets, dbg=False):
         n = inputs.size(0)
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
@@ -64,6 +63,55 @@ class QuadLoss(nn.Module):
             return loss, prec, dist, dist_ap, dist_an
 
 
+class QuinLoss(nn.Module):
+    def __init__(self, margin=0, mode='hard', **kwargs):
+        super(QuinLoss, self).__init__()
+        self.margin = margin
+        self.mode = mode
+        self.ranking_loss = nn.MarginRankingLoss(margin=margin)
+
+    def forward(self, inputs, targets, dbg=False):
+        n = inputs.size(0)
+        dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
+        dist = dist + dist.t()
+        dist.addmm_(1, -2, inputs, inputs.t())
+        dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+        # For each anchor, find the hardest positive and negative
+        mask = targets.expand(n, n).eq(targets.expand(n, n).t())
+
+        dist_ap, dist_an, dist_n12 = [], [], []
+        for i in range(n):
+            some_pos = dist[i][mask[i]]
+            some_neg = dist[i][mask[i] == 0]
+
+            neg, n1_ind = some_neg.min(0)
+            pos = some_pos.max()
+
+            dist_ap.append(pos)
+            dist_an.append(neg)
+
+            n1_ind = to_numpy(n1_ind)[0]
+            some_n2 = dist[n1_ind][mask[n1_ind] == 0]
+            n2 = some_n2.min()
+            dist_n12.append(n2)
+
+        dist_ap = torch.cat(dist_ap)
+        dist_an = torch.cat(dist_an)
+        dist_n12 = torch.cat(dist_n12)
+        if torch.cuda.is_available():
+            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
+        else:
+            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
+
+        loss = self.ranking_loss(dist_an, dist_ap, y) + 0.1 * self.ranking_loss(dist_n12, dist_ap, y)
+        prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
+
+        if not dbg:
+            return loss, prec, dist
+        else:
+            return loss, prec, dist, dist_ap, dist_an
+
+
 class TripletLoss(nn.Module):
     def __init__(self, margin=0, mode='hard'):
         super(TripletLoss, self).__init__()
@@ -71,7 +119,7 @@ class TripletLoss(nn.Module):
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
         self.mode = mode
 
-    def forward(self, inputs, targets, dbg=False):
+    def forward(self, inputs, targets, dbg=False, cids=None):
         n = inputs.size(0)
         # Compute pairwise distance, replace by the official when merged
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)

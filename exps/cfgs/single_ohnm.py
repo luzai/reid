@@ -6,22 +6,38 @@ sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 from lz import *
 
 cfgs = [
+    # edict(
+    #     logs_dir='msmt17.res.long',
+    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+    #     dataset='msmt17', dataset_val='msmt17', eval_conf='market1501',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     batch_size=128, num_instances=4, gpu=(0,), num_classes=128,
+    #     steps=[80, 120], epochs=125,
+    #     workers=8,
+    #     dropout=0, loss='triplet',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, fusion=None,
+    #     log_at=[124, 125],
+    #     evaluate=True,
+    #     resume='/data1/xinglu/prj/open-reid/exps/work/msmt17.res.2/model_best.pth'
+    # ),
+
     edict(
-        logs_dir='msmt17.res',
+        logs_dir='cuhk03label.res.dop.bak',
         arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-        dataset='msmt17', dataset_val='msmt17', eval_conf='market1501',
+        dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
-        batch_size=128, num_instances=4, gpu=(0,1), num_classes=128,
+        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
         workers=8,
-        dropout=0, loss='triplet',
+        dataset_mode='label',
+        dropout=0, loss='quin',
         cls_weight=0, tri_weight=1,
-        random_ratio=1, fusion=None,
-        log_at=[64, 65],
+        random_ratio=0.5, fusion=None,
     ),
 
     # edict(
-    #     logs_dir='cuhk03label.res.dop',
+    #     logs_dir='cuhk03label.res.quad.dop.2',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
     #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
     #     lr=3e-4, margin=0.5, area=(0.85, 1),
@@ -29,7 +45,7 @@ cfgs = [
     #     steps=[40, 60], epochs=65,
     #     workers=8,
     #     dataset_mode='label',
-    #     dropout=0,
+    #     dropout=0, loss='quad',
     #     cls_weight=0, tri_weight=1,
     #     random_ratio=0.5, fusion=None,
     # ),

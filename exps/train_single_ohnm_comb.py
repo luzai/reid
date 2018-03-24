@@ -32,14 +32,14 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
         # args.dbg = False
-        # args.dbg = True
+        args.dbg = True
         if args.dbg:
             args.epochs = 1
             args.batch_size = 16
-        # args.log_at = np.concatenate([
-        #     args.log_at,
-        #     range(args.epochs - 8, args.epochs, 1)
-        # ])
+        args.log_at = np.concatenate([
+            args.log_at,
+            range(args.epochs - 8, args.epochs, 1)
+        ])
         if args.evaluate:
             args.logs_dir += '.bak0'
         args.logs_dir = 'work/' + args.logs_dir
@@ -50,7 +50,7 @@ def run(_):
             #                       # ok=range(3,4),
             #                       ok=range(4),
             #                       mem=[0.05, 0.05], sleep=32.3)
-            args.gpu = (0,1)
+            args.gpu = (2, 3,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -63,10 +63,10 @@ def run(_):
         proc = mp.Process(target=main, args=(args,))
         proc.start()
         lz.logging.info('next')
-        time.sleep(39.46)
-        procs.append(proc)
-
-    for proc in procs:
+        # time.sleep(39.46)
+        #     procs.append(proc)
+        #
+        # for proc in procs:
         proc.join()
 
 
@@ -189,9 +189,9 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args)
     # Create model
-    db = lz.Database(args.logs_dir + '/dop.h5', 'w')
-    db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
-    db.close()
+    with lz.Database(args.logs_dir + '/dop.h5', 'a') as db:
+        db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
+        db.flush()
     model = models.create(args.arch,
                           dropout=args.dropout,
                           pretrained=args.pretrained,
@@ -248,6 +248,8 @@ def main(args):
         criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
     elif args.loss == 'quad':
         criterion = [QuadLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+    elif args.loss == 'quin':
+        criterion = [QuinLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
     else:
         raise NotImplementedError('loss ...')
     if args.gpu is not None:
@@ -374,12 +376,26 @@ def main(args):
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
         writer.add_scalar('bs', args.batch_size, epoch)
         writer.add_scalar('num_instances', args.num_instances, epoch)
+
         if not args.log_middle:
             continue
         if epoch < args.start_save:
             continue
+        if epoch % 15 == 0:
+            save_checkpoint({
+                'state_dict': model.module.state_dict(),
+                'epoch': epoch + 1,
+                'best_top1': best_top1,
+            }, False, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
+
         if epoch not in args.log_at:
             continue
+
+        save_checkpoint({
+            'state_dict': model.module.state_dict(),
+            'epoch': epoch + 1,
+            'best_top1': best_top1,
+        }, False, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
 
         # res = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
         # for n, v in res.items():
