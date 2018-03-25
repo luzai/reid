@@ -23,7 +23,7 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='cuhk03label.res.dop.bak',
+        logs_dir='cuhk03label.res.center.bak',
         arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
         dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
@@ -31,13 +31,13 @@ cfgs = [
         steps=[40, 60], epochs=65,
         workers=8,
         dataset_mode='label',
-        dropout=0, loss='quin',
+        dropout=0, loss='center',
         cls_weight=0, tri_weight=1,
-        random_ratio=0.5, fusion=None,
+        random_ratio=1, fusion=None,
     ),
 
     # edict(
-    #     logs_dir='cuhk03label.res.quad.dop.2',
+    #     logs_dir='cuhk03label.res.quin',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
     #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
     #     lr=3e-4, margin=0.5, area=(0.85, 1),
@@ -45,7 +45,21 @@ cfgs = [
     #     steps=[40, 60], epochs=65,
     #     workers=8,
     #     dataset_mode='label',
-    #     dropout=0, loss='quad',
+    #     dropout=0, loss='quin',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, fusion=None,
+    # ),
+    #
+    # edict(
+    #     logs_dir='cuhk03label.res.quin.dop',
+    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8,
+    #     dataset_mode='label',
+    #     dropout=0, loss='quin',
     #     cls_weight=0, tri_weight=1,
     #     random_ratio=0.5, fusion=None,
     # ),

@@ -32,7 +32,7 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
         # args.dbg = False
-        args.dbg = True
+        # args.dbg = True
         if args.dbg:
             args.epochs = 1
             args.batch_size = 16
@@ -46,11 +46,11 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            # args.gpu = lz.get_dev(n=len(args.gpu),
-            #                       # ok=range(3,4),
-            #                       ok=range(4),
-            #                       mem=[0.05, 0.05], sleep=32.3)
-            args.gpu = (2, 3,)
+            args.gpu = lz.get_dev(n=len(args.gpu),
+                                  # ok=range(3,4),
+                                  ok=range(4),
+                                  mem=[0.12, 0.05], sleep=32.3)
+            # args.gpu = (2, 3,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -63,10 +63,10 @@ def run(_):
         proc = mp.Process(target=main, args=(args,))
         proc.start()
         lz.logging.info('next')
-        # time.sleep(39.46)
-        #     procs.append(proc)
-        #
-        # for proc in procs:
+        time.sleep(39.46)
+        procs.append(proc)
+
+    for proc in procs:
         proc.join()
 
 
@@ -250,6 +250,8 @@ def main(args):
         criterion = [QuadLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
     elif args.loss == 'quin':
         criterion = [QuinLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+    elif args.loss == 'center':
+        criterion = [CenterLoss(num_classes=num_classes, feat_dim=args.num_classes), nn.CrossEntropyLoss()]
     else:
         raise NotImplementedError('loss ...')
     if args.gpu is not None:

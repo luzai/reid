@@ -394,6 +394,7 @@ class CombTrainer(object):
         inputs = [imgs, npys]
         inputs = to_variable(inputs, requires_grad=False)
         targets = to_variable(pids, requires_grad=False)
+        cids = to_variable(cids, requires_grad=False)
         return inputs, targets, fnames, cids
 
     def _forward(self, inputs, targets, cids=None):
@@ -408,29 +409,32 @@ class CombTrainer(object):
         loss2 = self.criterion2(outputs2, targets)
         prec2, = accuracy(outputs2.data, targets.data)
         prec2 = prec2[0]
-
-        if self.dbg and self.iter % 100 == 0:
-            self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
-            self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
-
-            loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg, cids=cids)
-            diff = dist_an - dist_ap
-            self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
-            self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
-            self.writer.add_scalar('vis/lr', self.lr, self.iter)
-            self.writer.add_scalar('vis/loss-ttl',
-                                   self.tri_weight * loss + self.cls_weight * loss2, self.iter)
-
-            self.writer.add_histogram('an-ap', diff, self.iter)
-            self.writer.add_histogram('dist', dist, self.iter)
-            self.writer.add_histogram('ap', dist_ap, self.iter)
-            self.writer.add_histogram('an', dist_an, self.iter)
+        if self.criterion.name == 'center':
+            loss = self.criterion(outputs, targets)
+            prec = 0.
         else:
-            loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
-        # if self.cls_weight !=0:
-        #     update_dop_cls(outputs2, targets, self.dop_file)
-        if self.tri_weight != 0:
-            update_dop(dist, targets, self.dop_file)
+            if self.dbg and self.iter % 100 == 0:
+                self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
+                self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
+
+                loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg, cids=cids)
+                diff = dist_an - dist_ap
+                self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
+                self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
+                self.writer.add_scalar('vis/lr', self.lr, self.iter)
+                self.writer.add_scalar('vis/loss-ttl',
+                                       self.tri_weight * loss + self.cls_weight * loss2, self.iter)
+
+                self.writer.add_histogram('an-ap', diff, self.iter)
+                self.writer.add_histogram('dist', dist, self.iter)
+                self.writer.add_histogram('ap', dist_ap, self.iter)
+                self.writer.add_histogram('an', dist_an, self.iter)
+            else:
+                loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
+            # if self.cls_weight !=0:
+            #     update_dop_cls(outputs2, targets, self.dop_file)
+            if self.tri_weight != 0:
+                update_dop(dist, targets, self.dop_file)
 
         self.iter += 1
         loss_comb = self.tri_weight * loss + self.cls_weight * loss2
