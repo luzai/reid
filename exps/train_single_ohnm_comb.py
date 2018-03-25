@@ -34,7 +34,7 @@ def run(_):
         # args.dbg = False
         # args.dbg = True
         if args.dbg:
-            args.epochs = 1
+            args.epochs = 3
             args.batch_size = 16
         args.log_at = np.concatenate([
             args.log_at,
@@ -345,24 +345,24 @@ def main(args):
 
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
-        if args.hard_examples:
-            # Use sequential train set loader
-            data_loader = DataLoader(
-                Preprocessor(dataset.train, root=dataset.images_dir,
-                             transform=val_loader.dataset.transform),
-                batch_size=args.batch_size, num_workers=args.workers,
-                shuffle=False, pin_memory=False)
-            # Mine hard triplet examples, index of [(anchor, pos, neg), ...]
-            triplets = mine_hard_triplets(model,
-                                          data_loader, margin=args.margin, batch_size=args.batch_size)
-            print("Mined {} hard example triplets".format(len(triplets)))
-            # Build a hard examples loader
-            train_loader = DataLoader(
-                train_loader.dataset,
-                batch_size=train_loader.batch_size,
-                num_workers=train_loader.num_workers,
-                sampler=SubsetRandomSampler(np.unique(np.asarray(triplets).ravel())),
-                pin_memory=True, drop_last=True)
+        # if args.hard_examples:
+        #     # Use sequential train set loader
+        #     data_loader = DataLoader(
+        #         Preprocessor(dataset.train, root=dataset.images_dir,
+        #                      transform=val_loader.dataset.transform),
+        #         batch_size=args.batch_size, num_workers=args.workers,
+        #         shuffle=False, pin_memory=False)
+        #     # Mine hard triplet examples, index of [(anchor, pos, neg), ...]
+        #     triplets = mine_hard_triplets(model,
+        #                                   data_loader, margin=args.margin, batch_size=args.batch_size)
+        #     print("Mined {} hard example triplets".format(len(triplets)))
+        #     # Build a hard examples loader
+        #     train_loader = DataLoader(
+        #         train_loader.dataset,
+        #         batch_size=train_loader.batch_size,
+        #         num_workers=train_loader.num_workers,
+        #         sampler=SubsetRandomSampler(np.unique(np.asarray(triplets).ravel())),
+        #         pin_memory=True, drop_last=True)
 
         # train_loader = DataLoader(
         #     Preprocessor(dataset.trainval, root=dataset.images_dir,
