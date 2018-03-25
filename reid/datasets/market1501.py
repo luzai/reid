@@ -7,6 +7,7 @@ from ..utils.serialization import write_json
 from lz import *
 from scipy.io import loadmat
 
+
 class Mars(object):
     """
     MARS
@@ -21,62 +22,95 @@ class Mars(object):
     Args:
         min_seq_len (int): tracklet with length shorter than this value will be discarded (default: 0).
     """
-    root= '/data1/xinglu/work/data/mars'
+    root = '/data1/xinglu/work/data/mars'
     train_name_path = osp.join(root, 'info/train_name.txt')
     test_name_path = osp.join(root, 'info/test_name.txt')
     track_train_info_path = osp.join(root, 'info/tracks_train_info.mat')
     track_test_info_path = osp.join(root, 'info/tracks_test_info.mat')
     query_IDX_path = osp.join(root, 'info/query_IDX.mat')
 
-    def __init__(self, min_seq_len=0):
+    def __init__(self, min_seq_len=0, **kwargs):
         self._check_before_run()
 
-        # prepare meta data
-        train_names = self._get_names(self.train_name_path)
-        test_names = self._get_names(self.test_name_path)
-        track_train = loadmat(self.track_train_info_path)['track_train_info'] # numpy.ndarray (8298, 4)
-        track_test = loadmat(self.track_test_info_path)['track_test_info'] # numpy.ndarray (12180, 4)
-        query_IDX = loadmat(self.query_IDX_path)['query_IDX'].squeeze() # numpy.ndarray (1980,)
-        query_IDX -= 1 # index from 0
-        track_query = track_test[query_IDX,:]
-        gallery_IDX = [i for i in range(track_test.shape[0]) if i not in query_IDX]
-        track_gallery = track_test[gallery_IDX,:]
+        if osp.exist(self.root+'/cache.h5'):
+            with Database(self.root + '/cache.h5') as db:
+                # print(list((db.keys())))
+                num_train_pids, num_query_pids, num_gallery_pids = \
+                    db['num_train_pids'], db['num_query_pids'], db[
+                        'num_gallery_pids']
+                num_train_pids, num_query_pids, num_gallery_pids = map(int, (num_train_pids,
+                                                                             num_query_pids,
+                                                                             num_gallery_pids))
+            with pd.HDFStore(self.root + '/cache.h5') as db:
+                train, query, gallery = db['train'], db['query'], db['gallery']
+                train, query, gallery = map(
+                    lambda train: pd.DataFrame(train).to_records(index=False).tolist(),
+                    (train, query, gallery)
+                )
 
-        train, num_train_tracklets, num_train_pids, num_train_imgs = \
-          self._process_data(train_names, track_train, home_dir='bbox_train', relabel=True, min_seq_len=min_seq_len)
+        else:
+            # prepare meta data
+            train_names = self._get_names(self.train_name_path)
+            test_names = self._get_names(self.test_name_path)
+            track_train = loadmat(self.track_train_info_path)['track_train_info']  # numpy.ndarray (8298, 4)
+            track_test = loadmat(self.track_test_info_path)['track_test_info']  # numpy.ndarray (12180, 4)
+            query_IDX = loadmat(self.query_IDX_path)['query_IDX'].squeeze()  # numpy.ndarray (1980,)
+            query_IDX -= 1  # index from 0
+            track_query = track_test[query_IDX, :]
+            gallery_IDX = [i for i in range(track_test.shape[0]) if i not in query_IDX]
+            track_gallery = track_test[gallery_IDX, :]
 
-        query, num_query_tracklets, num_query_pids, num_query_imgs = \
-          self._process_data(test_names, track_query, home_dir='bbox_test', relabel=False, min_seq_len=min_seq_len)
+            train, num_train_tracklets, num_train_pids, num_train_imgs = \
+                self._process_data(train_names, track_train, home_dir='bbox_train', relabel=True, min_seq_len=min_seq_len)
 
-        gallery, num_gallery_tracklets, num_gallery_pids, num_gallery_imgs = \
-          self._process_data(test_names, track_gallery, home_dir='bbox_test', relabel=False, min_seq_len=min_seq_len)
+            query, num_query_tracklets, num_query_pids, num_query_imgs = \
+                self._process_data(test_names, track_query, home_dir='bbox_test', relabel=False, min_seq_len=min_seq_len)
 
-        num_imgs_per_tracklet = num_train_imgs + num_query_imgs + num_gallery_imgs
-        min_num = np.min(num_imgs_per_tracklet)
-        max_num = np.max(num_imgs_per_tracklet)
-        avg_num = np.mean(num_imgs_per_tracklet)
+            gallery, num_gallery_tracklets, num_gallery_pids, num_gallery_imgs = \
+                self._process_data(test_names, track_gallery, home_dir='bbox_test', relabel=False, min_seq_len=min_seq_len)
 
-        num_total_pids = num_train_pids + num_query_pids
-        num_total_tracklets = num_train_tracklets + num_query_tracklets + num_gallery_tracklets
+            num_imgs_per_tracklet = num_train_imgs + num_query_imgs + num_gallery_imgs
+            min_num = np.min(num_imgs_per_tracklet)
+            max_num = np.max(num_imgs_per_tracklet)
+            avg_num = np.mean(num_imgs_per_tracklet)
 
-        print("=> MARS loaded")
-        print("Dataset statistics:")
-        print("  ------------------------------")
-        print("  subset   | # ids | # tracklets")
-        print("  ------------------------------")
-        print("  train    | {:5d} | {:8d}".format(num_train_pids, num_train_tracklets))
-        print("  query    | {:5d} | {:8d}".format(num_query_pids, num_query_tracklets))
-        print("  gallery  | {:5d} | {:8d}".format(num_gallery_pids, num_gallery_tracklets))
-        print("  ------------------------------")
-        print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_tracklets))
-        print("  number of images per tracklet: {} ~ {}, average {:.1f}".format(min_num, max_num, avg_num))
-        print("  ------------------------------")
+            num_total_pids = num_train_pids + num_query_pids
+            num_total_tracklets = num_train_tracklets + num_query_tracklets + num_gallery_tracklets
+
+            print("=> MARS loaded")
+            print("Dataset statistics:")
+            print("  ------------------------------")
+            print("  subset   | # ids | # tracklets")
+            print("  ------------------------------")
+            print("  train    | {:5d} | {:8d}".format(num_train_pids, num_train_tracklets))
+            print("  query    | {:5d} | {:8d}".format(num_query_pids, num_query_tracklets))
+            print("  gallery  | {:5d} | {:8d}".format(num_gallery_pids, num_gallery_tracklets))
+            print("  ------------------------------")
+            print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_tracklets))
+            print("  number of images per tracklet: {} ~ {}, average {:.1f}".format(min_num, max_num, avg_num))
+            print("  ------------------------------")
+
+            with Database(self.root + '/cache.h5') as db:
+                db['num_train_pids'], db['num_query_pids'], db[
+                    'num_gallery_pids'], = num_train_pids, num_query_pids, num_gallery_pids
+                db.flush()
+
+            with pd.HDFStore(self.root + '/cache.h5') as db:
+                train = pd.DataFrame(train)
+                query = pd.DataFrame(query)
+                gallery = pd.DataFrame(gallery)
+                db['train'], db['query'], db['gallery'] = train, query, gallery
+                db.flush()
 
         self.train = train
+        self.val = None
+        self.trainval = train
         self.query = query
         self.gallery = gallery
 
         self.num_train_pids = num_train_pids
+        self.num_val_pids = 0
+        self.num_trainval_pids = num_train_pids
         self.num_query_pids = num_query_pids
         self.num_gallery_pids = num_gallery_pids
 
@@ -106,21 +140,21 @@ class Mars(object):
     def _process_data(self, names, meta_data, home_dir=None, relabel=False, min_seq_len=0):
         assert home_dir in ['bbox_train', 'bbox_test']
         num_tracklets = meta_data.shape[0]
-        pid_list = list(set(meta_data[:,2].tolist()))
+        pid_list = list(set(meta_data[:, 2].tolist()))
         num_pids = len(pid_list)
 
-        if relabel: pid2label = {pid:label for label, pid in enumerate(pid_list)}
+        if relabel: pid2label = {pid: label for label, pid in enumerate(pid_list)}
         tracklets = []
         num_imgs_per_tracklet = []
 
         for tracklet_idx in range(num_tracklets):
-            data = meta_data[tracklet_idx,...]
+            data = meta_data[tracklet_idx, ...]
             start_index, end_index, pid, camid = data
-            if pid == -1: continue # junk images are just ignored
+            if pid == -1: continue  # junk images are just ignored
             assert 1 <= camid <= 6
             if relabel: pid = pid2label[pid]
-            camid -= 1 # index starts from 0
-            img_names = names[start_index-1:end_index]
+            camid -= 1  # index starts from 0
+            img_names = names[start_index - 1:end_index]
 
             # make sure image names correspond to the same person
             pnames = [img_name[:4] for img_name in img_names]
@@ -146,13 +180,14 @@ class Market1501(Dataset):
     url = 'https://drive.google.com/file/d/0B8-rUzbwVRk0c054eEozWG9COHM/view'
     md5 = '65005ab7d12ec1c44de4eeafe813e68a'
 
-    root = '/data1/xinglu/work/data/market1501/raw/Market-1501-v15.09.15/'
+    root = '/data1/xinglu/work/data/market1501/'
     train_dir = osp.join(root, 'bounding_box_train')
     query_dir = osp.join(root, 'query')
     gallery_dir = osp.join(root, 'bounding_box_test')
 
     def __init__(self, root=None, split_id=0, num_val=100, download=True, check_intergrity=True, **kwargs):
         super(Market1501, self).__init__(root, split_id=split_id)
+        self.root = '/data1/xinglu/work/data/market1501/'
 
         # if download:
         #     self.download(check_intergrity)
@@ -162,35 +197,64 @@ class Market1501(Dataset):
         #                        "You can use download=True to download it.")
         #
         # self.load(num_val)
+        #
+        # return
 
         self._check_before_run()
+        if osp.exists(self.root + '/cache.h5'):
+            with Database(self.root + '/cache.h5') as db:
+                # print(list((db.keys())))
+                num_train_pids, num_query_pids, num_gallery_pids = \
+                    db['num_train_pids'], db['num_query_pids'], db[
+                        'num_gallery_pids']
+                num_train_pids, num_query_pids, num_gallery_pids = map(int, (num_train_pids,
+                                                                             num_query_pids,
+                                                                             num_gallery_pids))
+            with pd.HDFStore(self.root + '/cache.h5') as db:
+                train, query, gallery = db['train'], db['query'], db['gallery']
+                train, query, gallery = map(
+                    lambda train: pd.DataFrame(train).to_records(index=False).tolist(),
+                    (train, query, gallery)
+                )
 
-        train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, relabel=True)
-        query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, relabel=False)
-        gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, relabel=False)
-        num_total_pids = num_train_pids + num_query_pids
-        num_total_imgs = num_train_imgs + num_query_imgs + num_gallery_imgs
+        else:
+            train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, relabel=True)
+            query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, relabel=False)
+            gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, relabel=False)
+            num_total_pids = num_train_pids + num_query_pids
+            num_total_imgs = num_train_imgs + num_query_imgs + num_gallery_imgs
 
-        print("=> Market1501 loaded")
-        print("Dataset statistics:")
-        print("  ------------------------------")
-        print("  subset   | # ids | # images")
-        print("  ------------------------------")
-        print("  train    | {:5d} | {:8d}".format(num_train_pids, num_train_imgs))
-        print("  query    | {:5d} | {:8d}".format(num_query_pids, num_query_imgs))
-        print("  gallery  | {:5d} | {:8d}".format(num_gallery_pids, num_gallery_imgs))
-        print("  ------------------------------")
-        print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_imgs))
-        print("  ------------------------------")
+            print("=> Market1501 loaded")
+            print("Dataset statistics:")
+            print("  ------------------------------")
+            print("  subset   | # ids | # images")
+            print("  ------------------------------")
+            print("  train    | {:5d} | {:8d}".format(num_train_pids, num_train_imgs))
+            print("  query    | {:5d} | {:8d}".format(num_query_pids, num_query_imgs))
+            print("  gallery  | {:5d} | {:8d}".format(num_gallery_pids, num_gallery_imgs))
+            print("  ------------------------------")
+            print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_imgs))
+            print("  ------------------------------")
+            with Database(self.root + '/cache.h5') as db:
+                db['num_train_pids'], db['num_query_pids'], db[
+                    'num_gallery_pids'], = num_train_pids, num_query_pids, num_gallery_pids
+                db.flush()
+
+            with pd.HDFStore(self.root + '/cache.h5') as db:
+                train = pd.DataFrame(train)
+                query = pd.DataFrame(query)
+                gallery = pd.DataFrame(gallery)
+                db['train'], db['query'], db['gallery'] = train, query, gallery
+                db.flush()
 
         self.train = train
-        self.val= None
+        self.val = None
         self.trainval = train
         self.query = query
         self.gallery = gallery
 
         self.num_train_pids = num_train_pids
-        self.num_trainval_ids = num_train_imgs
+        self.num_trainval_ids = num_train_pids
         self.num_val_ids = 0
         self.num_query_pids = num_query_pids
         self.num_gallery_pids = num_gallery_pids
@@ -281,7 +345,7 @@ class Market1501(Dataset):
                 cam -= 1
                 pids.add(pid)
                 fname = ('{:08d}_{:02d}_{:04d}.jpg'
-                    .format(pid, cam, len(identities[pid][cam])))
+                         .format(pid, cam, len(identities[pid][cam])))
                 fnames.append(fname)
                 identities[pid][cam].append(fname)
                 shutil.copy(fpath, osp.join(images_dir, fname))
@@ -307,6 +371,6 @@ class Market1501(Dataset):
             'gallery': sorted(list(gallery_pids))}]
         write_json(splits, osp.join(self.root, 'splits.json'))
 
-if __name__ == '__main__':
-    Market1501()
-    Mars()
+# if __name__ == '__main__':
+#     Market1501()
+#     Mars()

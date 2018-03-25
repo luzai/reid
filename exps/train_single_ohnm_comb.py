@@ -46,11 +46,11 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu),
-                                  # ok=range(3,4),
-                                  ok=range(4),
-                                  mem=[0.12, 0.05], sleep=32.3)
-            # args.gpu = (2, 3,)
+            # args.gpu = lz.get_dev(n=len(args.gpu),
+            #                       # ok=range(3,4),
+            #                       ok=range(4),
+            #                       mem=[0.12, 0.05], sleep=32.3)
+            args.gpu = (0, 2,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -242,16 +242,18 @@ def main(args):
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         lz.logging.info('eval {}'.format(res))
         return 0
-
+    xent = nn.CrossEntropyLoss()
+    setattr(xent, 'name', 'xent')
     # Criterion
     if args.loss == 'triplet':
-        criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+        criterion = [TripletLoss(margin=args.margin, mode=args.mode), xent]
     elif args.loss == 'quad':
-        criterion = [QuadLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+        criterion = [QuadLoss(margin=args.margin, mode=args.mode), xent]
     elif args.loss == 'quin':
-        criterion = [QuinLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+        criterion = [QuinLoss(margin=args.margin, mode=args.mode), xent]
     elif args.loss == 'center':
-        criterion = [CenterLoss(num_classes=num_classes, feat_dim=args.num_classes), nn.CrossEntropyLoss()]
+        criterion = [TripletLoss(margin=args.margin, mode=args.mode),
+                     CenterLoss(num_classes=num_classes, feat_dim=args.num_classes), ]
     else:
         raise NotImplementedError('loss ...')
     if args.gpu is not None:
@@ -274,6 +276,9 @@ def main(args):
         {'params': slow_params, 'lr_mult': args.lr_mult},
         {'params': normal_params, 'lr_mult': 1.},
     ]
+    if args.loss == 'center':
+        optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent,
+                                         )
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             # model.parameters(),
@@ -371,8 +376,11 @@ def main(args):
         #     batch_size=args.batch_size, num_workers=args.workers,
         #     sampler=RandomIdentityWeightedSampler(dataset.trainval, args.num_instances, batch_size=args.batch_size),
         #     pin_memory=True, drop_last=True)
-
-        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule)
+        if args.loss == 'center':
+            hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule,
+                                 optimizer_cent=optimizer_cent)
+        else:
+            hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule)
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)

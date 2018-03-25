@@ -1,7 +1,7 @@
 from .cuhk01 import CUHK01
 from .cuhk03 import CUHK03
 from .dukemtmc import DukeMTMC
-from .market1501 import Market1501
+from .market1501 import *
 from .msmt17 import MSMT17
 from reid.datasets.cdm import CDM
 from .viper import VIPeR
@@ -17,6 +17,7 @@ __factory = {
     'dukemtmc': DukeMTMC,
     'cdm':CDM,
     'msmt17': MSMT17,
+    'mars': Mars
 }
 
 
@@ -45,7 +46,7 @@ def create(name, root, *args, **kwargs):
     """
     if name not in __factory:
         raise KeyError("Unknown dataset:", name)
-    return __factory[name](root, *args, **kwargs)
+    return __factory[name](root=root, *args, **kwargs)
 
 
 def creates(names, roots, *args, **kwargs):

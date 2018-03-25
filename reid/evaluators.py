@@ -147,17 +147,17 @@ class Evaluator(object):
             distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
             self.distmat = to_numpy(distmat)
             # self.conf = 'market1501'
-            db_name = 'det.cat.h5'
-            with  lz.Database(db_name) as db:
-                for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-                    if rerank:
-                        db['rk/' + name] = eval(name)
-                    else:
-                        db[name] = eval(name)
-
-            with pd.HDFStore(db_name) as db:
-                db['query'] = query_to_df(query)
-                db['gallery'] = query_to_df(gallery)
+            # db_name = 'det.cat.h5'
+            # with  lz.Database(db_name) as db:
+            #     for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+            #         if rerank:
+            #             db['rk/' + name] = eval(name)
+            #         else:
+            #             db[name] = eval(name)
+            #
+            # with pd.HDFStore(db_name) as db:
+            #     db['query'] = query_to_df(query)
+            #     db['gallery'] = query_to_df(gallery)
 
             # with lz.Database(db_name) as db:
             #     print(list(db.keys()))

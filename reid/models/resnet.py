@@ -8,7 +8,6 @@ from .common import _make_conv
 import sys
 
 sys.path.insert(0, '/data1/xinglu/prj/deformable-convolution-pytorch/')
-
 from modules import ConvOffset2d
 from functions import conv_offset2d
 
