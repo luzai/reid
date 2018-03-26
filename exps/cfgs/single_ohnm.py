@@ -51,6 +51,19 @@ cfgs = [
         cls_weight=0, tri_weight=1,
         random_ratio=1, fusion=None,
     ),
+    edict(
+        logs_dir='cuhk03label.res.tri.check',
+        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+        dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+        lr=3e-4, margin=0.5, area=(0.85, 1),
+        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=8,
+        dataset_mode='label',
+        dropout=0, loss='tri_xent',
+        cls_weight=0, tri_weight=1,
+        random_ratio=1, fusion=None,
+    ),
     # edict(
     #     logs_dir='cuhk03label.res.quin',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
@@ -179,7 +192,7 @@ cfgs = [
 # cfgs = [cfgs[-1]]
 
 base = edict(
-    weight_cent = 5e-4,  lr_cent = 0.5,
+    weight_cent=5e-4, lr_cent=0.5,
     lr_mult=0.1, fusion=None, eval_conf='cuhk03',
     cls_weight=0., random_ratio=1, tri_weight=1, num_deform=3, cls_pretrain=False,
     bs_steps=[], batch_size_l=[], num_instances_l=[],
@@ -239,4 +252,3 @@ if __name__ == '__main__':
     df1.index = df1.logs_dir
     del df1['logs_dir']
     print(tabulate.tabulate(df1, headers="keys", tablefmt="pipe"))
-

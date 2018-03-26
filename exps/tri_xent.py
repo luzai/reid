@@ -31,13 +31,12 @@ def run(_):
     cfgs = torchpack.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        if args.loss != 'tri':
+        if not ('tri' in args.loss and 'xent' in args.loss):
             print(f'skip {args}')
             continue
 
         # args.dbg = False
         # args.dbg = True
-
         if args.dbg:
             args.epochs = 3
             args.batch_size = 16
@@ -55,7 +54,7 @@ def run(_):
                                   # ok=range(3,4),
                                   ok=range(4),
                                   mem=[0.12, 0.05], sleep=32.3)
-            args.gpu = (3,)
+            args.gpu = (1, )
             # args.batch_size = 16
 
         if isinstance(args.gpu, int):
@@ -77,11 +76,12 @@ def run(_):
 
 
 def get_data(args):
-    (name, split_id,
-     data_dir, height, width,
-     batch_size, num_instances,
-     workers, combine_trainval
-     ) = (
+    (
+        name, split_id,
+        data_dir, height, width,
+        batch_size, num_instances,
+        workers, combine_trainval
+    ) = (
         args.dataset, args.split,
         args.data_dir, args.height, args.width,
         args.batch_size, args.num_instances,
@@ -249,9 +249,8 @@ def main(args):
         return 0
 
     # Criterion
-    criterion = [TripletLoss(margin=args.margin, mode=args.mode)]
+    criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
     criterion = [c.cuda() for c in criterion]
-
     # Optimizer
 
     # for param in itertools.chain(model.module.base.parameters(),
@@ -300,9 +299,10 @@ def main(args):
             }, True, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
+
     # Trainer
-    trainer = TriTrainer(model, criterion, dbg=False,
-                         logs_at=args.logs_dir + '/vis', args=args)
+    trainer = XentTriTrainer(model, criterion, dbg=False,
+                             logs_at=args.logs_dir + '/vis', args=args)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
