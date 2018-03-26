@@ -33,7 +33,8 @@ def run(_):
     for args in cfgs.cfgs:
         # args.dbg = False
         # args.dbg = True
-        if args.loss!='tri':
+        if args.loss != 'tri':
+            print(f'skip {args}')
             continue
         if args.dbg:
             args.epochs = 3
@@ -52,7 +53,8 @@ def run(_):
                                   # ok=range(3,4),
                                   ok=range(4),
                                   mem=[0.12, 0.05], sleep=32.3)
-            # args.gpu = (0, 2,)
+            args.gpu = (1,)
+            args.batch_size = 16
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -246,7 +248,7 @@ def main(args):
         return 0
 
     # Criterion
-    criterion = TripletLoss(margin=args.margin, mode=args.mode)
+    criterion = TripletLoss(margin=args.margin, mode=args.mode).cuda()
     # Optimizer
 
     # for param in itertools.chain(model.module.base.parameters(),
@@ -286,7 +288,7 @@ def main(args):
         args_cp = copy.deepcopy(args)
         args_cp.cls_weight = 1
         args_cp.tri_weight = 0
-        trainer = CombTrainer(model, criterion, dbg=False,
+        trainer = XentTrainer(model, criterion, dbg=False,
                               logs_at=args_cp.logs_dir + '/vis', args=args_cp)
         for epoch in range(start_epoch, args_cp.epochs):
             hist = trainer.train(epoch, train_loader, optimizer)
@@ -298,8 +300,8 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = CombTrainer(model, criterion, dbg=False,
-                          logs_at=args.logs_dir + '/vis', args=args)
+    trainer = TriTrainer(model, criterion, dbg=False,
+                         logs_at=args.logs_dir + '/vis', args=args)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -364,11 +366,7 @@ def main(args):
         #     batch_size=args.batch_size, num_workers=args.workers,
         #     sampler=RandomIdentityWeightedSampler(dataset.trainval, args.num_instances, batch_size=args.batch_size),
         #     pin_memory=True, drop_last=True)
-        if args.loss == 'center':
-            hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule,
-                                 optimizer_cent=optimizer_cent)
-        else:
-            hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule)
+        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule)
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)

@@ -14,7 +14,7 @@ cfgs = [
     #     batch_size=128, num_instances=4, gpu=(0,), num_classes=128,
     #     steps=[80, 120], epochs=125,
     #     workers=8,
-    #     dropout=0, loss='triplet',
+    #     dropout=0, loss='tri',
     #     cls_weight=0, tri_weight=1,
     #     random_ratio=1, fusion=None,
     #     log_at=[124, 125],
@@ -23,7 +23,7 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='cuhk03label.res.center',
+        logs_dir='cuhk03label.res.tri.check',
         arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
         dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
         # dataset='msmt17', dataset_val='msmt17', eval_conf='market1501',
@@ -34,11 +34,23 @@ cfgs = [
         steps=[40, 60], epochs=65,
         workers=8,
         dataset_mode='label',
-        dropout=0, loss='center',
+        dropout=0, loss='tri',
         cls_weight=0, tri_weight=1,
         random_ratio=1, fusion=None,
     ),
-
+    edict(
+        logs_dir='cuhk03label.res.center',
+        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+        dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+        lr=3e-4, margin=0.5, area=(0.85, 1),
+        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=8,
+        dataset_mode='label',
+        dropout=0, loss='tri_center',
+        cls_weight=0, tri_weight=1,
+        random_ratio=1, fusion=None,
+    ),
     # edict(
     #     logs_dir='cuhk03label.res.quin',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
@@ -83,38 +95,6 @@ cfgs = [
     # ),
 
     # edict(
-    #     logs_dir='cuhk03detect.se.concat',
-    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck',
-    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='detect',
-    #     dropout=0,
-    #     cls_weight=0.5, tri_weight=1,
-    #     random_ratio=1, fusion='concat',
-    #     evaluate=True,
-    #     resume='/data1/xinglu/prj/open-reid/exps/work.3.8/cuhk03detect.se.concat/model_best.pth'
-    # ),
-
-    # edict(
-    #     logs_dir='cuhk03label.se.sum.dop',
-    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck',
-    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='label',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=0.5, fusion='sum',
-    #     # evaluate=True,
-    #     # resume='work/cuhk03label.se.concat.dop/model_best.pth',
-    # ),
-
-    # edict(
     #     logs_dir='cuhk03detect.res',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
     #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
@@ -129,36 +109,6 @@ cfgs = [
     #     resume = '/data1/xinglu/prj/open-reid/exps/work.3.8/cuhk03detect.res/model_best.pth', evaluate =True
     # ),
 
-    # edict(
-    #     logs_dir='cuhk03detect.se',
-    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck',
-    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='detect',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, fusion=None,
-    #     evaluate=True,
-    #     resume='/data1/xinglu/prj/open-reid/exps/work.3.8/cuhk03detect.se/model_best.pth',
-    # ),
-
-    # edict(
-    #     logs_dir='cuhk03detect.se.sum',
-    #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck',
-    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='detect',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, fusion='sum',
-    # ),
-    #
     # edict(
     #     logs_dir='cuhk03detect.se.sum.dop',
     #     arch='resnet50', block_name='SEBottleneck', block_name2='SEBottleneck',
@@ -182,7 +132,7 @@ cfgs = [
     #     steps=[40, 60], epochs=65,
     #     workers=8, dropout=0,
     #     cls_weight=0, tri_weight=1,
-    #     loss='center',
+    #     loss='tri_center',
     #     random_ratio=1, fusion=None,
     #     # evaluate=True, resume='/data1/xinglu/prj/open-reid/exps/work.3.8/market1501.res/model_best.pth'
     # ),

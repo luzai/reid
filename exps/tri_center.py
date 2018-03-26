@@ -31,6 +31,9 @@ def run(_):
     cfgs = torchpack.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
+        if args.loss != 'tri_center':
+            print(f'skip {args}')
+            continue
         # args.dbg = False
         # args.dbg = True
         if args.dbg:
@@ -46,11 +49,12 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            # args.gpu = lz.get_dev(n=len(args.gpu),
-            #                       # ok=range(3,4),
-            #                       ok=range(4),
-            #                       mem=[0.12, 0.05], sleep=32.3)
-            args.gpu = (0, 2,)
+            args.gpu = lz.get_dev(n=len(args.gpu),
+                                  # ok=range(3,4),
+                                  ok=range(4),
+                                  mem=[0.12, 0.05], sleep=32.3)
+            # args.batch_size = 64
+            # args.gpu = (1,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -245,17 +249,8 @@ def main(args):
     xent = nn.CrossEntropyLoss()
     setattr(xent, 'name', 'xent')
     # Criterion
-    if args.loss == 'triplet':
-        criterion = [TripletLoss(margin=args.margin, mode=args.mode), xent]
-    elif args.loss == 'quad':
-        criterion = [QuadLoss(margin=args.margin, mode=args.mode), xent]
-    elif args.loss == 'quin':
-        criterion = [QuinLoss(margin=args.margin, mode=args.mode), xent]
-    elif args.loss == 'center':
-        criterion = [TripletLoss(margin=args.margin, mode=args.mode),
-                     CenterLoss(num_classes=num_classes, feat_dim=args.num_classes), ]
-    else:
-        raise NotImplementedError('loss ...')
+    criterion = [TripletLoss(margin=args.margin, mode=args.mode),
+                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes), ]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
@@ -297,7 +292,7 @@ def main(args):
         args_cp = copy.deepcopy(args)
         args_cp.cls_weight = 1
         args_cp.tri_weight = 0
-        trainer = CombTrainer(model, criterion, dbg=False,
+        trainer = XentTrainer(model, criterion, dbg=False,
                               logs_at=args_cp.logs_dir + '/vis', args=args_cp)
         for epoch in range(start_epoch, args_cp.epochs):
             hist = trainer.train(epoch, train_loader, optimizer)
@@ -309,8 +304,8 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = CombTrainer(model, criterion, dbg=False,
-                          logs_at=args.logs_dir + '/vis', args=args)
+    trainer = TriCenterTrainer(model, criterion, dbg=False,
+                               logs_at=args.logs_dir + '/vis', args=args)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
