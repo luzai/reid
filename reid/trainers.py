@@ -94,82 +94,6 @@ class VerfTrainer(BaseTrainer):
         # print(prec1)
         return loss, prec1
 
-
-class TripletTrainer(object):
-    def __init__(self, model, criterion, dbg=False, logs_at='work/vis'):
-        self.model = model
-        self.criterion = criterion
-        self.dbg = dbg
-        self.iter = 0
-
-        if dbg:
-            mkdir_p(logs_at, delete=True)
-            self.writer = SummaryWriter(logs_at)
-
-    def train(self, epoch, data_loader, optimizer, print_freq=1):
-        self.model.train()
-
-        batch_time = AverageMeter()
-        data_time = AverageMeter()
-        losses = AverageMeter()
-        precisions = AverageMeter()
-
-        end = time.time()
-        for i, inputs in enumerate(data_loader):
-            data_time.update(time.time() - end)
-
-            inputs, targets = self._parse_data(inputs)
-            loss, prec1 = self._forward(inputs, targets)
-            if isinstance(targets, tuple):
-                targets, _ = targets
-            losses.update(loss.data[0], targets.size(0))
-            precisions.update(prec1, targets.size(0))
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            if (i + 1) % print_freq == 0:
-                print('Epoch: [{}][{}/{}]\t'
-                      'Time {:.3f} ({:.3f})\t'
-                      'Data {:.3f} ({:.3f})\t'
-                      'Loss {:.3f} ({:.3f})\t'
-                      'Prec {:.2%} ({:.2%})\t'
-                      .format(epoch, i + 1, len(data_loader),
-                              batch_time.val, batch_time.avg,
-                              data_time.val, data_time.avg,
-                              losses.val, losses.avg,
-                              precisions.val, precisions.avg))
-        return collections.OrderedDict({
-            'ttl-time': batch_time.avg,
-            'data-time': data_time.avg,
-            'loss': losses.avg,
-            'prec': precisions.avg
-        })
-
-    def _parse_data(self, inputs):
-        def _parse_one(inputs):
-            imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
-            # print(fnames)
-            return imgs
-
-        # cvb.dump(np.asarray([in_.get('fname') for in_ in inputs ]).ravel(), 'tmp.pkl')
-        a, p, n = _parse_one(inputs[0]), _parse_one(inputs[1]), _parse_one(inputs[2])
-        inputs = to_variable([a, p, n])
-        targets = to_variable(torch.ones(len(a)))
-        return inputs, targets
-
-    def _forward(self, inputs, targets):
-        dist_an, dist_ap = self.model(*inputs)
-        loss = self.criterion(dist_an, dist_ap, targets)
-        # ByteTensor has no mean() method
-        prec = (dist_an.data > dist_ap.data).sum() * 1. / targets.size(0)
-        return loss, prec
-
-
 class SiameseTrainer(BaseTrainer):
     def _parse_data(self, inputs):
         (imgs1, _, pids1, _), (imgs2, _, pids2, _) = inputs
@@ -184,7 +108,6 @@ class SiameseTrainer(BaseTrainer):
         loss = self.criterion(outputs, targets)
         prec1, = accuracy(outputs.data, targets.data)
         return loss, prec1[0]
-
 
 def stat_(writer, tag, tensor, iter):
     writer.add_scalars('groups/' + tag, {
@@ -463,7 +386,7 @@ class CombTrainer(object):
         batch_time = AverageMeter()
         data_time = AverageMeter()
         losses = {}
-        precision = {}
+        precisions = {}
 
         end = time.time()
 
@@ -478,37 +401,39 @@ class CombTrainer(object):
             if isinstance(targets, tuple):
                 targets, _ = targets
             for name, loss in all_loss.items():
-                pass
+                if name not in losses:
+                    losses[name] = AverageMeter()
+                losses[name].update(loss.data[0], targets.size(0))
             for name, prec in all_prec.items():
-                pass
+                if name not in precisions:
+                    precisions[name] = AverageMeter()
+                precisions[name].update(prec, targets.size(0))
 
-        #     losses.update(loss.data[0], targets.size(0))
-        #     losses2.update(loss2.data[0], targets.size(0))
-        #     precisions.update(prec1, targets.size(0))
-        #     precisions2.update(prec2, targets.size(0))
-        #
-        #     optimizer.zero_grad()
-        #     loss_comb.backward()
-        #     optimizer.step()
-        #
-        #     batch_time.update(time.time() - end)
-        #     end = time.time()
-        #
-        #     if (i + 1) % print_freq == 0:
-        #         print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
-        #               f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
-        #               f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
-        #               f'loss {losses.val:.2f}/{losses.avg:.2f}  '
-        #               f'loss_cls {losses2.val:.2f}/{losses2.avg:.2f}  '
-        #               f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
-        #               f'prec_cls {precisions2.val:.2%}/{precisions2.avg:.2%}  '
-        #               )
-        #     # break
-        # return collections.OrderedDict({
-        #     'ttl-time': batch_time.avg,
-        #     'data-time': data_time.avg,
-        #     'loss_tri': losses.avg,
-        #     # 'loss_cls': losses2.avg,
-        #     'prec_tri': precisions.avg,
-        #     # 'prec_cls': precisions2.avg,
-        # })
+            if optimizer_cent is not None:
+                optimizer_cent.zero_grad()
+            optimizer.zero_grad()
+            loss_comb.backward()
+
+            optimizer.step()
+            if optimizer_cent is not None:
+                for param in self.criterion.get('center').parameters():
+                    param.grad.data *= (1. / self.args.weight_cent)
+                optimizer_cent.step()
+
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if (i + 1) % print_freq == 0:
+                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
+                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
+                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
+                      f"loss {losses['tri'].val:.2f}/{losses['tri'].avg:.2f}  "
+                      f"prec {precisions['tri'].val:.2%}/{precisions['tri'].avg:.2%}  "
+                      )
+
+        return collections.OrderedDict({
+            'ttl-time': batch_time.avg,
+            'data-time': data_time.avg,
+            'loss_tri': losses['tri'].avg,
+            'prec_tri': precisions['tri'].avg,
+        })

@@ -277,8 +277,7 @@ def main(args):
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.loss == 'center':
-        optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent,
-                                         )
+        optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             # model.parameters(),
