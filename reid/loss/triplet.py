@@ -13,9 +13,9 @@ def select(dist, range, descend=True, return_ind=False, global_ind=None):
         return global_ind[dist[range[0]:range[1]]], global_ind[ind[range[0]:range[1]]]
 
 
-
 class CenterLoss(nn.Module):
     name = 'center'
+
     def __init__(self, num_classes, feat_dim, use_gpu=True, **kwargs):
         super(CenterLoss, self).__init__()
         self.num_classes = num_classes
@@ -27,7 +27,7 @@ class CenterLoss(nn.Module):
         else:
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
 
-    def forward(self, x, labels,*kwargs):
+    def forward(self, x, labels, *kwargs):
         """
         Args:
             x: feature matrix with shape (batch_size, feat_dim).
@@ -47,15 +47,17 @@ class CenterLoss(nn.Module):
         dist = []
         for i in range(batch_size):
             value = distmat[i][mask[i]]
-            value = value.clamp(min=1e-12, max=1e+12) # for numerical stability
+            value = value.clamp(min=1e-12, max=1e+12)  # for numerical stability
             dist.append(value)
         dist = torch.cat(dist)
         loss = dist.mean()
 
         return loss
 
+
 class QuadLoss(nn.Module):
-    name='quin'
+    name = 'quin'
+
     def __init__(self, margin=0, mode='hard', **kwargs):
         super(QuadLoss, self).__init__()
         self.margin = margin
@@ -87,9 +89,9 @@ class QuadLoss(nn.Module):
             n2 = some_n2.min()
             dist_n12.append(n2)
 
-        dist_ap = torch.cat(dist_ap)
-        dist_an = torch.cat(dist_an)
-        dist_n12 = torch.cat(dist_n12)
+        dist_ap = _concat(dist_ap)
+        dist_an = _concat(dist_an)
+        dist_n12 = _concat(dist_n12)
         if torch.cuda.is_available():
             y = Variable(to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
         else:
@@ -106,7 +108,8 @@ class QuadLoss(nn.Module):
 
 
 class QuinLoss(nn.Module):
-    name='quin'
+    name = 'quin'
+
     def __init__(self, margin=0, mode='hard', **kwargs):
         super(QuinLoss, self).__init__()
         self.margin = margin
@@ -145,10 +148,10 @@ class QuinLoss(nn.Module):
             p1 = some_p1.max()
             dist_p12.append(p1)
 
-        dist_ap = torch.cat(dist_ap)
-        dist_an = torch.cat(dist_an)
-        dist_n12 = torch.cat(dist_n12)
-        dist_p12 = torch.cat(dist_p12)
+        dist_ap = _concat(dist_ap)
+        dist_an = _concat(dist_an)
+        dist_n12 = _concat(dist_n12)
+        dist_p12 = _concat(dist_p12)
         if torch.cuda.is_available():
             y = Variable(to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
         else:
@@ -165,8 +168,42 @@ class QuinLoss(nn.Module):
             return loss, prec, dist, dist_ap, dist_an
 
 
+class CrossEntropyLabelSmooth(nn.Module):
+    """Cross entropy loss with label smoothing regularizer.
+
+    Reference:
+    Szegedy et al. Rethinking the Inception Architecture for Computer Vision. CVPR 2016.
+    Equation: y = (1 - epsilon) * y + epsilon / K.
+
+    Args:
+        num_classes (int): number of classes.
+        epsilon (float): weight.
+    """
+
+    def __init__(self, num_classes, epsilon=0.1, use_gpu=True):
+        super(CrossEntropyLabelSmooth, self).__init__()
+        self.num_classes = num_classes
+        self.epsilon = epsilon
+        self.use_gpu = use_gpu
+        self.logsoftmax = nn.LogSoftmax(dim=1)
+
+    def forward(self, inputs, targets):
+        """
+        Args:
+            inputs: prediction matrix (before softmax) with shape (batch_size, num_classes)
+            targets: ground truth labels with shape (num_classes)
+        """
+        log_probs = self.logsoftmax(inputs)
+        targets = torch.zeros(log_probs.size()).scatter_(1, targets.unsqueeze(1).data.cpu(), 1)
+        if self.use_gpu: targets = targets.cuda()
+        targets = Variable(targets, requires_grad=False)
+        targets = (1 - self.epsilon) * targets + self.epsilon / self.num_classes
+        loss = (- targets * log_probs).mean(0).sum()
+        return loss
+
 class TripletLoss(nn.Module):
-    name='tri'
+    name = 'tri'
+
     def __init__(self, margin=0, mode='hard'):
         super(TripletLoss, self).__init__()
         self.margin = margin
@@ -236,8 +273,8 @@ class TripletLoss(nn.Module):
                     dist_ap.extend(posp_)
                     dist_an.extend(negp_)
 
-        dist_ap = torch.cat(dist_ap)
-        dist_an = torch.cat(dist_an)
+        dist_ap = _concat(dist_ap)
+        dist_an = _concat(dist_an)
         # Compute ranking hinge loss
         # y = dist_an.data.new()
         # y.resize_as_(dist_an.data)
@@ -253,6 +290,14 @@ class TripletLoss(nn.Module):
             return loss, prec, dist
         else:
             return loss, prec, dist, dist_ap, dist_an
+
+
+def _concat(l):
+    l0 = l[0]
+    if l0.shape == ():
+        return torch.stack(l )
+    else:
+        return torch.cat(l)
 
 
 def get_replay_ind(posp_inds, negp_inds, diff):

@@ -55,7 +55,7 @@ def run(_):
                                   # ok=range(3,4),
                                   ok=range(4),
                                   mem=[0.12, 0.05], sleep=32.3)
-            args.gpu = (3,)
+            # args.gpu = (0,)
             # args.batch_size = 16
 
         if isinstance(args.gpu, int):
@@ -249,7 +249,7 @@ def main(args):
         return 0
 
     # Criterion
-    criterion = [TripletLoss(margin=args.margin, mode=args.mode)]
+    criterion = [TripletLoss(margin=args.margin, mode=args.mode), ]
     criterion = [c.cuda() for c in criterion]
 
     # Optimizer

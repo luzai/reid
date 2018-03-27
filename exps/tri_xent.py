@@ -54,7 +54,7 @@ def run(_):
                                   # ok=range(3,4),
                                   ok=range(4),
                                   mem=[0.12, 0.05], sleep=32.3)
-            args.gpu = (1, )
+            # args.gpu = (1, )
             # args.batch_size = 16
 
         if isinstance(args.gpu, int):
