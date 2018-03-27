@@ -26,7 +26,7 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='cuhk03label.res.center',
+        logs_dir='cuhk03label.center.mining',
         arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
         dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
         lr=3e-4, margin=0.5, area=(0.85, 1),
@@ -36,35 +36,35 @@ cfgs = [
         dataset_mode='label',
         dropout=0, loss='tri_center',
         cls_weight=0, tri_weight=1,
-        random_ratio=1, fusion=None, lr_cent = 1e3, weight_cent=5e-4
+        random_ratio=1, fusion=None, lr_cent=1e3, weight_cent=5e-4
     ),
-    edict(
-        logs_dir='cuhk03label.xent',
-        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-        dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=8,
-        dataset_mode='label', xent_smooth=False,
-        dropout=0, loss='xent',
-        cls_weight=0, tri_weight=1,
-        random_ratio=1, fusion=None,
-    ),
+    # edict(
+    #     logs_dir='cuhk03label.xent.bs32',
+    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     batch_size=32, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8,
+    #     dataset_mode='label', xent_smooth=False,
+    #     dropout=0, loss='xent',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, fusion=None,
+    # ),
 
-    edict(
-        logs_dir='cuhk03label.xent.smooth',
-        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-        dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=8,
-        dataset_mode='label', xent_smooth=True,
-        dropout=0, loss='xent',
-        cls_weight=0, tri_weight=1,
-        random_ratio=1, fusion=None,
-    ),
+    # edict(
+    #     logs_dir='cuhk03label.xent.smooth',
+    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     steps=[40, 60], epochs=65,
+    #     workers=8,
+    #     dataset_mode='label', xent_smooth=True,
+    #     dropout=0, loss='xent',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, fusion=None,
+    # ),
 
     # edict(
     #     logs_dir='cuhk03label.res.quin',
@@ -109,19 +109,19 @@ cfgs = [
     #     # evaluate=True, resume='/data1/xinglu/prj/open-reid/exps/work.3.8/market1501.res/model_best.pth'
     # ),
 
-    # edict(
-    #     logs_dir='market1501.xent',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-    #     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8, dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     loss='xent',
-    #     random_ratio=1, fusion=None, xent_smooth=False,
-    #     # evaluate=True, resume='/data1/xinglu/prj/open-reid/exps/work.3.8/market1501.res/model_best.pth'
-    # ),
+    edict(
+        logs_dir='market1501.xent.32',
+        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+        dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+        lr=3e-4, margin=0.5, area=(0.85, 1),
+        batch_size=32, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=8, dropout=0,
+        cls_weight=0, tri_weight=1,
+        loss='xent',
+        random_ratio=1, fusion=None, xent_smooth=False,
+        # evaluate=True, resume='/data1/xinglu/prj/open-reid/exps/work.3.8/market1501.res/model_best.pth'
+    ),
     #
     # edict(
     #     logs_dir='market1501.xent.smooth',

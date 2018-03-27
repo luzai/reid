@@ -1,4 +1,3 @@
-from lz import *
 from collections import OrderedDict
 from .utils.data.sampler import *
 from torch.utils.data import DataLoader
@@ -6,7 +5,7 @@ from .utils.data.preprocessor import *
 from .evaluation_metrics import cmc, mean_ap
 from .feature_extraction import *
 from .utils.meters import AverageMeter
-from rerank import *
+from reid.utils.rerank import *
 
 
 def extract_features(model, data_loader, print_freq=1, limit=None, ):

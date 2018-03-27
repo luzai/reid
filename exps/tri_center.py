@@ -49,12 +49,12 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu),
-                                  # ok=range(3,4),
-                                  ok=range(4),
-                                  mem=[0.12, 0.05], sleep=32.3)
+            # args.gpu = lz.get_dev(n=len(args.gpu),
+            #                       # ok=range(3,4),
+            #                       ok=range(4),
+            #                       mem=[0.11, 0.05], sleep=32.3)
             # args.batch_size = 64
-            # args.gpu = (1,)
+            args.gpu = (2, 3)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -75,41 +75,24 @@ def run(_):
 
 
 def get_data(args):
-    (
-        name, split_id,
-        data_dir, height, width,
-        batch_size, num_instances,
-        workers, combine_trainval
-    ) = (
+    (name, split_id,
+     data_dir, height, width,
+     batch_size, num_instances,
+     workers, combine_trainval) = (
         args.dataset, args.split,
         args.data_dir, args.height, args.width,
         args.batch_size, args.num_instances,
-        args.workers, args.combine_trainval,
-    )
+        args.workers, args.combine_trainval,)
     pin_memory = args.pin_mem
     name_val = args.dataset_val
     npy = args.has_npy
     rand_ratio = args.random_ratio
 
-    # if isinstance(name, list) and len(name) != 1:
-    #     names = name
-    #     root = '/home/xinglu/.torch/data/'
-    #     roots = [root + name_ for name_ in names]
-    #     dataset = datasets.creates(name, roots=roots)
-    # else:
     root = osp.join(data_dir, name)
     dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
 
-    # if isinstance(name_val, list) and len(name_val) != 1:
-    #     raise NotImplementedError
-    # else:
     root = osp.join(data_dir, name_val)
     dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
-    # if name_val == 'market1501':
-    #     lim_query = cvb.load(work_path + '/mk.query.pkl')
-    #     dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
-    #     lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
-    #     dataset_val.gallery = [ds for ds in dataset_val.gallery if ds[0] in lim_gallery + lim_query]
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -138,14 +121,11 @@ def get_data(args):
             train_set, num_instances,
             batch_size=batch_size,
             rand_ratio=rand_ratio,
-            dop_file=args.logs_dir + '/dop.h5'
+            dop_file=args.logs_dir + '/dop.h5',
+            criterion_cent=None
         ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
-
-    # fnames = np.asarray(train_set)[:, 0]
-    # fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
-    # setattr(train_loader, 'fname2ind', fname2ind)
 
     val_loader = DataLoader(
         Preprocessor(dataset_val.val, root=dataset_val.images_dir,
@@ -254,13 +234,7 @@ def main(args):
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
-
-    # for param in itertools.chain(model.module.base.parameters(),
-    #                              model.module.feat.parameters(),
-    #                              model.module.feat_bn.parameters(),
-    #                              model.module.classifier.parameters()
-    #                              ):
-    #     param.requires_grad = False
+    train_loader.sampler.criterion_cent = criterion[1]
     slow_params = []
     for name, param in model.named_parameters():
         if 'conv_offset' in name:
@@ -271,7 +245,7 @@ def main(args):
         {'params': slow_params, 'lr_mult': args.lr_mult},
         {'params': normal_params, 'lr_mult': 1.},
     ]
-    if  'center' in args.loss :
+    if 'center' in args.loss:
         optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(

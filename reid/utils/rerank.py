@@ -26,7 +26,8 @@ import numpy as np
 from scipy.spatial.distance import cdist
 
 
-def re_ranking(probFea, galFea, k1, k2, lambda_value, MemorySave=False, Minibatch=2000):
+def re_ranking(probFea, galFea, k1=20, k2=6, lambda_value=0.3,
+               MemorySave=False, Minibatch=2000):
     query_num = probFea.shape[0]
     all_num = query_num + galFea.shape[0]
     feat = np.append(probFea, galFea, axis=0)
@@ -45,10 +46,18 @@ def re_ranking(probFea, galFea, k1, k2, lambda_value, MemorySave=False, Minibatc
             i = it
     else:
         original_dist = cdist(feat, feat).astype(np.float16)
+        print(original_dist.max())
         original_dist = np.power(original_dist, 2).astype(np.float16)
+        print(original_dist.max())
     del feat
     gallery_num = original_dist.shape[0]
-    original_dist = np.transpose(original_dist / np.max(original_dist, axis=0))
+    print(np.max(original_dist, axis=0))
+    original_dist = np.transpose(original_dist /
+                                 (
+                                 np.max(original_dist, axis=0) + 1e-12
+                                 )
+                                 )
+
     V = np.zeros_like(original_dist).astype(np.float16)
     initial_rank = np.argsort(original_dist).astype(np.int32)
 
@@ -104,4 +113,3 @@ def re_ranking(probFea, galFea, k1, k2, lambda_value, MemorySave=False, Minibatc
     del jaccard_dist
     final_dist = final_dist[:query_num, query_num:]
     return final_dist
-
