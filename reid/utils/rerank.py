@@ -46,12 +46,12 @@ def re_ranking(probFea, galFea, k1=20, k2=6, lambda_value=0.3,
             i = it
     else:
         original_dist = cdist(feat, feat).astype(np.float16)
-        print(original_dist.max())
+        # print(original_dist.max())
         original_dist = np.power(original_dist, 2).astype(np.float16)
-        print(original_dist.max())
+        # print(original_dist.max())
     del feat
     gallery_num = original_dist.shape[0]
-    print(np.max(original_dist, axis=0))
+    # print(np.max(original_dist, axis=0))
     original_dist = np.transpose(original_dist /
                                  (
                                  np.max(original_dist, axis=0) + 1e-12

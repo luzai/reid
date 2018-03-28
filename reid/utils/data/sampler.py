@@ -108,8 +108,11 @@ class RandomIdentityWeightedSampler(Sampler):
                 pids_next = []
                 for pid in pids_now:
                     pids_next.append(
-                        rank_indices[pid][0]
+                        rank_indices[pid][1]
                     )
+                    # print(pid)
+                    # print(rank_indices[pid])
+                    # print(dist[pid][rank_indices[pid]])
                 pids.extend(pids_next)
                 pids_now = pids_next
 

@@ -39,7 +39,7 @@ def run(_):
             args.epochs = 3
             args.batch_size = 16
         args.log_at = np.concatenate([
-            args.log_at,
+            range(21, 640, 21),
             range(args.epochs - 8, args.epochs, 1)
         ])
         if args.evaluate:
@@ -89,12 +89,6 @@ def get_data(args):
     npy = args.has_npy
     rand_ratio = args.random_ratio
 
-    # if isinstance(name, list) and len(name) != 1:
-    #     names = name
-    #     root = '/home/xinglu/.torch/data/'
-    #     roots = [root + name_ for name_ in names]
-    #     dataset = datasets.creates(name, roots=roots)
-    # else:
     root = osp.join(data_dir, name)
     dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
 
@@ -103,11 +97,6 @@ def get_data(args):
     # else:
     root = osp.join(data_dir, name_val)
     dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
-    # if name_val == 'market1501':
-    #     lim_query = cvb.load(work_path + '/mk.query.pkl')
-    #     dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
-    #     lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
-    #     dataset_val.gallery = [ds for ds in dataset_val.gallery if ds[0] in lim_gallery + lim_query]
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -132,13 +121,7 @@ def get_data(args):
                      transform=train_transformer,
                      has_npy=npy),
         batch_size=batch_size, num_workers=workers,
-        sampler=RandomIdentityWeightedSampler(
-            train_set, num_instances,
-            batch_size=batch_size,
-            rand_ratio=rand_ratio,
-            dop_file=args.logs_dir + '/dop.h5'
-        ),
-        # shuffle=True,
+        shuffle=True,
         pin_memory=pin_memory, drop_last=True)
 
     # fnames = np.asarray(train_set)[:, 0]
@@ -261,14 +244,14 @@ def main(args):
     #                              model.module.classifier.parameters()
     #                              ):
     #     param.requires_grad = False
-    slow_params = []
+    fast_params = []
     for name, param in model.named_parameters():
-        if 'conv_offset' in name:
-            slow_params.append(param)
-    slow_params_ids = set(map(id, slow_params))
+        if name == 'module.post2.2.weight' or name == 'module.post3.0.weight':
+            fast_params.append(param)
+    slow_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in slow_params_ids]
     param_groups = [
-        {'params': slow_params, 'lr_mult': args.lr_mult},
+        {'params': fast_params, 'lr_mult': 10.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.loss == 'center':
@@ -281,7 +264,8 @@ def main(args):
             weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(
-            filter(lambda p: p.requires_grad, model.parameters()),
+            # filter(lambda p: p.requires_grad, model.parameters()),
+            param_groups,
             lr=args.lr,
             weight_decay=args.weight_decay, momentum=0.9,
             nesterov=True)
@@ -344,37 +328,8 @@ def main(args):
 
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
-        # if args.hard_examples:
-        #     # Use sequential train set loader
-        #     data_loader = DataLoader(
-        #         Preprocessor(dataset.train, root=dataset.images_dir,
-        #                      transform=val_loader.dataset.transform),
-        #         batch_size=args.batch_size, num_workers=args.workers,
-        #         shuffle=False, pin_memory=False)
-        #     # Mine hard triplet examples, index of [(anchor, pos, neg), ...]
-        #     triplets = mine_hard_triplets(model,
-        #                                   data_loader, margin=args.margin, batch_size=args.batch_size)
-        #     print("Mined {} hard example triplets".format(len(triplets)))
-        #     # Build a hard examples loader
-        #     train_loader = DataLoader(
-        #         train_loader.dataset,
-        #         batch_size=train_loader.batch_size,
-        #         num_workers=train_loader.num_workers,
-        #         sampler=SubsetRandomSampler(np.unique(np.asarray(triplets).ravel())),
-        #         pin_memory=True, drop_last=True)
 
-        # train_loader = DataLoader(
-        #     Preprocessor(dataset.trainval, root=dataset.images_dir,
-        #                  transform=train_loader.dataset.transform,
-        #                  has_npy=False),
-        #     batch_size=args.batch_size, num_workers=args.workers,
-        #     sampler=RandomIdentityWeightedSampler(dataset.trainval, args.num_instances, batch_size=args.batch_size),
-        #     pin_memory=True, drop_last=True)
-        if args.loss == 'center':
-            hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule,
-                                 optimizer_cent=optimizer_cent)
-        else:
-            hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule)
+        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule)
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)

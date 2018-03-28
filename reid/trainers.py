@@ -667,7 +667,7 @@ class XentTrainer(object):
             loss, prec = self._forward(inputs, targets, cids)
             if isinstance(targets, tuple):
                 targets, _ = targets
-            losses.update(loss.data[0], targets.size(0))
+            losses.update(to_numpy(loss), targets.size(0))
             precisions.update(prec, targets.size(0))
 
             optimizer.zero_grad()
