@@ -7,10 +7,6 @@ from .common import _make_conv
 
 import sys
 
-sys.path.insert(0, '/data1/xinglu/prj/deformable-convolution-pytorch/')
-from modules import ConvOffset2d
-from functions import conv_offset2d
-
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -169,48 +165,6 @@ class UnetBlock(nn.Module):
 
     def forward(self, x):
         return x + self.model(x)
-
-
-# deform conv
-class DeformConv(nn.Module):
-    def __init__(self, in_channels, out_channels,
-                 kernel_size, stride=1, padding=0, bias=False,
-                 num_deformable_groups=1,
-                 unet_rep=0):
-        super(DeformConv, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self.bias = bias
-        self.unet_rep = unet_rep
-        if unet_rep == 0:
-            self.conv_offset = nn.Conv2d(in_channels,
-                                         num_deformable_groups * 2 * kernel_size * kernel_size,
-                                         kernel_size=kernel_size,
-                                         stride=stride, padding=padding, bias=bias)
-        else:
-            self.conv_offset = Unet(in_channels,
-                                    num_deformable_groups * 2 * kernel_size * kernel_size, rep=unet_rep)
-        self.conv = ConvOffset2d(in_channels, out_channels, stride=stride, padding=padding,
-                                 kernel_size=kernel_size,
-                                 num_deformable_groups=num_deformable_groups)
-        self.weight = self.conv.weight
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        n = self.in_channels * self.kernel_size * self.kernel_size
-        stdv = 1. / math.sqrt(n)
-        reset_params(self.conv_offset, True)
-        if self.bias:
-            self.conv_offset.bias.data.zero_()
-        self.conv.weight.data.uniform_(-stdv, stdv)
-
-    def forward(self, x):
-        offset = self.conv_offset(x)
-        output = self.conv(x, offset)
-        return output
 
 
 def get_norm(x):
@@ -444,156 +398,6 @@ class AttResBottleneck(nn.Module):
         return out
 
 
-class DeformBottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, **kwargs):
-        super(DeformBottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = DeformConv(planes,
-                                planes,
-                                kernel_size=3, stride=stride,
-                                padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * 4)
-        self.relu = nn.ReLU(inplace=True)
-        if downsample is not None:
-            self.downsample = nn.Sequential(
-                nn.Conv2d(downsample[0], downsample[1],
-                          kernel_size=1, stride=downsample[2], bias=False),
-                nn.BatchNorm2d(downsample[1]),
-            )
-        else:
-            self.downsample = None
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-
-
-class UnetDeformBottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, **kwargs):
-        super(UnetDeformBottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = DeformConv(planes,
-                                planes,
-                                kernel_size=3, stride=stride,
-                                padding=1, bias=False, unet_rep=2)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * 4)
-        self.relu = nn.ReLU(inplace=True)
-        if downsample is not None:
-            self.downsample = nn.Sequential(
-                nn.Conv2d(downsample[0], downsample[1],
-                          kernel_size=1, stride=downsample[2], bias=False),
-                nn.BatchNorm2d(downsample[1]),
-            )
-        else:
-            self.downsample = None
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-
-
-class SEDeformBottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=16, **kwargs):
-        super(SEDeformBottleneck, self).__init__()
-
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.se = SELayer(planes, reduction)
-        self.conv2 = DeformConv(planes,
-                                planes,
-                                kernel_size=3, stride=stride,
-                                padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * 4)
-        # self.se = SELayer(planes * 4, reduction)
-        self.relu = nn.ReLU(inplace=True)
-        if downsample is not None:
-            self.downsample = nn.Sequential(
-                nn.Conv2d(downsample[0], downsample[1],
-                          kernel_size=1, stride=downsample[2], bias=False),
-                nn.BatchNorm2d(downsample[1]),
-            )
-        else:
-            self.downsample = None
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.se(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-        # out = self.se(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-        # out = self.se(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-
-
 class RIRBottleneck(nn.Module):
     expansion = 4
 
@@ -764,7 +568,282 @@ class SERIRBasicBlock(nn.Module):
         return torch.cat((residual, transient), dim=1).contiguous()
 
 
-class ResNet(nn.Module):
+class ResNetOri(nn.Module):
+    __factory = {
+        '18': [2, 2, 2, 2],
+        '34': [3, 4, 6, 3],
+        '50': [3, 4, 6, 3],
+        '101': [3, 4, 23, 3],
+        '152': [3, 8, 36, 3],
+    }
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        if not isinstance(block, list):
+            block = [block] * blocks
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block[0].expansion:
+            downsample = (self.inplanes, planes * block[0].expansion, stride)
+            # downsample = nn.Sequential(
+            #     nn.Conv2d(self.inplanes, planes * block[0].expansion,
+            #               kernel_size=1, stride=stride, bias=False),
+            #     nn.BatchNorm2d(planes * block[0].expansion),
+            # )
+
+        layers = []
+        layers.append(block[0](self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block[0].expansion
+        for i in range(1, blocks):
+            layers.append(block[i](self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def __init__(self, depth=50, pretrained=True,
+                 cut_at_pooling=False,
+                 num_features=0, dropout=0,
+                 num_classes=0, block_name='Bottleneck',
+                 block_name2='Bottleneck',
+                 num_deform=3, fusion=None,
+                 **kwargs):
+        super(ResNetOri, self).__init__()
+        depth = str(depth)
+        self.depth = depth
+        self.inplanes = 64
+        self.pretrained = pretrained
+        self.cut_at_pooling = cut_at_pooling
+
+        self.dropout = dropout
+        self.num_classes = num_classes
+        self.num_features = num_features
+
+        # Construct base (pretrained) resnet
+        if depth not in ResNetOri.__factory:
+            raise KeyError("Unsupported depth:", depth)
+        layers = ResNetOri.__factory[depth]
+        block = eval(block_name)
+        block2 = eval(block_name2)
+        self.out_planes = 512 * block2.expansion
+        logging.info(f'out_planes is {self.out_planes}')
+        self.conv1 = nn.Conv2d(3, 64,
+                               kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        if num_deform > 3:
+            self.layer3 = self._make_layer([block] * 3 + [block2] * (num_deform - 3), 256, layers[2],
+                                           stride=2)
+            self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=2)
+        else:
+            self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
+            self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
+                                           layers[3], stride=2)
+        self.post1 = nn.AdaptiveAvgPool2d(1)
+
+        self.post2 = nn.Sequential(
+            nn.BatchNorm1d(self.out_planes),
+            nn.ReLU(),
+            # nn.Dropout(0.45),
+            nn.Linear(self.out_planes, self.num_features, bias=False),
+        )
+        reset_params(self.post2)
+
+        self.post3 = nn.Sequential(
+            # nn.Dropout(self.dropout),
+            nn.Linear(self.num_features, self.num_classes, bias=False),
+        )
+
+        reset_params(self.post1)
+        reset_params(self.post3)
+
+        if pretrained:
+            if 'SE' in block_name or 'SE' in block_name2:
+                logging.info('load senet')
+                state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
+                    'state_dict']
+                load_state_dict(self, state_dict, own_de_prefix='module.')
+            else:
+                logging.info('load resnet')
+                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+
+    def forward(self, x):
+        bs = x.size(0)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x1 = self.layer1(x)
+        if isinstance(x1, tuple):
+            x1, y1 = x1
+            x2, y2 = self.layer2(x1)
+            x3, y3 = self.layer3(x2)
+            x4, y4 = self.layer4(x3)
+            x4 = self.post1(x4).view(bs, -1)
+
+            y1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
+            y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
+            y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
+        else:
+            x2 = self.layer2(x1)
+            x3 = self.layer3(x2)
+            x4 = self.layer4(x3)
+            x4 = self.post1(x4).view(bs, -1)
+
+        x5 = self.post2(x4)
+
+        x2 = self.post3(
+            # Variable(x5.data),
+            x5
+        )
+
+        return x5, x2
+
+
+from reid.models.attention import MaskBranch
+
+
+class ResNetMaskCascade(nn.Module):
+    __factory = {
+        '18': [2, 2, 2, 2],
+        '34': [3, 4, 6, 3],
+        '50': [3, 4, 6, 3],
+        '101': [3, 4, 23, 3],
+        '152': [3, 8, 36, 3],
+    }
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        if not isinstance(block, list):
+            block = [block] * blocks
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block[0].expansion:
+            downsample = (self.inplanes, planes * block[0].expansion, stride)
+
+        layers = []
+        layers.append(block[0](self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block[0].expansion
+        for i in range(1, blocks):
+            layers.append(block[i](self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def __init__(self, depth=50, pretrained=True,
+                 cut_at_pooling=False,
+                 num_features=0, dropout=0,
+                 num_classes=0, block_name='Bottleneck',
+                 block_name2='Bottleneck',
+                 num_deform=3, fusion=None,
+                 **kwargs):
+        super(ResNetMaskCascade, self).__init__()
+        depth = str(depth)
+        self.depth = depth
+        self.inplanes = 64
+        self.pretrained = pretrained
+        self.cut_at_pooling = cut_at_pooling
+
+        self.dropout = dropout
+        self.num_classes = num_classes
+        self.num_features = num_features
+
+        # Construct base (pretrained) resnet
+        if depth not in ResNetMaskCascade.__factory:
+            raise KeyError("Unsupported depth:", depth)
+        layers = ResNetMaskCascade.__factory[depth]
+        block = eval(block_name)
+        block2 = eval(block_name2)
+        self.out_planes = 512 * block2.expansion
+        logging.info(f'out_planes is {self.out_planes}')
+        self.conv1 = nn.Conv2d(3, 64,
+                               kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        if num_deform > 3:
+            self.layer3 = self._make_layer([block] * 3 + [block2] * (num_deform - 3), 256, layers[2],
+                                           stride=2)
+            self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=2)
+        else:
+            self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
+            self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
+                                           layers[3], stride=2)
+        self.post1 = nn.AdaptiveAvgPool2d(1)
+
+        self.branch1 = MaskBranch(256, height=64, width=32, )
+        self.branch2 = MaskBranch(512, height=32, width=16, )
+        self.branch3 = MaskBranch(1024, height=16, width=8, )
+        self.branch4 = MaskBranch(2048, height=8, width=4, )
+
+        self.post2 = nn.Sequential(
+            nn.BatchNorm1d(self.out_planes + 1024 + 512 + 256),
+            nn.ReLU(),
+            nn.Linear(self.out_planes + 1024 + 512 + 256
+                      , self.num_features, bias=False),
+        )
+        reset_params(self.post2)
+
+        self.post3 = nn.Sequential(
+            # nn.Dropout(self.dropout),
+            nn.Linear(self.num_features, self.num_classes, bias=False),
+        )
+
+        reset_params(self.post1)
+        reset_params(self.post3)
+
+        if pretrained:
+            if 'SE' in block_name or 'SE' in block_name2:
+                logging.info('load senet')
+                state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
+                    'state_dict']
+                load_state_dict(self, state_dict, own_de_prefix='module.')
+            else:
+                logging.info('load resnet')
+                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+
+    def forward(self, x):
+        bs = x.size(0)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x1 = self.layer1(x)
+        if isinstance(x1, tuple):
+            x1, y1 = x1
+            x2, y2 = self.layer2(x1)
+            x3, y3 = self.layer3(x2)
+            x4, y4 = self.layer4(x3)
+
+            y1 = self.branch1(y1)
+            y2 = self.branch2(y2)
+            y3 = self.branch3(y3)
+            y4 = self.branch4(y4)
+
+            y1 = F.adaptive_avg_pool2d(y1, 1).view(bs, -1)
+            y2 = F.adaptive_avg_pool2d(y2, 1).view(bs, -1)
+            y3 = F.adaptive_avg_pool2d(y3, 1).view(bs, -1)
+            y4 = F.adaptive_avg_pool2d(y4, 1).view(bs, -1)
+
+            x4 = torch.cat([y1, y2, y3, y4], axis=1)
+
+        else:
+            x2 = self.layer2(x1)
+            x3 = self.layer3(x2)
+            x4 = self.layer4(x3)
+            x4 = self.post1(x4).view(bs, -1)
+
+        x5 = self.post2(x4)
+
+        x2 = self.post3(
+            # Variable(x5.data),
+            x5
+        )
+
+        return x5, x2
+
+
+class ResNetCascade(nn.Module):
     __factory = {
         '18': [2, 2, 2, 2],
         '34': [3, 4, 6, 3],
@@ -800,7 +879,7 @@ class ResNet(nn.Module):
                  block_name2='Bottleneck',
                  num_deform=3, fusion=None,  # 'sum' , 'concat'
                  **kwargs):
-        super(ResNet, self).__init__()
+        super(ResNetCascade, self).__init__()
         depth = str(depth)
         self.depth = depth
         self.fusion = fusion
@@ -813,9 +892,9 @@ class ResNet(nn.Module):
         self.num_features = num_features
 
         # Construct base (pretrained) resnet
-        if depth not in ResNet.__factory:
+        if depth not in ResNetCascade.__factory:
             raise KeyError("Unsupported depth:", depth)
-        layers = ResNet.__factory[depth]
+        layers = ResNetCascade.__factory[depth]
         block = eval(block_name)
         block2 = eval(block_name2)
         self.out_planes = 512 * block2.expansion
@@ -934,6 +1013,211 @@ class ResNet(nn.Module):
         return x5, x2
 
 
+def resnet50(**kwargs):
+    fusion = kwargs.get('fusion')
+    if fusion == 'maskconcat':
+        return ResNetMaskCascade(50, **kwargs)
+    else:
+        return ResNetCascade(50, **kwargs)
+
+
+'''
+
+sys.path.insert(0, '/data1/xinglu/prj/deformable-convolution-pytorch/')
+from modules import ConvOffset2d
+from functions import conv_offset2d
+
+class DeformBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, **kwargs):
+        super(DeformBottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = DeformConv(planes,
+                                planes,
+                                kernel_size=3, stride=stride,
+                                padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class UnetDeformBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, **kwargs):
+        super(UnetDeformBottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = DeformConv(planes,
+                                planes,
+                                kernel_size=3, stride=stride,
+                                padding=1, bias=False, unet_rep=2)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class SEDeformBottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=16, **kwargs):
+        super(SEDeformBottleneck, self).__init__()
+
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.se = SELayer(planes, reduction)
+        self.conv2 = DeformConv(planes,
+                                planes,
+                                kernel_size=3, stride=stride,
+                                padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        # self.se = SELayer(planes * 4, reduction)
+        self.relu = nn.ReLU(inplace=True)
+        if downsample is not None:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(downsample[0], downsample[1],
+                          kernel_size=1, stride=downsample[2], bias=False),
+                nn.BatchNorm2d(downsample[1]),
+            )
+        else:
+            self.downsample = None
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.se(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+        # out = self.se(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+        # out = self.se(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+# deform conv
+class DeformConv(nn.Module):
+    def __init__(self, in_channels, out_channels,
+                 kernel_size, stride=1, padding=0, bias=False,
+                 num_deformable_groups=1,
+                 unet_rep=0):
+        super(DeformConv, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.bias = bias
+        self.unet_rep = unet_rep
+        if unet_rep == 0:
+            self.conv_offset = nn.Conv2d(in_channels,
+                                         num_deformable_groups * 2 * kernel_size * kernel_size,
+                                         kernel_size=kernel_size,
+                                         stride=stride, padding=padding, bias=bias)
+        else:
+            self.conv_offset = Unet(in_channels,
+                                    num_deformable_groups * 2 * kernel_size * kernel_size, rep=unet_rep)
+        self.conv = ConvOffset2d(in_channels, out_channels, stride=stride, padding=padding,
+                                 kernel_size=kernel_size,
+                                 num_deformable_groups=num_deformable_groups)
+        self.weight = self.conv.weight
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        n = self.in_channels * self.kernel_size * self.kernel_size
+        stdv = 1. / math.sqrt(n)
+        reset_params(self.conv_offset, True)
+        if self.bias:
+            self.conv_offset.bias.data.zero_()
+        self.conv.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, x):
+        offset = self.conv_offset(x)
+        output = self.conv(x, offset)
+        return output
+
 def resnet18(**kwargs):
     return ResNet(18, **kwargs)
 
@@ -941,9 +1225,6 @@ def resnet18(**kwargs):
 def resnet34(**kwargs):
     return ResNet(34, **kwargs)
 
-
-def resnet50(**kwargs):
-    return ResNet(50, **kwargs)
 
 
 def resnet101(**kwargs):
@@ -954,7 +1235,6 @@ def resnet152(**kwargs):
     return ResNet(152, **kwargs)
 
 
-'''
 def get_loss_div(theta):
     norm = theta.norm(p=2, dim=1, keepdim=True)
     theta = theta / norm

@@ -51,12 +51,12 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu),
-                                  # ok=range(3,4),
-                                  ok=range(4),
-                                  mem=[0.12, 0.05], sleep=32.3)
-            # args.gpu = (0,)
-            # args.batch_size = 16
+            # args.gpu = lz.get_dev(n=len(args.gpu),
+            #                       # ok=range(3,4),
+            #                       ok=range(4),
+            #                       mem=[0.12, 0.05], sleep=32.3)
+            args.gpu = (0,1,)
+            args.batch_size = 16
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -260,14 +260,14 @@ def main(args):
     #                              model.module.classifier.parameters()
     #                              ):
     #     param.requires_grad = False
-    slow_params = []
+    fast_params = []
     for name, param in model.named_parameters():
-        if 'conv_offset' in name:
-            slow_params.append(param)
-    slow_params_ids = set(map(id, slow_params))
-    normal_params = [p for p in model.parameters() if id(p) not in slow_params_ids]
+        if name == 'module.post2.2.weight' or name == 'module.post3.0.weight':
+            fast_params.append(param)
+    fast_params_ids = set(map(id, fast_params))
+    normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': slow_params, 'lr_mult': args.lr_mult},
+        {'params': fast_params, 'lr_mult': 10.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.optimizer == 'adam':
@@ -278,7 +278,8 @@ def main(args):
             weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(
-            filter(lambda p: p.requires_grad, model.parameters()),
+            # filter(lambda p: p.requires_grad, model.parameters()),
+            param_groups,
             lr=args.lr,
             weight_decay=args.weight_decay, momentum=0.9,
             nesterov=True)

@@ -9,24 +9,27 @@ from reid.models.common import _make_fc, _make_conv
 
 
 class MaskBranch(nn.Module):
-    def __init__(self, in_planes, branch_dim, height, width, dopout=0.3):
+    def __init__(self, in_planes, branch_dim=None, height=64, width=32, dopout=0):
         super(MaskBranch, self).__init__()
         self.height = height
         self.width = width
+        self.branch_dim = branch_dim
         # self.branch_left[0][1].bias
         self.branch_left = nn.Sequential(
             _make_conv(in_planes, 1, with_relu=False),
             nn.Sigmoid()
         )
         self.pool = nn.AvgPool2d((self.height, self.width))
-        self.fc = _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
+        if self.branch_dim:
+            self.fc = _make_fc(in_planes, branch_dim, with_relu=False, dp_=dopout)
 
     def forward(self, x):
         x_left = self.branch_left(x)
         x_merge = x * x_left
         x_merge = self.pool(x_merge)
         x_merge = x_merge.view(x_merge.size(0), -1)
-        x_merge = self.fc(x_merge)
+        if self.branch_dim:
+            x_merge = self.fc(x_merge)
         return x_merge
 
 

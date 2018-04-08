@@ -39,7 +39,7 @@ def run(_):
             args.epochs = 3
             args.batch_size = 16
         args.log_at = np.concatenate([
-            range(21, 640, 21),
+            range(3, 640, 21),
             range(args.epochs - 8, args.epochs, 1)
         ])
         if args.evaluate:
@@ -248,14 +248,12 @@ def main(args):
     for name, param in model.named_parameters():
         if name == 'module.post2.2.weight' or name == 'module.post3.0.weight':
             fast_params.append(param)
-    slow_params_ids = set(map(id, fast_params))
-    normal_params = [p for p in model.parameters() if id(p) not in slow_params_ids]
+    fast_params_ids = set(map(id, fast_params))
+    normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
         {'params': fast_params, 'lr_mult': 10.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
-    if args.loss == 'center':
-        optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             # model.parameters(),
