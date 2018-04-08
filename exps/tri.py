@@ -1,6 +1,6 @@
 import sys
 
-sys.path.insert(0, '/data1/xinglu/prj/luzai-tool')
+# sys.path.insert(0, '/data1/xinglu/prj/luzai-tool')
 sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 
 from lz import *
@@ -24,11 +24,9 @@ from reid.utils.logging import Logger
 from reid.utils.serialization import *
 
 from tensorboardX import SummaryWriter
-import torchpack
-
 
 def run(_):
-    cfgs = torchpack.load_cfg('./cfgs/single_ohnm.py')
+    cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
         if args.loss != 'tri':
@@ -63,7 +61,7 @@ def run(_):
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
-            cvb.dump(args, args.logs_dir + '/conf.pkl')
+            cvb.dump(args, args.logs_dir + '/conf.pkl') # todo
 
         # main(args)
         proc = mp.Process(target=main, args=(args,))

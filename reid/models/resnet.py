@@ -820,12 +820,7 @@ class ResNetMaskCascade(nn.Module):
             y3 = self.branch3(y3)
             y4 = self.branch4(y4)
 
-            y1 = F.adaptive_avg_pool2d(y1, 1).view(bs, -1)
-            y2 = F.adaptive_avg_pool2d(y2, 1).view(bs, -1)
-            y3 = F.adaptive_avg_pool2d(y3, 1).view(bs, -1)
-            y4 = F.adaptive_avg_pool2d(y4, 1).view(bs, -1)
-
-            x4 = torch.cat([y1, y2, y3, y4], axis=1)
+            x4 = torch.cat([y1, y2, y3, y4], dim=1)
 
         else:
             x2 = self.layer2(x1)
