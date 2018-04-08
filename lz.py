@@ -1,7 +1,4 @@
-try:
-    import torch, tensorflow as tf
-except:
-    print('torch/tf')
+import torch, tensorflow as tf
 import matplotlib
 
 matplotlib.use('TkAgg')
@@ -12,19 +9,18 @@ try:
     import cPickle as pickle
 except:
     import pickle
-import os, sys, csv, time, \
+import os, sys, time, \
     random, os.path as osp, \
-    subprocess, json, pprint, \
+    subprocess, glob, re, \
     numpy as np, pandas as pd, \
-    glob, re, networkx as nx, \
-    h5py, yaml, copy, multiprocessing as mp, \
-    logging, colorlog, cvbase as cvb, \
+    h5py, copy, multiprocessing as mp, \
+    logging, colorlog, \
     shutil, collections, itertools, math, \
-    argparse, string, functools, signal
+    functools, signal
 from easydict import EasyDict as edict
-import subprocess
 
-# import redis
+# import redis, networkx as nx, \
+#  yaml,  subprocess, pprint,json,csv, argparse,string,
 import torch, torchvision
 from torch import nn
 from torch.autograd import Variable
@@ -32,7 +28,6 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
 from IPython import embed
-from IPython.display import display, HTML, SVG
 
 root_path = osp.normpath(
     osp.join(osp.abspath(osp.dirname(__file__)))
@@ -59,6 +54,7 @@ def load_cfg(cfg_file):
     module_name = osp.basename(cfg_file).rstrip('.py')
     cfg = import_module(module_name)
     return cfg
+
 
 # Based on an original idea by https://gist.github.com/nonZero/2907502 and heavily modified.
 class Uninterrupt(object):
@@ -103,6 +99,11 @@ class Uninterrupt(object):
             self.orig_handlers = None
 
 
+def df2md(df1):
+    import tabulate
+    return tabulate.tabulate(df1, headers="keys", tablefmt="pipe")
+
+
 def np_print(arr):
     return '{} \n dtype:{} shape:{}'.format(arr, arr.dtype, arr.shape)
 
@@ -141,6 +142,7 @@ def wrapped_partial(func, *args, **kwargs):
 
 
 def sel_np(A):
+    import json
     dtype = str(A.dtype)
     shape = A.shape
     A = A.ravel().tolist()
@@ -156,12 +158,6 @@ def desel_np(s):
     A = sav['A']
     A = np.array(A, dtype=sav['dtype']).reshape(sav['shape'])
     return A
-
-
-def append_file(line, file=None):
-    file = file or 'append.txt'
-    with open(file, 'a') as  f:
-        f.writelines(line + '\n')
 
 
 def cpu_priority(level=19):
@@ -332,11 +328,6 @@ def to_torch(ndarray):
         raise ValueError("Cannot convert {} to torch tensor"
                          .format(type(ndarray)))
     return ndarray
-
-
-def df2md(df1):
-    import tabulate
-    return tabulate.tabulate(df1, headers="keys", tablefmt="pipe")
 
 
 def to_variable(tn, **kwargs):
@@ -523,31 +514,112 @@ class Database(object):
         return self.fid.keys()
 
 
-def mypickle(data, file_path):
-    mkdir_p(osp.dirname(file_path), delete=False)
-    print('pickle into', file_path)
-    with open(file_path, 'wb') as f:
-        pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
+def pickle_dump(data, file, **kwargs):
+    kwargs.setdefault('protocol', pickle.HIGHEST_PROTOCOL)  # python2 can read 2
+    if isinstance(file, str):
+        mkdir_p(osp.dirname(file), delete=False)
+        print('pickle into', file)
+        with open(file, 'wb') as f:
+            pickle.dump(data, f, **kwargs)
+    elif hasattr(file, 'write'):
+        pickle.dump(data, file, **kwargs)
+    else:
+        raise TypeError("file must be str of file-object")
 
 
-def unpickle(file_path):
-    with open(file_path, 'rb') as f:
-        data = pickle.load(f)
+def pickle_load(file, **kwargs):
+    if isinstance(file, str):
+        with open(file, 'rb') as f:
+            data = pickle.load(f, **kwargs)
+    elif hasattr(file, 'read'):
+        data = pickle.load(file, **kwargs)
     return data
 
 
-def write_df(df, path):
+def dataframe_dump(df, path):
     df.to_hdf(path, 'df', mode='w')
 
 
-def read_df(path):
+def dataframe_load(path):
     return pd.read_hdf(path, 'df')
 
 
-def write_json(obj, filepath):
-    import codecs
-    with codecs.open(filepath, 'a', encoding='utf-8') as fp:
-        json.dump(obj, fp)
+def yaml_load(file, **kwargs):
+    from yaml import Loader
+    import yaml
+    kwargs.setdefault('Loader', Loader)
+    if isinstance(file, str):
+        with open(file, 'r') as f:
+            obj = yaml.load(f, **kwargs)
+    elif hasattr(file, 'read'):
+        obj = yaml.load(file, **kwargs)
+    else:
+        raise TypeError('"file" must be a filename str or a file-object')
+    return obj
+
+
+def yaml_dump(obj, file=None, **kwargs):
+    import yaml
+    from yaml import Dumper
+    kwargs.setdefault('Dumper', Dumper)
+    if file is None:
+        return yaml.dump(obj, **kwargs)
+    elif isinstance(file, str):
+        with open(file, 'w') as f:
+            yaml.dump(obj, f, **kwargs)
+    elif hasattr(file, 'write'):
+        yaml.dump(obj, file, **kwargs)
+    else:
+        raise TypeError('"file" must be a filename str or a file-object')
+
+
+def json_dump(obj, file):
+    import codecs, json
+    if isinstance(file, str):
+        with codecs.open(file, 'a', encoding='utf-8') as fp:
+            json.dump(obj, fp, ensure_ascii=False)
+    elif hasattr(file, 'write'):
+        json.dump(obj, file)
+
+def json_load(file):
+    import json
+    if isinstance(file, str):
+        with open(file, 'r') as f:
+            obj = json.load(f)
+    elif hasattr(file, 'read'):
+        obj = json.load(file)
+    else:
+        raise TypeError('"file" must be a filename str or a file-object')
+    return obj
+
+
+def append_file(line, file=None):
+    file = file or 'append.txt'
+    with open(file, 'a') as  f:
+        f.writelines(line + '\n')
+
+
+def write_list(file, l, sort=True, delimiter=' ', fmt='%.18e'):
+    l = np.array(l)
+    if sort:
+        l = np.sort(l, axis=0)
+    np.savetxt(file, l, delimiter=delimiter, fmt=fmt)
+
+
+class AsyncDumper(mp.Process):
+    def __init__(self):
+        self.queue = mp.Queue()
+        super(AsyncDumper, self).__init__()
+
+    def run(self):
+        while True:
+            data, out_file = self.queue.get()
+            if data is None:
+                break
+            pickle_dump(data, out_file)
+
+    def dump(selfself, obj, filename):
+        self.queue.put((obj, filename))
 
 
 def mkdir_p(path, delete=True):
@@ -642,7 +714,7 @@ def rm(path, block=True):
     used = [0, ]
     for d in dst:
         m = re.match(parsr, d)
-        if not m.groups():
+        if not m:
             used.append(0)
         elif m.groups()[0] == '':
             used.append(0)
@@ -790,13 +862,6 @@ def list2str(li, delimier=''):
     return name
 
 
-def write_list(file, l, sort=True, delimiter=' ', fmt='%.18e'):
-    l = np.array(l)
-    if sort:
-        l = np.sort(l, axis=0)
-    np.savetxt(file, l, delimiter=delimiter, fmt=fmt)
-
-
 def rsync(from_, to):
     cmd = ('rsync -avzP ' + from_ + ' ' + to)
     print(cmd)
@@ -845,4 +910,4 @@ def i_vis_graph(graph_def, max_const_size=32):
 
 
 if __name__ == '__main__':
-    pass
+    print("ok")

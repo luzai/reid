@@ -61,7 +61,8 @@ def run(_):
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
-            cvb.dump(args, args.logs_dir + '/conf.pkl') # todo
+            import cvbase as cvb
+            cvb.dump (args, args.logs_dir + '/conf.pkl') # todo
 
         # main(args)
         proc = mp.Process(target=main, args=(args,))
