@@ -1,7 +1,7 @@
 import torch, tensorflow as tf
 import matplotlib
 
-matplotlib.use('TkAgg')
+# matplotlib.use('TkAgg')
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -9,14 +9,16 @@ try:
     import cPickle as pickle
 except:
     import pickle
+
 import os, sys, time, \
-    random, os.path as osp, \
+    random, \
     subprocess, glob, re, \
     numpy as np, pandas as pd, \
     h5py, copy, multiprocessing as mp, \
     logging, colorlog, \
     shutil, collections, itertools, math, \
-    functools, signal
+    functools, signal, cvbase as cvb
+from os import path as osp
 from easydict import EasyDict as edict
 
 # import redis, networkx as nx, \
@@ -47,6 +49,7 @@ from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 '''
 
+ori_np_err=np.seterr(all='raise')
 
 def load_cfg(cfg_file):
     from importlib import import_module
@@ -306,12 +309,15 @@ def to_numpy(tensor):
     if isinstance(tensor, torch.autograd.Variable):
         tensor = tensor.data
     if torch.is_tensor(tensor):
-        return tensor.cpu().numpy()
-    elif type(tensor).__module__ != 'numpy':
-        raise ValueError("Cannot convert {} to numpy array"
-                         .format(type(tensor)))
-    if tensor.shape == ():
-        return tensor.tolist()
+        tensor = tensor.cpu().numpy()
+    # elif type(tensor).__module__ != 'numpy':
+    #     raise ValueError("Cannot convert {} to numpy array"
+    #                      .format(type(tensor)))
+    tensor = np.asarray(tensor)
+
+    if type(tensor).__module__ == 'numpy' and tensor.shape == ():
+        tensor = [tensor.tolist()]
+        tensor = np.asarray(tensor)
     return tensor
 
 
@@ -580,6 +586,7 @@ def json_dump(obj, file):
             json.dump(obj, fp, ensure_ascii=False)
     elif hasattr(file, 'write'):
         json.dump(obj, file)
+
 
 def json_load(file):
     import json

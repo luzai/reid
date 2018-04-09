@@ -25,6 +25,7 @@ from reid.utils.serialization import *
 
 from tensorboardX import SummaryWriter
 
+
 def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
@@ -49,26 +50,25 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            # args.gpu = lz.get_dev(n=len(args.gpu),
-            #                       # ok=range(3,4),
-            #                       ok=range(4),
-            #                       mem=[0.12, 0.05], sleep=32.3)
-            args.gpu = (0,1,)
-            args.batch_size = 16
+            args.gpu = lz.get_dev(n=len(args.gpu),
+                                  # ok=range(3,4),
+                                  ok=range(4),
+                                  mem=[0.12, 0.05], sleep=32.3)
+            # args.gpu = (0,1,)
+            # args.batch_size = 16
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
-            import cvbase as cvb
-            cvb.dump (args, args.logs_dir + '/conf.pkl') # todo
+            lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
 
         # main(args)
         proc = mp.Process(target=main, args=(args,))
         proc.start()
         lz.logging.info('next')
-        time.sleep(39.46)
+        time.sleep(random.randint(39, 90))
         procs.append(proc)
 
     for proc in procs:

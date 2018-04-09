@@ -644,7 +644,7 @@ class ResNetOri(nn.Module):
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
             nn.ReLU(),
-            # nn.Dropout(0.45),
+            nn.Dropout(self.dropout),
             nn.Linear(self.out_planes, self.num_features, bias=False),
         )
         reset_params(self.post2)
@@ -681,9 +681,6 @@ class ResNetOri(nn.Module):
             x4, y4 = self.layer4(x3)
             x4 = self.post1(x4).view(bs, -1)
 
-            y1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
-            y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
-            y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
         else:
             x2 = self.layer2(x1)
             x3 = self.layer3(x2)
@@ -779,6 +776,7 @@ class ResNetMaskCascade(nn.Module):
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes + 1024 + 512 + 256),
             nn.ReLU(),
+            nn.Dropout(self.dropout),
             nn.Linear(self.out_planes + 1024 + 512 + 256
                       , self.num_features, bias=False),
         )
@@ -819,6 +817,11 @@ class ResNetMaskCascade(nn.Module):
             y2 = self.branch2(y2)
             y3 = self.branch3(y3)
             y4 = self.branch4(y4)
+
+            # y1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
+            # y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
+            # y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
+            # y4 = F.adaptive_avg_pool2d(y4, 1).view(bs, -1)
 
             x4 = torch.cat([y1, y2, y3, y4], dim=1)
 
@@ -1012,8 +1015,10 @@ def resnet50(**kwargs):
     fusion = kwargs.get('fusion')
     if fusion == 'maskconcat':
         return ResNetMaskCascade(50, **kwargs)
-    else:
+    elif fusion == 'concat' or fusion == 'sum':
         return ResNetCascade(50, **kwargs)
+    else:
+        return ResNetOri(50, **kwargs)
 
 
 '''

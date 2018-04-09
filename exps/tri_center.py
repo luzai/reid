@@ -1,6 +1,6 @@
 import sys
 
-sys.path.insert(0, '/data1/xinglu/prj/luzai-tool')
+# sys.path.insert(0, '/data1/xinglu/prj/luzai-tool')
 sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 
 from lz import *
@@ -24,11 +24,10 @@ from reid.utils.logging import Logger
 from reid.utils.serialization import *
 
 from tensorboardX import SummaryWriter
-import torchpack
 
 
 def run(_):
-    cfgs = torchpack.load_cfg('./cfgs/single_ohnm.py')
+    cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
         if args.loss != 'tri_center':
@@ -52,9 +51,9 @@ def run(_):
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   # ok=range(3,4),
                                   ok=range(4),
-                                  mem=[0.05, 0.05], sleep=32.3)
-            # args.batch_size = 64
-            # args.gpu = (2, 3)
+                                  mem=[0.12, 0.05], sleep=32.3)
+            # args.batch_size = 16
+            # args.gpu = (2,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -355,7 +354,7 @@ def main(args):
         # for n, v in res.items():
         #     writer.add_scalar('train/'+n, v, epoch)
 
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
 
@@ -384,7 +383,7 @@ def main(args):
         metric.train(model, train_loader)
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         for n, v in res.items():
-            writer.add_scalar('test/' + n, v, args.epochs + 1)
+            writer.add_scalar('best/' + n, v, args.epochs + 1)
         lz.logging.info('final eval is {}'.format(res))
 
 

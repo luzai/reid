@@ -486,6 +486,7 @@ class TriTrainer(object):
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(to_numpy(loss), targets.size(0))
+            # print(prec)
             precisions.update(to_numpy(prec), targets.size(0))
 
             optimizer.zero_grad()
@@ -563,10 +564,9 @@ class TriCenterTrainer(object):
         if self.tri_weight != 0:
             update_dop(dist, targets, self.dop_file)
 
-        loss2 = self.criterion2(outputs, targets)
-
+        loss2 = self.criterion2(outputs, targets, self.args.weight_dis_cent, self.weight_cent )
         self.iter += 1
-        loss_comb = loss + self.weight_cent * loss2
+        loss_comb = loss + loss2
         return loss_comb, loss, loss2, prec
 
     def train(self, epoch, data_loader, optimizer, optimizer_cent=None, print_freq=5, schedule=None):

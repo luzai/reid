@@ -6,6 +6,7 @@ from .evaluation_metrics import cmc, mean_ap
 from .feature_extraction import *
 from .utils.meters import AverageMeter
 from reid.utils.rerank import *
+import cvbase as cvb
 
 
 def extract_features(model, data_loader, print_freq=1, limit=None, ):
@@ -130,7 +131,7 @@ class Evaluator(object):
         self.distmat = None
         self.conf = conf
 
-    def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
+    def evaluate(self, data_loader, query, gallery, metric=None, epoch=None, **kwargs):
         timer = cvb.Timer()
         timer.start()
         self.model.eval()
@@ -142,8 +143,14 @@ class Evaluator(object):
         features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
         res = {}
-        for rerank in [False, True]:
-            distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+
+        # for rerank in [False, True]:
+        for rerank in [False, ]:
+            try:
+                distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+            except Exception as e:
+                logging.error(e)
+                continue
             self.distmat = to_numpy(distmat)
             # self.conf = 'market1501'
             # db_name = 'det.cat.h5'
@@ -160,8 +167,11 @@ class Evaluator(object):
 
             # with lz.Database(db_name) as db:
             #     print(list(db.keys()))
-
-            mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+            try:
+                mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+            except Exception as e:
+                logging.error(e)
+                continue
             print('Mean AP: {:4.1%}'.format(mAP))
 
             cmc_configs = {
@@ -192,7 +202,7 @@ class Evaluator(object):
                                       {'mAP': mAP,
                                        'top-1': cmc_scores[self.conf][0],
                                        'top-5': cmc_scores[self.conf][4],
-                                       'top-10.rk': cmc_scores[self.conf][9],
+                                       'top-10': cmc_scores[self.conf][9],
                                        }])
         return res
 

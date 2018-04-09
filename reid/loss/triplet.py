@@ -13,6 +13,15 @@ def select(dist, range, descend=True, return_ind=False, global_ind=None):
         return global_ind[dist[range[0]:range[1]]], global_ind[ind[range[0]:range[1]]]
 
 
+def calc_distmat(x, y):
+    num_x = x.size(0)
+    num_y = y.size(0)
+    distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
+              torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
+    distmat.addmm_(1, -2, x, y.t())
+    return distmat
+
+
 class CenterLoss(nn.Module):
     name = 'center'
 
@@ -27,17 +36,18 @@ class CenterLoss(nn.Module):
         else:
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
 
-    def forward(self, x, labels, *kwargs):
+    def forward(self, x, labels, weight_dis_cent=0, weight_cent=0, **kwargs):
         """
         Args:
             x: feature matrix with shape (batch_size, feat_dim).
             labels: ground truth labels with shape (num_classes).
         """
         batch_size = x.size(0)
-        distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(batch_size, self.num_classes) + \
-                  torch.pow(self.centers, 2).sum(dim=1, keepdim=True).expand(self.num_classes, batch_size).t()
-        distmat.addmm_(1, -2, x, self.centers.t())
-
+        # distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(batch_size, self.num_classes) + \
+        #           torch.pow(self.centers, 2).sum(dim=1, keepdim=True).expand(self.num_classes, batch_size).t()
+        # distmat.addmm_(1, -2, x, self.centers.t())
+        distmat = calc_distmat(x, self.centers)
+        # distmat-distmat2
         classes = torch.arange(self.num_classes).long()
         if self.use_gpu: classes = classes.cuda()
         classes = Variable(classes)
@@ -50,8 +60,21 @@ class CenterLoss(nn.Module):
             value = value.clamp(min=1e-12, max=1e+12)  # for numerical stability
             dist.append(value)
         dist = torch.cat(dist)
-        loss = dist.mean()
+        loss_cent = dist.mean()
 
+        centers = self.centers
+
+        distmat2 = calc_distmat(centers, centers.mean(0, keepdim=True))
+        loss_dis2 = distmat2.mean()
+
+        # distmat3 = calc_distmat(centers, centers)
+        # n_centers = centers.shape[0]
+        # loss_dis3 = distmat3.sum() / (n_centers ** 2)
+        # loss_dis3 = loss_dis3 / 2.00
+
+        # print(loss_dis3/loss_dis2)
+
+        loss = weight_cent * loss_cent - weight_dis_cent * loss_dis2
         return loss
 
 
@@ -201,6 +224,7 @@ class CrossEntropyLabelSmooth(nn.Module):
         loss = (- targets * log_probs).mean(0).sum()
         return loss
 
+
 class TripletLoss(nn.Module):
     name = 'tri'
 
@@ -284,7 +308,7 @@ class TripletLoss(nn.Module):
         else:
             y = Variable(to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
         loss = self.ranking_loss(dist_an, dist_ap, y)
-        prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
+        prec = (dist_an.data > dist_ap.data).sum().type(torch.cuda.FloatTensor) / y.size(0)
 
         if not dbg:
             return loss, prec, dist
@@ -295,7 +319,7 @@ class TripletLoss(nn.Module):
 def _concat(l):
     l0 = l[0]
     if l0.shape == ():
-        return torch.stack(l )
+        return torch.stack(l)
     else:
         return torch.cat(l)
 
