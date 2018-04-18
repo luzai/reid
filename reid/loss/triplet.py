@@ -25,11 +25,13 @@ def calc_distmat(x, y):
 class CenterLoss(nn.Module):
     name = 'center'
 
-    def __init__(self, num_classes, feat_dim, use_gpu=True, **kwargs):
+    def __init__(self, num_classes, feat_dim, margin2, margin3, use_gpu=True, **kwargs):
         super(CenterLoss, self).__init__()
         self.num_classes = num_classes
         self.feat_dim = feat_dim
         self.use_gpu = use_gpu
+        self.margin2 = margin2
+        self.margin3 = margin3
 
         if self.use_gpu:
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim).cuda())
@@ -43,6 +45,7 @@ class CenterLoss(nn.Module):
             labels: ground truth labels with shape (num_classes).
         """
         batch_size = x.size(0)
+        ncenters, nfeas = self.centers.size()
         # distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(batch_size, self.num_classes) + \
         #           torch.pow(self.centers, 2).sum(dim=1, keepdim=True).expand(self.num_classes, batch_size).t()
         # distmat.addmm_(1, -2, x, self.centers.t())
@@ -60,21 +63,23 @@ class CenterLoss(nn.Module):
             value = value.clamp(min=1e-12, max=1e+12)  # for numerical stability
             dist.append(value)
         dist = torch.cat(dist)
+        dist -= self.margin2
+        dist = torch.max(dist, torch.zeros(batch_size).cuda())
         loss_cent = dist.mean()
 
         centers = self.centers
-
-        distmat2 = calc_distmat(centers, centers.mean(0, keepdim=True))
+        distmat2 = calc_distmat(centers, centers.mean(0, keepdim=True)).squeeze(1)
+        distmat2 = torch.max(self.margin3 / 2 - distmat2, torch.zeros(ncenters).cuda())
         loss_dis2 = distmat2.mean()
 
-        # distmat3 = calc_distmat(centers, centers)
-        # n_centers = centers.shape[0]
-        # loss_dis3 = distmat3.sum() / (n_centers ** 2)
-        # loss_dis3 = loss_dis3 / 2.00
-
+        distmat3 = calc_distmat(centers, centers)
+        mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
+        distpairs=distmat3[mask]
+        distpairs = torch.max(distpairs, torch.zeros(distpairs.size(0)).cuda())
+        loss_dis3 = distpairs.mean()
         # print(loss_dis3/loss_dis2)
 
-        loss = weight_cent * loss_cent - weight_dis_cent * loss_dis2
+        loss = weight_cent * loss_cent + weight_dis_cent * loss_dis3
         return loss
 
 

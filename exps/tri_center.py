@@ -49,11 +49,11 @@ def run(_):
             args.logs_dir += '.bak0'
         if args.gpu is not None:
             args.gpu = lz.get_dev(n=len(args.gpu),
-                                  # ok=range(3,4),
-                                  ok=range(4),
+                                  ok=(0, 3),
+                                  # ok=range(4),
                                   mem=[0.12, 0.05], sleep=32.3)
             # args.batch_size = 16
-            # args.gpu = (2,)
+            # args.gpu = (1, 2,)
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -66,7 +66,7 @@ def run(_):
         proc = mp.Process(target=main, args=(args,))
         proc.start()
         lz.logging.info('next')
-        time.sleep(39.46)
+        time.sleep(random.randint(39, 90))
         procs.append(proc)
 
     for proc in procs:
@@ -229,7 +229,7 @@ def main(args):
     setattr(xent, 'name', 'xent')
     # Criterion
     criterion = [TripletLoss(margin=args.margin, mode=args.mode),
-                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes), ]
+                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes, margin2 = args.margin2, margin3 = args.margin3), ]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
@@ -383,8 +383,10 @@ def main(args):
         metric.train(model, train_loader)
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         for n, v in res.items():
-            writer.add_scalar('best/' + n, v, args.epochs + 1)
+            writer.add_scalar('test/' + n, v, args.epochs + 1)
         lz.logging.info('final eval is {}'.format(res))
+
+    writer.close()
 
 
 if __name__ == '__main__':

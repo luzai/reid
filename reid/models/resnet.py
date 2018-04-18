@@ -644,7 +644,7 @@ class ResNetOri(nn.Module):
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
             nn.ReLU(),
-            nn.Dropout(self.dropout),
+            # nn.Dropout(self.dropout),
             nn.Linear(self.out_planes, self.num_features, bias=False),
         )
         reset_params(self.post2)

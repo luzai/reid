@@ -49,7 +49,8 @@ from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 '''
 
-ori_np_err=np.seterr(all='raise')
+ori_np_err = np.seterr(all='raise')
+
 
 def load_cfg(cfg_file):
     from importlib import import_module
@@ -399,11 +400,18 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
         print('missing keys in my state_dict: "{}"'.format(missing))
 
 
-# def grid_iter(tmp):
-#     res = cartesian(tmp.values())
-#     np.random.shuffle(res)
-#     for res_ in res:
-#         yield dict(zip(tmp.keys(), res_))
+def grid_iter(*args):
+    for arg in args:
+        np.random.shuffle(arg)
+    if len(args) == 1:
+        for arg in args[0]:
+            yield arg
+    elif len(args) == 2:
+        for arg0 in args[0]:
+            for arg1 in args[1]:
+                yield arg0, arg1
+    else:
+        raise NotImplementedError()
 
 
 def shuffle_iter(iter):

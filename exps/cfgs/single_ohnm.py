@@ -24,44 +24,19 @@ cfgs = [
     #     evaluate=True,
     #     resume='/data1/xinglu/prj/open-reid/exps/work/msmt17.res.2/model_best.pth'
     # ),
+
     edict(
-        logs_dir='market1501.discenter.1e-02',
+        logs_dir='market1501.center.newmargin',
         arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
         dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
+        lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
         batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         steps=[40, 60], epochs=65,
         workers=4,
         dataset_mode='label',
-        dropout=.4, loss='tri_center',
+        dropout=0, loss='tri_center',
         cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=1e-2, lr_cent=1e2, weight_cent=5e-2
-    ),
-    edict(
-        logs_dir='market1501.center.1e-02.5e-3',
-        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-        dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=4,
-        dataset_mode='label',
-        dropout=.4, loss='tri_center',
-        cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=0, lr_cent=1e2, weight_cent=5e-3
-    ),
-    edict(
-        logs_dir='market1501.center.1e-02.5e-2',
-        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-        dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=4,
-        dataset_mode='label',
-        dropout=.4, loss='tri_center',
-        cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=0, lr_cent=1e2, weight_cent=5e-2
+        random_ratio=1, weight_dis_cent=0, lr_cent=1e3, weight_cent=1e-3
     ),
     # edict(
     #     logs_dir='cuhk03detect.res',
@@ -77,7 +52,7 @@ cfgs = [
     #     random_ratio=1,
     # ),
     # edict(
-    #     logs_dir='cuhk03detect.concat.v2.dp.4',
+    #     logs_dir='cuhk03detect.maskconcat.dp.4.center',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
     #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
     #     lr=3e-4, margin=0.5, area=(0.85, 1),
@@ -85,10 +60,10 @@ cfgs = [
     #     steps=[40, 60], epochs=65,
     #     workers=4,
     #     dataset_mode='detect',
-    #     dropout=.4, loss='tri',
+    #     dropout=.4, loss='tri_center',
     #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1,
-    #     fusion='concat',
+    #     random_ratio=1, weight_dis_cent=0, lr_cent=1e2, weight_cent=5e-2,
+    #     fusion='maskconcat',
     # ),
     # edict(
     #     logs_dir='cuhk03detect.maskconcat.dp.4',
@@ -190,7 +165,7 @@ cfgs = [
     # ),
 
     # edict(
-    #     logs_dir='market1501.res.center',
+    #     logs_dir='market1501.res',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
     #     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
     #     lr=3e-4, margin=0.5, area=(0.85, 1),
@@ -198,7 +173,7 @@ cfgs = [
     #     steps=[40, 60], epochs=65,
     #     workers=4, dropout=0,
     #     cls_weight=0, tri_weight=1,
-    #     loss='tri_center',
+    #     loss='tri', weight_cent=0, lr_cent=0.5,
     #     random_ratio=1, fusion=None,
     # ),
 
@@ -246,26 +221,35 @@ cfgs = [
     # ),
 ]
 
-# cfgs = cfgs[0]
-# cfgs_true = []
-# for weight_dis_cent in [1e-2, ]:
-#     # for weight_cent in [5e-2, 5e-3, 5e-4]:
-#     # for lr_cent in [1e2, 1e3, 1e4]:
+cfgs_true = []
+# cfg = cfgs[2]
+# for run in range(3):
 #     # lr_cent = 5. / weight_cent
-#     cfgs_ = copy.deepcopy(cfgs)
-#     # cfgs_.weight_cent = weight_cent
-#     # cfgs_.lr_cent = lr_cent
-#     cfgs_.weight_dis_cent = weight_dis_cent
+#     cfg_t = copy.deepcopy(cfg)
+#     # cfgs_.weight_dis_cent = weight_dis_cent
 #     # cfgs_.dataset_mode = 'detect'
-#     cfgs_.logs_dir = f'market1501.discenter.{weight_dis_cent:.0e}'
-#     cfgs_true.append(cfgs_)
-# cfgs = cfgs_true
-
-# cfgs = [cfgs[-1]]
+#     cfg_t.logs_dir = f'{cfg_t.logs_dir}.{run}'
+#     cfgs_true.append(cfg_t)
+cfg = cfgs[0]
+for weight_cent in [5e-2, 5e-3, 5e-4, 5e-5, 0]:
+    for lr_cent in [1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4]:
+        cfg_t = copy.deepcopy(cfg)
+        cfg_t.weight_cent = weight_cent
+        cfg_t.lr_cent = lr_cent
+        cfg_t = copy.deepcopy(cfg)
+        cfg_t.logs_dir = f'{cfg.logs_dir}.{weight_cent:.0e}.{lr_cent:.0e}'
+        cfgs_true.append(cfg_t)
+# cfg = cfgs[1]
+# for run in range(3):
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.logs_dir = f'{cfg_t.logs_dir}.{run}'
+#     cfgs_true.append(cfg_t)
+cfgs = cfgs_true
 
 base = edict(
     weight_dis_cent=0,
-    weight_cent=5e-4, lr_cent=0.5, xent_smooth=False,
+    weight_cent=0, lr_cent=0.5, xent_smooth=False,
+    margin2=0.4, margin3=1.3, margin=0.45,
     lr_mult=0.1, fusion=None, eval_conf='cuhk03',
     cls_weight=0., random_ratio=1, tri_weight=1, num_deform=3, cls_pretrain=False,
     bs_steps=[], batch_size_l=[], num_instances_l=[],
@@ -276,9 +260,9 @@ base = edict(
     restart=True, workers=4, split=0, height=256, width=128,
     combine_trainval=True, num_instances=4,
     # model
-    evaluate=False, dropout=0, margin=0.45,
+    evaluate=False, dropout=0,
     # optimizer
-    lr=3e-4, steps=[100, 150, 160], epochs=165,
+    lr=3e-4, steps=[100, 150, 160], epochs=65,
     log_at=np.concatenate([
         range(0, 640, 21),
     ]),

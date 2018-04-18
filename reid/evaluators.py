@@ -146,11 +146,11 @@ class Evaluator(object):
 
         # for rerank in [False, True]:
         for rerank in [False, ]:
-            try:
-                distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
-            except Exception as e:
-                logging.error(e)
-                continue
+            # try:
+            distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+            # except Exception as e:
+            #     logging.error(e)
+            #     continue
             self.distmat = to_numpy(distmat)
             # self.conf = 'market1501'
             # db_name = 'det.cat.h5'
@@ -167,12 +167,12 @@ class Evaluator(object):
 
             # with lz.Database(db_name) as db:
             #     print(list(db.keys()))
-            try:
-                mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
-            except Exception as e:
-                logging.error(e)
-                continue
-            print('Mean AP: {:4.1%}'.format(mAP))
+            # try:
+            mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+            # except Exception as e:
+            #     logging.error(e)
+            #     continue
+            # print('Mean AP: {:4.1%}'.format(mAP))
 
             cmc_configs = {
                 'cuhk03': dict(separate_camera_set=True,
