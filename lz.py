@@ -401,17 +401,10 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
 
 
 def grid_iter(*args):
-    for arg in args:
-        np.random.shuffle(arg)
-    if len(args) == 1:
-        for arg in args[0]:
-            yield arg
-    elif len(args) == 2:
-        for arg0 in args[0]:
-            for arg1 in args[1]:
-                yield arg0, arg1
-    else:
-        raise NotImplementedError()
+    res = list(itertools.product(*args))
+    np.random.shuffle(res)
+    for arg in res:
+        yield arg
 
 
 def shuffle_iter(iter):
@@ -830,7 +823,6 @@ def dict_update(to, from_):
             print(inst)
             logging.info('update ori key {} from {} to {}'.format(k, to[k], v))
             to[k] = v
-
     return to
 
 

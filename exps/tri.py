@@ -50,11 +50,10 @@ def run(_):
         if args.dbg:
             args.logs_dir += '.bak0'
         if args.gpu is not None:
-            # args.gpu = lz.get_dev(n=len(args.gpu),
-            #                       # ok=range(3,4),
-            #                       ok=range(4),
-            #                       mem=[0.12, 0.05], sleep=32.3)
-            args.gpu = (0,1,)
+            args.gpu = lz.get_dev(n=len(args.gpu),
+                                  ok=args.gpu_range,
+                                  mem=[0.12, 0.05], sleep=32.3)
+            # args.gpu = (0,1,)
             # args.batch_size = 16
 
         if isinstance(args.gpu, int):

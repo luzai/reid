@@ -49,8 +49,7 @@ def run(_):
             args.logs_dir += '.bak0'
         if args.gpu is not None:
             args.gpu = lz.get_dev(n=len(args.gpu),
-                                  ok=(0, 3),
-                                  # ok=range(4),
+                                  ok=args.gpu_range,
                                   mem=[0.12, 0.05], sleep=32.3)
             # args.batch_size = 16
             # args.gpu = (1, 2,)
@@ -278,7 +277,7 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = TriCenterTrainer(model, criterion, dbg=False,
+    trainer = TriCenterTrainer(model, criterion, dbg=True,
                                logs_at=args.logs_dir + '/vis', args=args)
 
     # Schedule learning rate

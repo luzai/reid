@@ -564,10 +564,16 @@ class TriCenterTrainer(object):
         if self.tri_weight != 0:
             update_dop(dist, targets, self.dop_file)
 
-        loss2 = self.criterion2(outputs, targets, self.args.weight_dis_cent, self.weight_cent )
+        loss_cent, loss_dis = self.criterion2(outputs, targets, )
+
         self.iter += 1
-        loss_comb = loss + loss2
-        return loss_comb, loss, loss2, prec
+        loss_comb = loss + self.weight_cent * loss_cent + self.args.weight_dis_cent
+        if loss_comb > 400:
+            raise ValueError('loss too large')
+        if self.dbg and self.iter % 100 == 0:
+            self.writer.add_scalar('vis/loss-center', loss_cent, self.iter)
+            self.writer.add_scalar('vis/loss-center-dis', loss_dis, self.iter)
+        return loss_comb, prec
 
     def train(self, epoch, data_loader, optimizer, optimizer_cent=None, print_freq=5, schedule=None):
 
@@ -585,10 +591,10 @@ class TriCenterTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
-            loss_comb, loss, loss2, prec = self._forward(inputs, targets, cids)
+            loss_comb, prec = self._forward(inputs, targets, cids)
             if isinstance(targets, tuple):
                 targets, _ = targets
-            losses.update(to_numpy(loss), targets.size(0))
+            losses.update(to_numpy(loss_comb), targets.size(0))
             precisions.update(to_numpy(prec), targets.size(0))
             optimizer_cent.zero_grad()
             optimizer.zero_grad()

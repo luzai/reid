@@ -38,7 +38,7 @@ class CenterLoss(nn.Module):
         else:
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
 
-    def forward(self, x, labels, weight_dis_cent=0, weight_cent=0, **kwargs):
+    def forward(self, x, labels, **kwargs):
         """
         Args:
             x: feature matrix with shape (batch_size, feat_dim).
@@ -68,19 +68,19 @@ class CenterLoss(nn.Module):
         loss_cent = dist.mean()
 
         centers = self.centers
-        distmat2 = calc_distmat(centers, centers.mean(0, keepdim=True)).squeeze(1)
-        distmat2 = torch.max(self.margin3 / 2 - distmat2, torch.zeros(ncenters).cuda())
-        loss_dis2 = distmat2.mean()
+
+        # distmat2 = calc_distmat(centers, centers.mean(0, keepdim=True)).squeeze(1)
+        # distmat2 = torch.max(self.margin3 / 2 - distmat2, torch.zeros(ncenters).cuda())
+        # loss_dis2 = distmat2.mean()
 
         distmat3 = calc_distmat(centers, centers)
         mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
-        distpairs=distmat3[mask]
-        distpairs = torch.max(distpairs, torch.zeros(distpairs.size(0)).cuda())
+        distpairs = distmat3[mask]
+        distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
         loss_dis3 = distpairs.mean()
         # print(loss_dis3/loss_dis2)
 
-        loss = weight_cent * loss_cent + weight_dis_cent * loss_dis3
-        return loss
+        return loss_cent, loss_dis3
 
 
 class QuadLoss(nn.Module):

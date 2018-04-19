@@ -24,11 +24,9 @@ from reid.utils.logging import Logger
 from reid.utils.serialization import *
 
 from tensorboardX import SummaryWriter
-import torchpack
-
 
 def run(_):
-    cfgs = torchpack.load_cfg('./cfgs/single_ohnm.py')
+    cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
         if args.loss != 'softmax' and args.loss != 'xent':

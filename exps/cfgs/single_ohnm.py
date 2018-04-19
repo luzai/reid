@@ -26,7 +26,7 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='market1501.center.newmargin',
+        logs_dir='market1501.center.vis',
         arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
         dataset='market1501', dataset_val='market1501', eval_conf='market1501',
         lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
@@ -36,8 +36,36 @@ cfgs = [
         dataset_mode='label',
         dropout=0, loss='tri_center',
         cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=0, lr_cent=1e3, weight_cent=1e-3
+        random_ratio=1, weight_dis_cent=0, lr_cent=1, weight_cent=5e-3, gpu_range=range(4),
     ),
+
+    edict(
+        logs_dir='market1501.discenter.vis',
+        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+        dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+        lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
+        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=4,
+        dataset_mode='label',
+        dropout=0, loss='tri_center',
+        cls_weight=0, tri_weight=1,
+        random_ratio=1, weight_dis_cent=5e-3, lr_cent=1e3, weight_cent=5e-3, gpu_range=range(4),
+    ),
+
+    edict(
+        logs_dir='market1501.concat.dp',
+        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+        dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+        lr=3e-4, margin=0.5, area=(0.85, 1),
+        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=4, dropout=0,
+        cls_weight=0, tri_weight=1,
+        loss='tri', weight_cent=0, lr_cent=0.5, weight_dis_cent=0,
+        random_ratio=1, fusion='concat', gpu_range=(2, 3,)
+    ),
+
     # edict(
     #     logs_dir='cuhk03detect.res',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
@@ -150,47 +178,6 @@ cfgs = [
     # ),
 
     # edict(
-    #     logs_dir='cuhk03detect.res',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=4,
-    #     dataset_mode='detect',
-    #     dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, fusion=None,
-    #     resume = '/data1/xinglu/prj/open-reid/exps/work.3.8/cuhk03detect.res/model_best.pth', evaluate =True
-    # ),
-
-    # edict(
-    #     logs_dir='market1501.res',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-    #     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=4, dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     loss='tri', weight_cent=0, lr_cent=0.5,
-    #     random_ratio=1, fusion=None,
-    # ),
-
-    # edict(
-    #     logs_dir='market1501.xent.smooth.128.adam.no_x10',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-    #     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-    #     margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=4, dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     loss='xent',
-    #     optimizer='adam', lr=3e-4,
-    #     random_ratio=1, fusion=None, xent_smooth=True,
-    # ),
-    # edict(
     #     logs_dir='market1501.xent.smooth.32.adam',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
     #     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
@@ -221,30 +208,24 @@ cfgs = [
     # ),
 ]
 
-cfgs_true = []
-# cfg = cfgs[2]
-# for run in range(3):
-#     # lr_cent = 5. / weight_cent
+# cfgs_true = []
+#
+# cfg = cfgs[0]
+# for weight_cent, lr_cent in grid_iter([5e-2, 5e-3, 5e-4, 5e-5, 0],
+#                                       [1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4]):
+#     print(weight_cent, lr_cent)
 #     cfg_t = copy.deepcopy(cfg)
-#     # cfgs_.weight_dis_cent = weight_dis_cent
-#     # cfgs_.dataset_mode = 'detect'
-#     cfg_t.logs_dir = f'{cfg_t.logs_dir}.{run}'
+#     cfg_t.weight_cent = weight_cent
+#     cfg_t.lr_cent = lr_cent
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{weight_cent:.0e}.{lr_cent:.0e}'
 #     cfgs_true.append(cfg_t)
-cfg = cfgs[0]
-for weight_cent in [5e-2, 5e-3, 5e-4, 5e-5, 0]:
-    for lr_cent in [1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4]:
-        cfg_t = copy.deepcopy(cfg)
-        cfg_t.weight_cent = weight_cent
-        cfg_t.lr_cent = lr_cent
-        cfg_t = copy.deepcopy(cfg)
-        cfg_t.logs_dir = f'{cfg.logs_dir}.{weight_cent:.0e}.{lr_cent:.0e}'
-        cfgs_true.append(cfg_t)
 # cfg = cfgs[1]
-# for run in range(3):
+# for dropout in [.3, .4, .5]:
 #     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.logs_dir = f'{cfg_t.logs_dir}.{run}'
+#     cfg_t.dropout = dropout
+#     cfg_t.logs_dir = f'{cfg_t.logs_dir}.{dropout:.1f}'
 #     cfgs_true.append(cfg_t)
-cfgs = cfgs_true
+# cfgs = cfgs_true
 
 base = edict(
     weight_dis_cent=0,
@@ -270,7 +251,7 @@ base = edict(
     seed=1, print_freq=3, dist_metric='euclidean',
     branchs=0, branch_dim=64, global_dim=1024, num_classes=128,
     loss='tri', mode='hard',
-    gpu=[0, ], pin_mem=True, log_start=False, log_middle=True,
+    gpu=(0,), pin_mem=True, log_start=False, log_middle=True, gpu_range=range(4),
     # tuning
     dataset='market1501', dataset_mode='combine', area=(0.85, 1), dataset_val='market1501',
     batch_size=128, logs_dir='', arch='resnet50', embed="concat",
@@ -292,15 +273,14 @@ def format_cfg(cfg):
 
 
 def is_all_same(lst):
-    return (np.asarray(lst) == lst[0]).all()
+    res = [lsti == lst[0] for lsti in lst]
+    return np.asarray(res).all()
 
 
 import tabulate
 
 if __name__ == '__main__':
     df = pd.DataFrame(cfgs)
-    print()
-
     res = []
     for j in range(df.shape[1]):
         if not is_all_same(df.iloc[:, j].tolist()): res.append(j)
