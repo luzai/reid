@@ -140,7 +140,7 @@ def get_data(args):
             train_set, num_instances,
             batch_size=batch_size,
             rand_ratio=rand_ratio,
-        ),
+            dop_info=dop_info),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
 
@@ -266,7 +266,7 @@ def main(args):
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': 10.},
+        {'params': fast_params, 'lr_mult': 1.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.optimizer == 'adam':
@@ -303,7 +303,7 @@ def main(args):
     # Trainer
     trainer = TriTrainer(model, criterion, dbg=True,
                          logs_at=args.logs_dir + '/vis',
-                         args=args,dop_info=dop_info)
+                         args=args, dop_info=dop_info)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

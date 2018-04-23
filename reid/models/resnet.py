@@ -102,14 +102,14 @@ def reset_params(module, zero=False):
                 if zero:
                     m.weight.data.fill_(0)
                 else:
-                    init.kaiming_normal(m.weight, mode='fan_out')
+                    init.kaiming_normal_(m.weight, mode='fan_out')
                 if m.bias is not None:
                     init.constant(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
                 init.constant(m.weight, 1)
                 init.constant(m.bias, 0)
             elif isinstance(m, nn.Linear):
-                init.kaiming_normal(m.weight,  mode='fan_out')
+                init.kaiming_normal_(m.weight,  mode='fan_out')
                 if m.bias is not None:
                     init.constant(m.bias, 0)
 

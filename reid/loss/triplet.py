@@ -40,7 +40,7 @@ class CenterLoss(nn.Module):
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim).cuda())
         else:
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
-        init.kaiming_normal(self.centers, mode='fan_out')
+        init.kaiming_normal_(self.centers, mode='fan_out')
 
     def forward(self, x, labels, **kwargs):
         """
@@ -50,11 +50,7 @@ class CenterLoss(nn.Module):
         """
         batch_size = x.size(0)
         ncenters, nfeas = self.centers.size()
-        # distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(batch_size, self.num_classes) + \
-        #           torch.pow(self.centers, 2).sum(dim=1, keepdim=True).expand(self.num_classes, batch_size).t()
-        # distmat.addmm_(1, -2, x, self.centers.t())
         distmat = calc_distmat(x, self.centers)
-        # distmat-distmat2
         classes = torch.arange(self.num_classes).long()
         if self.use_gpu: classes = classes.cuda()
         classes = Variable(classes)
@@ -250,6 +246,7 @@ class TripletLoss(nn.Module):
         dist = dist + dist.t()
         dist.addmm_(1, -2, inputs, inputs.t())
         dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+        # todo whether sqrt()
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         dist_ap, dist_an = [], []

@@ -239,7 +239,7 @@ def main(args):
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': 10.},
+        {'params': fast_params, 'lr_mult': 1.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )

@@ -616,7 +616,8 @@ class TriCenterTrainer(object):
 
             optimizer.step()
             for param in self.criterion2.parameters():
-                param.grad.data *= (1. / self.weight_cent)
+                if not math.isclose(self.weight_cent, 0.):
+                    param.grad.data *= (1. / self.weight_cent)
             optimizer_cent.step()
             batch_time.update(time.time() - end)
             end = time.time()
