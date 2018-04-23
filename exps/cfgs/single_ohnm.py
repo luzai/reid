@@ -26,7 +26,7 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='market1501.center.vis.2e3.5e-3',
+        logs_dir='market1501.center.5e-1.5e-4.vis.dop.cent.2',
         arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
         dataset='market1501', dataset_val='market1501', eval_conf='market1501',
         lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
@@ -36,11 +36,10 @@ cfgs = [
         dataset_mode='label',
         dropout=0, loss='tri_center',
         cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=0, lr_cent=2e3, weight_cent=5e-3, gpu_range=range(4),
+        random_ratio=.5, weight_dis_cent=0, lr_cent=5e-1, weight_cent=5e-4, gpu_range=range(4),
     ),
-
     edict(
-        logs_dir='market1501.center.vis.5e-1.5e-4',
+        logs_dir='market1501.center.5e-1.0',
         arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
         dataset='market1501', dataset_val='market1501', eval_conf='market1501',
         lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
@@ -50,7 +49,20 @@ cfgs = [
         dataset_mode='label',
         dropout=0, loss='tri_center',
         cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=0, lr_cent=5e-4, weight_cent=5e-4, gpu_range=range(4),
+        random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=0, gpu_range=range(4),
+    ),
+    edict(
+        logs_dir='market1501.tri.5e-1.0',
+        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+        dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+        lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
+        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        steps=[40, 60], epochs=65,
+        workers=4,
+        dataset_mode='label',
+        dropout=0, loss='tri',
+        cls_weight=0, tri_weight=1,
+        random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=0, gpu_range=range(4),
     ),
 
     # edict(
@@ -225,13 +237,13 @@ cfgs = [
 # cfgs_true = []
 #
 # cfg = cfgs[0]
-# for weight_cent, lr_cent in grid_iter([5e-2, 5e-3, 5e-4, 5e-5, 0],
-#                                       [1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4]):
+# for weight_cent, lr_cent in grid_iter([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 0],
+#                                       [1e-2, 1e-1, 1e0, ]):
 #     print(weight_cent, lr_cent)
 #     cfg_t = copy.deepcopy(cfg)
 #     cfg_t.weight_cent = weight_cent
 #     cfg_t.lr_cent = lr_cent
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{weight_cent:.0e}.{lr_cent:.0e}'
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{lr_cent:.0e}.{weight_cent:.0e}'
 #     cfgs_true.append(cfg_t)
 # cfg = cfgs[1]
 # for dropout in [.3, .4, .5]:

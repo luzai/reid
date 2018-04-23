@@ -12,7 +12,7 @@ class Preprocessor(object):
         self.root = root
         self.transform = transform
         self.cache = dict()
-        self.test_aug = test_aug  # todo
+        self.test_aug = test_aug  # todo test time multi crop
         self.has_npy = has_npy
         self.has_pose = has_pose
 

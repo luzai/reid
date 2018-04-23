@@ -60,7 +60,7 @@ def run(_):
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
-            cvb.dump(args, args.logs_dir + '/conf.pkl')
+            lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
 
         # main(args)
         proc = mp.Process(target=main, args=(args,))
@@ -123,7 +123,6 @@ def get_data(args):
             batch_size=batch_size,
             rand_ratio=rand_ratio,
             dop_info=dop_info,
-            criterion_cent=None
         ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
@@ -226,8 +225,6 @@ def main(args):
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         lz.logging.info('eval {}'.format(res))
         return 0
-    xent = nn.CrossEntropyLoss()
-    setattr(xent, 'name', 'xent')
     # Criterion
     criterion = [TripletLoss(margin=args.margin, mode=args.mode),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes, margin2=args.margin2,
@@ -235,7 +232,6 @@ def main(args):
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
-    train_loader.sampler.criterion_cent = criterion[1]
     fast_params = []
     for name, param in model.named_parameters():
         if name == 'module.embed1.weight' or name == 'module.embed2.weight':
@@ -320,11 +316,8 @@ def main(args):
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
 
-        if 'center' in args.loss:
-            hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule,
-                                 optimizer_cent=optimizer_cent)
-        else:
-            hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule)
+        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule,
+                             optimizer_cent=optimizer_cent)
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)

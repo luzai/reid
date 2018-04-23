@@ -56,15 +56,13 @@ class RandomIdentityWeightedSampler(Sampler):
                  batch_size=128,
                  rand_ratio=1.,
                  weights=None,
-                 dop_info=None,
-                 criterion_cent=None):
+                 dop_info=None,):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
         self.data_source = data_source
         self.num_instances = num_instances
         self.rand_ratio = rand_ratio
         self.dop_info=dop_info
-        self.criterion_cent = criterion_cent
         pids = np.asarray(data_source)[:, 1].astype(int)
         # data_source is img_path pida, cids
         inds = np.arange(pids.shape[0], dtype=int)
@@ -89,49 +87,21 @@ class RandomIdentityWeightedSampler(Sampler):
 
     def get_batch_pids(self):
         pids = []
-        if self.criterion_cent is not None:
-            centers = (self.criterion_cent.centers)
-            n = centers.size(0)
-            dist = torch.pow(centers, 2).sum(dim=1, keepdim=True).expand(n, n)
-            dist = dist + dist.t()
-            dist.addmm_(1, -2, centers, centers.t())
-            dist = dist.clamp(min=1e-12).sqrt()
-            dist = to_numpy(dist)
-            rank_indices = np.argsort(dist, axis=1)
-            assert self.pids.max() == self.pids.shape[0] - 1
-            pids_now = np.random.choice(self.pids,
-                                        size=int(self.batch_size / self.num_instances * self.rand_ratio),
-                                        replace=False)
-            pids.extend(pids_now.tolist())
-
-            while len(pids) < self.batch_size / self.num_instances:
-                pids_next = []
-                for pid in pids_now:
-                    pids_next.append(
-                        rank_indices[pid][1]
-                    )
-                    # print(pid)
-                    # print(rank_indices[pid])
-                    # print(dist[pid][rank_indices[pid]])
-                pids.extend(pids_next)
-                pids_now = pids_next
-
-        else:
-            dop = self.dop_info.dop
-            lz.logging.debug('get new inds, {} {}'.format(dop, np.count_nonzero(dop == -1)))
-            pids_now = np.random.choice(self.pids,
-                                        size=int(self.batch_size / self.num_instances * self.rand_ratio),
-                                        replace=False)
-            pids.extend(pids_now.tolist())
-            while len(pids) < self.batch_size / self.num_instances:
-                pids_next = []
-                for pid in pids_now:
-                    if dop[pid] == -1:
-                        pids_next.extend(np.random.choice(self.pids, size=(1,)).tolist())
-                    else:
-                        pids_next.append(dop[pid])
-                pids.extend(pids_next)
-                pids_now = pids_next
+        dop = self.dop_info.dop
+        lz.logging.debug('get new inds, {} {}'.format(dop, np.count_nonzero(dop == -1)))
+        pids_now = np.random.choice(self.pids,
+                                    size=int(self.batch_size / self.num_instances * self.rand_ratio),
+                                    replace=False)
+        pids.extend(pids_now.tolist())
+        while len(pids) < self.batch_size / self.num_instances:
+            pids_next = []
+            for pid in pids_now:
+                if dop[pid] == -1:
+                    pids_next.extend(np.random.choice(self.pids, size=(1,)).tolist())
+                else:
+                    pids_next.append(dop[pid])
+            pids.extend(pids_next)
+            pids_now = pids_next
 
         return pids
 

@@ -22,6 +22,7 @@ from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
 from reid.utils.logging import Logger
 from reid.utils.serialization import *
+from reid.utils.dop import DopInfo
 
 from tensorboardX import SummaryWriter
 
@@ -128,6 +129,8 @@ def get_data(args):
         T.ToTensor(),
         normalizer,
     ])
+    dop_info = DopInfo(num_classes)
+    print('dop info and its id are', dop_info)
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer,
@@ -137,7 +140,6 @@ def get_data(args):
             train_set, num_instances,
             batch_size=batch_size,
             rand_ratio=rand_ratio,
-            dop_file=args.logs_dir + '/dop.h5'
         ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
@@ -170,7 +172,7 @@ def get_data(args):
     dataset.gallery = dataset_val.gallery
     dataset.images_dir = dataset_val.images_dir
     # dataset.num_val_ids
-    return dataset, num_classes, train_loader, val_loader, test_loader
+    return dataset, num_classes, train_loader, val_loader, test_loader, dop_info
 
 
 def main(args):
@@ -189,12 +191,11 @@ def main(args):
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
 
-    dataset, num_classes, train_loader, val_loader, test_loader = \
-        get_data(args)
+    (dataset, num_classes,
+     train_loader, val_loader, test_loader,
+     dop_info) = get_data(args)
+
     # Create model
-    with lz.Database(args.logs_dir + '/dop.h5', 'a') as db:
-        db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
-        db.flush()
     model = models.create(args.arch,
                           dropout=args.dropout,
                           pretrained=args.pretrained,
@@ -300,8 +301,9 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = TriTrainer(model, criterion, dbg=False,
-                         logs_at=args.logs_dir + '/vis', args=args)
+    trainer = TriTrainer(model, criterion, dbg=True,
+                         logs_at=args.logs_dir + '/vis',
+                         args=args,dop_info=dop_info)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -397,7 +399,7 @@ def main(args):
         # for n, v in res.items():
         #     writer.add_scalar('train/'+n, v, epoch)
 
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
 
@@ -430,6 +432,7 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
+
 
 if __name__ == '__main__':
     run('')

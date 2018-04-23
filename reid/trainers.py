@@ -425,10 +425,11 @@ class XentTriTrainer(object):
 
 
 class TriTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, **kwargs):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
         self.model = model
         self.criterion = criterion[0]
         # self.criterion2 = criterion[1]
+        self.dop_info = dop_info
         self.iter = 0
         self.dbg = dbg
         self.cls_weight = args.cls_weight
@@ -470,13 +471,10 @@ class TriTrainer(object):
             self.writer.add_histogram('an', dist_an, self.iter)
         else:
             loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
-        if self.tri_weight != 0:
-            update_dop_tri(dist, targets, self.dop_file)
+
+        update_dop_tri(dist, targets, self.dop_info)
 
         self.iter += 1
-        # loss2 = self.criterion2(outputs2, targets)
-        # loss_comb = loss * self.tri_weight + loss2 * self.cls_weight
-        # loss_comb = loss * self.tri_weight
         loss_comb = loss
         return loss_comb, prec
 
@@ -579,8 +577,8 @@ class TriCenterTrainer(object):
         self.iter += 1
         loss_comb = loss + self.weight_cent * loss_cent + self.args.weight_dis_cent
 
-        # if loss_comb > 1000:
-        #     raise ValueError('loss too large')
+        if loss_comb > 1e8:
+            raise ValueError('loss too large')
 
         if self.dbg and self.iter % 1 == 0:
             self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
@@ -617,7 +615,6 @@ class TriCenterTrainer(object):
             loss_comb.backward()
 
             optimizer.step()
-            # todo xent use sgd? x10 learning rate?
             for param in self.criterion2.parameters():
                 param.grad.data *= (1. / self.weight_cent)
             optimizer_cent.step()

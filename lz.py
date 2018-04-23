@@ -258,7 +258,7 @@ def allow_growth_sess():
     return sess
 
 
-def get_dev(n=1, ok=range(8), mem=(0.1, 0.45), sleep=20):
+def get_dev(n=1, ok=range(8), mem=(0.1, 0.45), sleep=20): # e.g. now occupy 0.02<0.1, can assign a device.
     import GPUtil, time
 
     def _limit(devs, ok):
@@ -286,7 +286,7 @@ def get_dev(n=1, ok=range(8), mem=(0.1, 0.45), sleep=20):
 
         print('no enough device available')
         GPUtil.showUtilization()
-        time.sleep(sleep)
+        time.sleep(random.randint(max(0, sleep - 20), sleep + 20))
 
 
 def get_md5(url):
