@@ -22,6 +22,9 @@ def calc_distmat(x, y):
     return distmat
 
 
+from torch.nn import init
+
+
 class CenterLoss(nn.Module):
     name = 'center'
 
@@ -37,6 +40,7 @@ class CenterLoss(nn.Module):
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim).cuda())
         else:
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
+        init.kaiming_normal(self.centers, mode='fan_out')
 
     def forward(self, x, labels, **kwargs):
         """
@@ -63,8 +67,7 @@ class CenterLoss(nn.Module):
             value = value.clamp(min=1e-12, max=1e+12)  # for numerical stability
             dist.append(value)
         dist = torch.cat(dist)
-        dist -= self.margin2
-        dist = torch.max(dist, torch.zeros(batch_size).cuda())
+        # dist = torch.max(dist-self.margin2, torch.zeros(batch_size).cuda())
         loss_cent = dist.mean()
 
         centers = self.centers
@@ -76,11 +79,12 @@ class CenterLoss(nn.Module):
         distmat3 = calc_distmat(centers, centers)
         mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
         distpairs = distmat3[mask]
-        distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
+        # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
+        distpairs = -distpairs
         loss_dis3 = distpairs.mean()
         # print(loss_dis3/loss_dis2)
 
-        return loss_cent, loss_dis3
+        return loss_cent, loss_dis3, distmat3
 
 
 class QuadLoss(nn.Module):

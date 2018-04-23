@@ -22,6 +22,7 @@ from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
 from reid.utils.logging import Logger
 from reid.utils.serialization import *
+from reid.utils.dop import DopInfo
 
 from tensorboardX import SummaryWriter
 
@@ -110,6 +111,8 @@ def get_data(args):
         T.ToTensor(),
         normalizer,
     ])
+    dop_info = DopInfo(num_classes)
+    print('dop info and its id are', dop_info)
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer,
@@ -119,7 +122,7 @@ def get_data(args):
             train_set, num_instances,
             batch_size=batch_size,
             rand_ratio=rand_ratio,
-            dop_file=args.logs_dir + '/dop.h5',
+            dop_info=dop_info,
             criterion_cent=None
         ),
         # shuffle=True,
@@ -149,7 +152,7 @@ def get_data(args):
     dataset.gallery = dataset_val.gallery
     dataset.images_dir = dataset_val.images_dir
     # dataset.num_val_ids
-    return dataset, num_classes, train_loader, val_loader, test_loader
+    return dataset, num_classes, train_loader, val_loader, test_loader, dop_info
 
 
 def main(args):
@@ -168,12 +171,11 @@ def main(args):
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
 
-    dataset, num_classes, train_loader, val_loader, test_loader = \
-        get_data(args)
+    (dataset, num_classes,
+     train_loader, val_loader, test_loader,
+     dop_info) = get_data(args)
+
     # Create model
-    with lz.Database(args.logs_dir + '/dop.h5', 'a') as db:
-        db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
-        db.flush()
     model = models.create(args.arch,
                           dropout=args.dropout,
                           pretrained=args.pretrained,
@@ -228,14 +230,15 @@ def main(args):
     setattr(xent, 'name', 'xent')
     # Criterion
     criterion = [TripletLoss(margin=args.margin, mode=args.mode),
-                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes, margin2 = args.margin2, margin3 = args.margin3), ]
+                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes, margin2=args.margin2,
+                            margin3=args.margin3), ]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
     train_loader.sampler.criterion_cent = criterion[1]
     fast_params = []
     for name, param in model.named_parameters():
-        if name == 'module.post2.2.weight' or name == 'module.post3.0.weight':
+        if name == 'module.embed1.weight' or name == 'module.embed2.weight':
             fast_params.append(param)
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
@@ -243,8 +246,7 @@ def main(args):
         {'params': fast_params, 'lr_mult': 10.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
-    if 'center' in args.loss:
-        optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
+    optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             # model.parameters(),
@@ -278,7 +280,7 @@ def main(args):
                   format(epoch, hist))
     # Trainer
     trainer = TriCenterTrainer(model, criterion, dbg=True,
-                               logs_at=args.logs_dir + '/vis', args=args)
+                               logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

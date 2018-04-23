@@ -56,14 +56,14 @@ class RandomIdentityWeightedSampler(Sampler):
                  batch_size=128,
                  rand_ratio=1.,
                  weights=None,
-                 dop_file='',
+                 dop_info=None,
                  criterion_cent=None):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
         self.data_source = data_source
         self.num_instances = num_instances
         self.rand_ratio = rand_ratio
-        self.dop_file = dop_file
+        self.dop_info=dop_info
         self.criterion_cent = criterion_cent
         pids = np.asarray(data_source)[:, 1].astype(int)
         # data_source is img_path pida, cids
@@ -117,8 +117,7 @@ class RandomIdentityWeightedSampler(Sampler):
                 pids_now = pids_next
 
         else:
-            with lz.Database(self.dop_file) as db:
-                dop = db['dop'].copy()
+            dop = self.dop_info.dop
             lz.logging.debug('get new inds, {} {}'.format(dop, np.count_nonzero(dop == -1)))
             pids_now = np.random.choice(self.pids,
                                         size=int(self.batch_size / self.num_instances * self.rand_ratio),

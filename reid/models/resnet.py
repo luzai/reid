@@ -5,9 +5,6 @@ from torchvision.models.resnet import conv3x3, model_urls, model_zoo
 from reid.utils.serialization import load_state_dict
 from .common import _make_conv
 
-import sys
-
-
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -112,7 +109,7 @@ def reset_params(module, zero=False):
                 init.constant(m.weight, 1)
                 init.constant(m.bias, 0)
             elif isinstance(m, nn.Linear):
-                init.normal(m.weight, std=0.001)
+                init.kaiming_normal(m.weight,  mode='fan_out')
                 if m.bias is not None:
                     init.constant(m.bias, 0)
 
@@ -645,17 +642,12 @@ class ResNetOri(nn.Module):
             nn.BatchNorm1d(self.out_planes),
             nn.ReLU(),
             # nn.Dropout(self.dropout),
-            nn.Linear(self.out_planes, self.num_features, bias=False),
         )
-        reset_params(self.post2)
+        self.embed1 = nn.Linear(self.out_planes, self.num_features, bias=False)
+        reset_params(self.embed1)
 
-        self.post3 = nn.Sequential(
-            # nn.Dropout(self.dropout),
-            nn.Linear(self.num_features, self.num_classes, bias=False),
-        )
-
-        reset_params(self.post1)
-        reset_params(self.post3)
+        self.embed2 = nn.Linear(self.num_features, self.num_classes, bias=False)
+        reset_params(self.embed2)
 
         if pretrained:
             if 'SE' in block_name or 'SE' in block_name2:
@@ -688,11 +680,8 @@ class ResNetOri(nn.Module):
             x4 = self.post1(x4).view(bs, -1)
 
         x5 = self.post2(x4)
-
-        x2 = self.post3(
-            # Variable(x5.data),
-            x5
-        )
+        x5 = self.embed1(x5)
+        x2 = self.embed2(x5)
 
         return x5, x2
 
@@ -777,18 +766,14 @@ class ResNetMaskCascade(nn.Module):
             nn.BatchNorm1d(self.out_planes + 1024 + 512 + 256),
             nn.ReLU(),
             nn.Dropout(self.dropout),
-            nn.Linear(self.out_planes + 1024 + 512 + 256
-                      , self.num_features, bias=False),
         )
-        reset_params(self.post2)
+        self.embed1 = nn.Linear(self.out_planes + 1024 + 512 + 256, self.num_features, bias=False)
+        reset_params(self.embed1)
 
-        self.post3 = nn.Sequential(
-            # nn.Dropout(self.dropout),
-            nn.Linear(self.num_features, self.num_classes, bias=False),
-        )
+        self.embed2 = nn.Linear(self.num_features, self.num_classes, bias=False)
 
-        reset_params(self.post1)
-        reset_params(self.post3)
+        reset_params(self.embed1)
+        reset_params(self.emebd2)
 
         if pretrained:
             if 'SE' in block_name or 'SE' in block_name2:
@@ -818,11 +803,6 @@ class ResNetMaskCascade(nn.Module):
             y3 = self.branch3(y3)
             y4 = self.branch4(y4)
 
-            # y1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
-            # y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
-            # y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
-            # y4 = F.adaptive_avg_pool2d(y4, 1).view(bs, -1)
-
             x4 = torch.cat([y1, y2, y3, y4], dim=1)
 
         else:
@@ -832,11 +812,8 @@ class ResNetMaskCascade(nn.Module):
             x4 = self.post1(x4).view(bs, -1)
 
         x5 = self.post2(x4)
-
-        x2 = self.post3(
-            # Variable(x5.data),
-            x5
-        )
+        x5 = self.embed1(x5)
+        x2 = self.embed2(x5)
 
         return x5, x2
 
@@ -926,9 +903,9 @@ class ResNetCascade(nn.Module):
                 nn.BatchNorm1d(num_in),
                 nn.ReLU(),
                 nn.Dropout(self.dropout),
-                nn.Linear(num_in, self.num_features, bias=False),
             )
-            reset_params(self.post2)
+            self.embed1 = nn.Linear(num_in, self.num_features, bias=False)
+            reset_params(self.embed1)
 
         elif self.fusion == 'sum':
             def get_embed(inchannels, out):
@@ -938,28 +915,17 @@ class ResNetCascade(nn.Module):
                     nn.Linear(inchannels, out)
                 )
 
-            self.embed1 = get_embed(self.out_planes // 8, self.num_features)
-            self.embed2 = get_embed(self.out_planes // 4, self.num_features)
-            self.embed3 = get_embed(self.out_planes // 2, self.num_features)
-            self.embed4 = get_embed(self.out_planes, self.num_features)
+            self.embed01 = get_embed(self.out_planes // 8, self.num_features)
+            self.embed02 = get_embed(self.out_planes // 4, self.num_features)
+            self.embed03 = get_embed(self.out_planes // 2, self.num_features)
+            self.embed04 = get_embed(self.out_planes, self.num_features)
             self.embed_weight = nn.Parameter(to_torch(np.array([0, 0, 0, 1.], dtype=np.float32)))
             reset_params([self.embed1, self.embed2, self.embed3, self.embed4])
         else:
-            self.post2 = nn.Sequential(
-                nn.BatchNorm1d(self.out_planes),
-                nn.ReLU(),
-                # nn.Dropout(0.45),
-                nn.Linear(self.out_planes, self.num_features, bias=False),
-            )
-            reset_params(self.post2)
+            raise ValueError('fusion unknown')
+        self.embed2 = nn.Linear(self.num_features, self.num_classes, bias=False)
 
-        self.post3 = nn.Sequential(
-            # nn.Dropout(self.dropout),
-            nn.Linear(self.num_features, self.num_classes, bias=False),
-        )
-
-        reset_params(self.post1)
-        reset_params(self.post3)
+        reset_params(self.embed2)
 
         if pretrained:
             if 'SE' in block_name or 'SE' in block_name2:
@@ -997,16 +963,15 @@ class ResNetCascade(nn.Module):
         if self.fusion == 'concat':
             x5 = torch.cat((y1, y2, y3, x4), dim=1)
             x5 = self.post2(x5)
+            x5 = self.embed1(x5)
         elif self.fusion == 'sum':
-            x5 = self.embed_weight[0] * self.embed1(y1) + self.embed_weight[1] * self.embed2(y2) + self.embed_weight[
-                2] * self.embed3(y3) + self.embed_weight[3] * self.embed4(x4)
+            x5 = self.embed_weight[0] * self.embed01(y1) + \
+                 self.embed_weight[1] * self.embed02(y2) + \
+                 self.embed_weight[2] * self.embed03(y3) + \
+                 self.embed_weight[3] * self.embed04(x4)
         else:
-            x5 = self.post2(x4)
-
-        x2 = self.post3(
-            # Variable(x5.data),
-            x5
-        )
+            raise ValueError('uknown')
+        x2 = self.embed2(x5)
 
         return x5, x2
 

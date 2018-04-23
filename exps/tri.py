@@ -260,7 +260,7 @@ def main(args):
     #     param.requires_grad = False
     fast_params = []
     for name, param in model.named_parameters():
-        if name == 'module.post2.2.weight' or name == 'module.post3.0.weight':
+        if name == 'module.embed1.weight' or name == 'module.embed2.weight':
             fast_params.append(param)
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]

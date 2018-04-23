@@ -281,7 +281,15 @@ def update_dop_cls(outputs, targets, dop_file):
     db.close()
 
 
-def update_dop(dist, targets, dop_file):
+def update_dop_tri2(dist, targets, dop_info):
+    bs = targets.shape[0] // 4
+    # todo select max
+    raise NotImplementedError('wait ,,,')
+
+
+def update_dop_tri(dist, targets, dop_info):
+    # todo on gpu operation, compare speed
+    # todo mean not depent on 4
     targets = to_numpy(targets)
     bs = targets.shape[0] // 4
     targets = targets.reshape(bs, 4).mean(axis=1).astype(np.int64)
@@ -289,16 +297,22 @@ def update_dop(dist, targets, dop_file):
     dist = dist.reshape(bs, 4, bs, 4)
     dist = np.transpose(dist, (0, 2, 1, 3)).reshape(bs, bs, 16).sum(axis=2)
     dist += np.diag([np.inf] * bs)
-    db = Database(dop_file, 'a')
-    dop = db['dop']
+
+    dop = dop_info.dop
     dop[targets] = targets[np.argmin(dist, axis=1)]
-    logging.debug('tri \n {} dop is \n {}'.format(targets, dop[targets]))
-    db['dop'] = dop
-    db.close()
+    dop_info.dop = dop
+
+
+def update_dop_center(dist, dop_info):
+    num_classes = dist.shape[0]
+    dist_new = dist + torch.diag(torch.ones(num_classes)).cuda() * torch.max(dist)
+    dop = dop_info.dop
+    dop[:] = to_numpy(torch.argmin(dist_new, dim=0))
+    dop_info.dop = dop
 
 
 class XentTriTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, **kwargs):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
         self.model = model
         self.criterion = criterion[0]
         self.criterion2 = criterion[1]
@@ -306,7 +320,7 @@ class XentTriTrainer(object):
         self.dbg = dbg
         self.cls_weight = args.cls_weight
         self.tri_weight = args.tri_weight
-        self.dop_file = args.logs_dir + '/dop.h5'
+        self.dop_info = dop_info
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
@@ -353,7 +367,7 @@ class XentTriTrainer(object):
         else:
             loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
         if self.tri_weight != 0:
-            update_dop(dist, targets, self.dop_file)
+            update_dop_tri(dist, targets, self.dop_info)
 
         self.iter += 1
         loss_comb = self.tri_weight * loss + self.cls_weight * loss2
@@ -457,7 +471,7 @@ class TriTrainer(object):
         else:
             loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
         if self.tri_weight != 0:
-            update_dop(dist, targets, self.dop_file)
+            update_dop_tri(dist, targets, self.dop_file)
 
         self.iter += 1
         # loss2 = self.criterion2(outputs2, targets)
@@ -513,7 +527,7 @@ class TriTrainer(object):
 
 
 class TriCenterTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, **kwargs):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
         self.model = model
         self.criterion = criterion[0]
         self.criterion2 = criterion[1]
@@ -523,8 +537,7 @@ class TriCenterTrainer(object):
         self.tri_weight = args.tri_weight
         self.weight_cent = args.weight_cent
         self.args = args
-
-        self.dop_file = args.logs_dir + '/dop.h5'
+        self.dop_info = dop_info
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
@@ -549,30 +562,33 @@ class TriCenterTrainer(object):
             x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
-        if self.dbg and self.iter % 100 == 0:
+        if self.dbg and self.iter % 1 == 0:
             loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg, cids=cids)
             diff = dist_an - dist_ap
-            self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
-            self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
-            self.writer.add_scalar('vis/lr', self.lr, self.iter)
             self.writer.add_histogram('an-ap', diff, self.iter)
             self.writer.add_histogram('dist', dist, self.iter)
             self.writer.add_histogram('ap', dist_ap, self.iter)
             self.writer.add_histogram('an', dist_an, self.iter)
         else:
             loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
-        if self.tri_weight != 0:
-            update_dop(dist, targets, self.dop_file)
 
-        loss_cent, loss_dis = self.criterion2(outputs, targets, )
+        loss_cent, loss_dis, dist_cent = self.criterion2(outputs, targets, )
+        # update_dop_tri(dist, targets, self.dop_info)
+        update_dop_center(dist_cent, self.dop_info)
 
         self.iter += 1
         loss_comb = loss + self.weight_cent * loss_cent + self.args.weight_dis_cent
-        if loss_comb > 400:
-            raise ValueError('loss too large')
-        if self.dbg and self.iter % 100 == 0:
+
+        # if loss_comb > 1000:
+        #     raise ValueError('loss too large')
+
+        if self.dbg and self.iter % 1 == 0:
+            self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
+            self.writer.add_scalar('vis/lr', self.lr, self.iter)
             self.writer.add_scalar('vis/loss-center', loss_cent, self.iter)
             self.writer.add_scalar('vis/loss-center-dis', loss_dis, self.iter)
+            self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
+
         return loss_comb, prec
 
     def train(self, epoch, data_loader, optimizer, optimizer_cent=None, print_freq=5, schedule=None):
@@ -599,7 +615,11 @@ class TriCenterTrainer(object):
             optimizer_cent.zero_grad()
             optimizer.zero_grad()
             loss_comb.backward()
+
             optimizer.step()
+            # todo xent use sgd? x10 learning rate?
+            for param in self.criterion2.parameters():
+                param.grad.data *= (1. / self.weight_cent)
             optimizer_cent.step()
             batch_time.update(time.time() - end)
             end = time.time()
