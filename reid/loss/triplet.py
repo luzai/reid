@@ -13,12 +13,23 @@ def select(dist, range, descend=True, return_ind=False, global_ind=None):
         return global_ind[dist[range[0]:range[1]]], global_ind[ind[range[0]:range[1]]]
 
 
+def calc_distmat2(x, y):
+    num_x = x.size(0)
+    num_y = y.size(0)
+    distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
+              torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
+    distmat.addmm_(1, -2, x, y.t()).clamp_(min=1e-12, max=1e12)
+
+    return distmat
+
+
 def calc_distmat(x, y):
     num_x = x.size(0)
     num_y = y.size(0)
     distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
               torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
-    distmat.addmm_(1, -2, x, y.t())
+    distmat.addmm_(1, -2, x, y.t()).clamp_(min=1e-12, max=1e12).sqrt_()
+
     return distmat
 
 
@@ -50,7 +61,7 @@ class CenterLoss(nn.Module):
         """
         batch_size = x.size(0)
         ncenters, nfeas = self.centers.size()
-        distmat = calc_distmat(x, self.centers)
+        distmat = calc_distmat2(x, self.centers)
         classes = torch.arange(self.num_classes).long()
         if self.use_gpu: classes = classes.cuda()
         classes = Variable(classes)
@@ -60,7 +71,6 @@ class CenterLoss(nn.Module):
         dist = []
         for i in range(batch_size):
             value = distmat[i][mask[i]]
-            value = value.clamp(min=1e-12, max=1e+12)  # for numerical stability
             dist.append(value)
         dist = torch.cat(dist)
         # dist = torch.max(dist-self.margin2, torch.zeros(batch_size).cuda())
@@ -68,17 +78,22 @@ class CenterLoss(nn.Module):
 
         centers = self.centers
 
-        # distmat2 = calc_distmat(centers, centers.mean(0, keepdim=True)).squeeze(1)
+        # distmat2 = calc_distmat2(centers, centers.mean(0, keepdim=True)).squeeze(1)
         # distmat2 = torch.max(self.margin3 / 2 - distmat2, torch.zeros(ncenters).cuda())
         # loss_dis2 = distmat2.mean()
 
-        distmat3 = calc_distmat(centers, centers)
-        mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
-        distpairs = distmat3[mask]
-        # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
-        distpairs = -distpairs
-        loss_dis3 = distpairs.mean()
-        # print(loss_dis3/loss_dis2)
+        distmat3 = calc_distmat2(centers, centers)
+        # # all dis
+        # mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
+        # distpairs = distmat3[mask]
+        # # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
+        # distpairs = -distpairs
+        # loss_dis3 = distpairs.mean()
+
+        # # dop --> dis
+        mask = to_torch(np.identity(ncenters, dtype=float)).type(torch.cuda.float) * distmat3.max()
+        min_inds = (distmat3 + mask).argmin(dim=1)
+        loss_dis3 = -distmat3[:, min_inds].mean()
 
         return loss_cent, loss_dis3, distmat3
 
@@ -97,7 +112,7 @@ class QuadLoss(nn.Module):
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.t()
         dist.addmm_(1, -2, inputs, inputs.t())
-        dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+        dist = dist.clamp(min=1e-12, max=1e+12).sqrt()  # for numerical stability
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
 
@@ -149,7 +164,7 @@ class QuinLoss(nn.Module):
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.t()
         dist.addmm_(1, -2, inputs, inputs.t())
-        dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+        dist = dist.clamp(min=1e-12, max=1e+12).sqrt()  # for numerical stability
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         view_mask = cids.expand(n, n).eq(cids.expand(n, n).t())
@@ -241,12 +256,7 @@ class TripletLoss(nn.Module):
 
     def forward(self, inputs, targets, dbg=False, cids=None):
         n = inputs.size(0)
-        # Compute pairwise distance, replace by the official when merged
-        dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
-        dist = dist + dist.t()
-        dist.addmm_(1, -2, inputs, inputs.t())
-        dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
-        # todo whether sqrt()
+        dist = calc_distmat(inputs, inputs)
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         dist_ap, dist_an = [], []

@@ -275,7 +275,7 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = TriCenterTrainer(model, criterion, dbg=True,
+    trainer = TriCenterTrainer(model, criterion, dbg=False,
                                logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
@@ -381,7 +381,7 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
-
+    mail('tri center finish')
 
 if __name__ == '__main__':
     run('')

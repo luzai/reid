@@ -25,61 +25,6 @@ cfgs = [
     #     resume='/data1/xinglu/prj/open-reid/exps/work/msmt17.res.2/model_best.pth'
     # ),
 
-    edict(
-        logs_dir='market1501.deploy',
-        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-        dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-        lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
-        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        steps=[40, 60], epochs=65,
-        workers=8,
-        dataset_mode='label',
-        dropout=0, loss='tri_center',
-        cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=5e-4, gpu_range=range(4),
-    ),
-
-    # edict(
-    #     logs_dir='market1501.tri.5e-1.0.nox10',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-    #     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='label',
-    #     dropout=0, loss='tri',
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=0, gpu_range=range(4),
-    # ),
-
-    # edict(
-    #     logs_dir='market1501.discenter.vis',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-    #     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8,
-    #     dataset_mode='label',
-    #     dropout=0, loss='tri_center',
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, weight_dis_cent=5e-3, lr_cent=1e3, weight_cent=5e-3, gpu_range=range(4),
-    # ),
-
-    # edict(
-    #     logs_dir='market1501.concat.dp',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-    #     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     steps=[40, 60], epochs=65,
-    #     workers=8, dropout=0,
-    #     cls_weight=0, tri_weight=1,
-    #     loss='tri', weight_cent=0, lr_cent=0.5, weight_dis_cent=0,
-    #     random_ratio=1, fusion='concat', gpu_range=(2, 3,)
-    # ),
-
     # edict(
     #     logs_dir='cuhk03detect.res',
     #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
@@ -220,48 +165,90 @@ cfgs = [
     #     random_ratio=1, fusion=None, xent_smooth=True,
     #     # evaluate=True, resume='/data1/xinglu/prj/open-reid/exps/work.3.8/market1501.res/model_best.pth'
     # ),
+
 ]
 
-cfgs_true = []
-
-# cfg = cfgs[0]
-# for weight_cent, lr_cent in grid_iter([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 0],
-#                                       [1e-2, 1e-1, 1e0, ]):
+# cfg = edict(
+#     logs_dir='market1501.search',
+#     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+#     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+#     dataset_mode='label',
+#     dropout=0, loss='tri_center',
+#     cls_weight=0, tri_weight=1,
+#     random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=5e-4, gpu_range=range(4),
+# )
+# for weight_cent, lr_cent in grid_iter([1e-2, 1e-3, 1e-4, 1e-5, 0],
+#                                       [1e-1, 1]):
 #     print(weight_cent, lr_cent)
 #     cfg_t = copy.deepcopy(cfg)
 #     cfg_t.weight_cent = weight_cent
 #     cfg_t.lr_cent = lr_cent
 #     cfg_t.logs_dir = f'{cfg.logs_dir}.{lr_cent:.0e}.{weight_cent:.0e}'
-#     cfgs_true.append(cfg_t)
-cfg = cfgs[0]
-for weight_cent, random_ratio, weight_dis_cent in grid_iter([0, 5e-4, ],
-                                                            [.5, 1., ],
-                                                            [5e-4, ]):
+#     cfgs.append(cfg_t)
+
+cfg = edict(
+    logs_dir='market1501.center',
+    dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+    batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    dataset_mode='label',
+    dropout=0, loss='tri_center',
+    cls_weight=0, tri_weight=1,
+    random_ratio=1, weight_dis_cent=0, lr_cent=1e-1, weight_cent=1e-2, gpu_range=range(4),
+)
+
+for run in grid_iter([0, 1, 2]):
     cfg_t = copy.deepcopy(cfg)
-    cfg_t.weight_cent = weight_cent
-    cfg_t.random_ratio = random_ratio
-    cfg_t.weight_dis_cent=weight_dis_cent
-    cfg_t.logs_dir = f'{cfg_t.logs_dir}.dis.{weight_cent:.0e}.{random_ratio}'
-    cfgs_true.append(cfg_t)
-cfgs = cfgs_true
+    cfg_t.logs_dir = f'{cfg_t.logs_dir}.run{run}'
+    cfgs.append(cfg_t)
+
+cfg = edict(
+    logs_dir='market1501.center.dis.usemax',
+    dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+    batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    dataset_mode='label',
+    dropout=0, loss='tri_center',
+    cls_weight=0, tri_weight=1,
+    random_ratio=1, weight_dis_cent=0, lr_cent=1e-1, weight_cent=1e-2, gpu_range=range(4),
+)
+
+for dis in grid_iter([1e-2, 1e-3]):
+    cfg_t = copy.deepcopy(cfg)
+    cfg_t.weight_dis_cent = dis
+    cfg_t.logs_dir = f'{cfg_t.logs_dir}.{dis:.0e}'
+    cfgs.append(cfg_t)
+
+cfg = edict(
+    logs_dir='market1501.center.tri.usemax',
+    dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+    batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    dataset_mode='label',
+    dropout=0, loss='tri_center',
+    cls_weight=0, tri_weight=1,
+    random_ratio=1, weight_dis_cent=0, lr_cent=1e-1, weight_cent=0, gpu_range=range(4),
+)
+
+for dis in grid_iter([1e-2, 1e-3]):
+    cfg_t = copy.deepcopy(cfg)
+    cfg_t.weight_dis_cent = dis
+    cfg_t.logs_dir = f'{cfg_t.logs_dir}.{dis:.0e}'
+    cfgs.append(cfg_t)
 
 base = edict(
+    lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
+    steps=[40, 60], epochs=65,
+    arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', convop='nn.Conv2d',
     weight_dis_cent=0,
     weight_cent=0, lr_cent=0.5, xent_smooth=False,
-    margin2=0.4, margin3=1.3, margin=0.45,
+
     lr_mult=0.1, fusion=None, eval_conf='cuhk03',
     cls_weight=0., random_ratio=1, tri_weight=1, num_deform=3, cls_pretrain=False,
     bs_steps=[], batch_size_l=[], num_instances_l=[],
-    block_name='Bottleneck', block_name2='Bottleneck', convop='nn.Conv2d',
     scale=(1,), translation=(0,), theta=(0,),
     hard_examples=False, has_npy=False, double=0, loss_div_weight=0,
     pretrained=True, dbg=False, data_dir='/home/xinglu/.torch/data',
     restart=True, workers=8, split=0, height=256, width=128,
     combine_trainval=True, num_instances=4,
-    # model
     evaluate=False, dropout=0,
-    # optimizer
-    lr=3e-4, steps=[100, 150, 160], epochs=65,
     log_at=np.concatenate([
         range(0, 640, 21),
     ]),
@@ -271,8 +258,8 @@ base = edict(
     loss='tri', mode='hard',
     gpu=(0,), pin_mem=True, log_start=False, log_middle=True, gpu_range=range(4),
     # tuning
-    dataset='market1501', dataset_mode='combine', area=(0.85, 1), dataset_val='market1501',
-    batch_size=128, logs_dir='', arch='resnet50', embed="concat",
+    dataset='market1501', dataset_mode='combine', dataset_val='market1501',
+    batch_size=128, logs_dir='', embed="concat",
     optimizer='adam', normalize=True, decay=0.1,
 )
 

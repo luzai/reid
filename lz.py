@@ -103,6 +103,32 @@ class Uninterrupt(object):
             self.orig_handlers = None
 
 
+def mail(content):
+    import datetime
+    time_str = datetime.datetime.now().strftime('%M-%d %H:%M')
+
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    s = smtplib.SMTP(host='smtp.qq.com', port=587)
+    s.starttls()
+    user_pass = json_load('/home/xinglu/config.me/conf/mail.json')
+    s.login(user_pass['username'], user_pass['password'])
+
+    def send(to_mail="907682447@qq.com", content=''):
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'program said'
+        msg['From'] = '907682447@qq.com'
+        msg['To'] = to_mail
+        msg.attach(MIMEText(content, 'plain'))
+        s.sendmail(msg['From'], msg['To'], msg.as_string())
+
+    content = time_str + '\r\n' + content
+    send(content=content)
+    s.quit()
+
+
 def df2md(df1):
     import tabulate
     return tabulate.tabulate(df1, headers="keys", tablefmt="pipe")
@@ -311,15 +337,18 @@ def to_numpy(tensor):
     if isinstance(tensor, torch.autograd.Variable):
         tensor = tensor.data
     if torch.is_tensor(tensor):
-        tensor = tensor.cpu().numpy()
+        if tensor.shape == ():
+            tensor = tensor.item()
+            tensor = np.asarray([tensor])
+        elif np.prod(tensor.shape)==1:
+            tensor = tensor.item()
+            tensor = np.asarray([tensor])
+        else:
+            tensor = tensor.cpu().numpy()
+            tensor = np.asarray(tensor)
     # elif type(tensor).__module__ != 'numpy':
     #     raise ValueError("Cannot convert {} to numpy array"
     #                      .format(type(tensor)))
-    tensor = np.asarray(tensor)
-
-    if type(tensor).__module__ == 'numpy' and tensor.shape == ():
-        tensor = [tensor.tolist()]
-        tensor = np.asarray(tensor)
     return tensor
 
 
@@ -328,8 +357,8 @@ def to_torch(ndarray):
         return None
     if isinstance(ndarray, collections.Sequence):
         return [to_torch(ndarray_) for ndarray_ in ndarray if ndarray_ is not None]
-    if isinstance(ndarray, torch.autograd.Variable):
-        ndarray = ndarray.data
+    # if isinstance(ndarray, torch.autograd.Variable):
+    #     ndarray = ndarray.data
     if type(ndarray).__module__ == 'numpy':
         return torch.from_numpy(ndarray)
     elif not torch.is_tensor(ndarray):
@@ -347,11 +376,7 @@ def to_variable(tn, **kwargs):
     if torch.cuda.is_available():
         tn = tn.cuda()
     if kwargs.get('volatile', False):
-        if torch.__version__.split('.')[1] < 4:
-            with torch.no_grad():
-                # print('use no grad now')
-                tn = Variable(tn, **kwargs)
-        else:
+        with torch.no_grad():
             tn = Variable(tn, **kwargs)
     else:
         tn = Variable(tn, **kwargs)
@@ -405,7 +430,10 @@ def grid_iter(*args):
     res = list(itertools.product(*args))
     np.random.shuffle(res)
     for arg in res:
-        yield arg
+        if len(arg) == 1:
+            yield arg[0]
+        else:
+            yield arg
 
 
 def shuffle_iter(iter):

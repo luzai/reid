@@ -301,7 +301,7 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = TriTrainer(model, criterion, dbg=True,
+    trainer = TriTrainer(model, criterion, dbg=False,
                          logs_at=args.logs_dir + '/vis',
                          args=args, dop_info=dop_info)
 
@@ -432,7 +432,7 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
-
+    mail('tri.py finish')
 
 if __name__ == '__main__':
     run('')
