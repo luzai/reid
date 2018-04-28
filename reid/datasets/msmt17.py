@@ -14,10 +14,12 @@ class MSMT17(Dataset):
         self.load(num_val)
 
 
-    # def build(self):
-    #     for p in ['gallery', 'query', 'train', 'val']:
-    #         pp = self.root + '/MSMT17_V1/list_' + p + '.txt'
-    #         setattr(self,p, pd.read_csv(pp, delim_whitespace=True, header=None) )
+
+    def build(self):
+        # todo
+        for p in ['gallery', 'query', 'train', 'val']:
+            pp = self.root + '/MSMT17_V1/list_' + p + '.txt'
+            setattr(self,p, pd.read_csv(pp, delim_whitespace=True, header=None) )
 
 
 if __name__ == '__main__':

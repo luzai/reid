@@ -100,7 +100,7 @@ def reset_params(module, zero=False):
         for m in module.modules():
             if isinstance(m, nn.Conv2d):
                 if zero:
-                    m.weight.data.fill_(0)
+                    init.constant(m.weight,0)
                 else:
                     init.kaiming_normal_(m.weight, mode='fan_out')
                 if m.bias is not None:

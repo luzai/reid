@@ -432,7 +432,8 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
-    mail('tri.py finish')
 
 if __name__ == '__main__':
     run('')
+    mail('tri.py finish')
+

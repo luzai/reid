@@ -84,16 +84,18 @@ class CenterLoss(nn.Module):
 
         distmat3 = calc_distmat2(centers, centers)
         # # all dis
-        # mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
-        # distpairs = distmat3[mask]
-        # # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
-        # distpairs = -distpairs
-        # loss_dis3 = distpairs.mean()
+        mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
+        distpairs = distmat3[mask]
+        # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
+        distpairs = -distpairs
+        loss_dis3 = distpairs.mean()
 
         # # dop --> dis
-        mask = to_torch(np.identity(ncenters, dtype=float)).type(torch.cuda.float) * distmat3.max()
-        min_inds = (distmat3 + mask).argmin(dim=1)
-        loss_dis3 = -distmat3[:, min_inds].mean()
+        # mask = to_torch(np.identity(ncenters, dtype=float)).type(torch.cuda.float) * distmat3.max()
+        # min_inds = (distmat3 + mask).argmin(dim=1)
+        # loss_dis3 = -distmat3[:, min_inds].mean()
+
+
 
         return loss_cent, loss_dis3, distmat3
 

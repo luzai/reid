@@ -52,6 +52,31 @@ InteractiveShell.ast_node_interactivity = "all"
 ori_np_err = np.seterr(all='raise')
 
 
+
+def set_stream_logger(log_level=logging.DEBUG):
+    sh = colorlog.StreamHandler()
+    sh.setLevel(log_level)
+    sh.setFormatter(
+        colorlog.ColoredFormatter(
+            ' %(asctime)s %(filename)s [line:%(lineno)d] %(log_color)s%(levelname)s%(reset)s %(message)s'))
+    logging.root.addHandler(sh)
+
+
+def set_file_logger(work_dir=None, log_level=logging.DEBUG):
+    work_dir = work_dir or os.getcwd()
+    fh = logging.FileHandler(os.path.join(work_dir, 'log.txt'))
+    fh.setLevel(log_level)
+    fh.setFormatter(
+        logging.Formatter('%(asctime)s %(filename)s [line:%(lineno)d] %(levelname)s %(message)s'))
+    logging.root.addHandler(fh)
+
+
+logging.root.setLevel(logging.DEBUG)
+# set_stream_logger(logging.DEBUG)
+set_stream_logger(logging.INFO)
+set_file_logger(log_level=logging.DEBUG)
+
+
 def load_cfg(cfg_file):
     from importlib import import_module
     sys.path.append(osp.dirname(cfg_file))
@@ -140,29 +165,6 @@ def np_print(arr):
 
 np.set_string_function(np_print)
 
-
-def set_stream_logger(log_level=logging.DEBUG):
-    sh = colorlog.StreamHandler()
-    sh.setLevel(log_level)
-    sh.setFormatter(
-        colorlog.ColoredFormatter(
-            ' %(asctime)s %(filename)s [line:%(lineno)d] %(log_color)s%(levelname)s%(reset)s %(message)s'))
-    logging.root.addHandler(sh)
-
-
-def set_file_logger(work_dir=None, log_level=logging.DEBUG):
-    work_dir = work_dir or os.getcwd()
-    fh = logging.FileHandler(os.path.join(work_dir, 'log.txt'))
-    fh.setLevel(log_level)
-    fh.setFormatter(
-        logging.Formatter('%(asctime)s %(filename)s [line:%(lineno)d] %(levelname)s %(message)s'))
-    logging.root.addHandler(fh)
-
-
-logging.root.setLevel(logging.DEBUG)
-# set_stream_logger(logging.DEBUG)
-set_stream_logger(logging.INFO)
-set_file_logger(log_level=logging.DEBUG)
 
 
 def wrapped_partial(func, *args, **kwargs):
@@ -335,7 +337,7 @@ def stat_th(tensor):
 
 def to_numpy(tensor):
     if isinstance(tensor, torch.autograd.Variable):
-        tensor = tensor.data
+        tensor = tensor.detach()
     if torch.is_tensor(tensor):
         if tensor.shape == ():
             tensor = tensor.item()
@@ -410,7 +412,7 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
             continue
 
         if isinstance(param, nn.Parameter):
-            param = param.data
+            param = param.clone()
 
         if own_state[name].size() == param.size():
             own_state[name].copy_(param)

@@ -575,8 +575,12 @@ class TriCenterTrainer(object):
         update_dop_center(dist_cent, self.dop_info)
 
         self.iter += 1
-        loss_comb = loss + self.weight_cent * loss_cent + self.args.weight_dis_cent
+        if self.args.weight_lda is None:
+            loss_comb = loss + self.weight_cent * loss_cent + self.args.weight_dis_cent * loss_dis
+        else:
+            loss_comb = loss + self.args.weight_lda * loss_cent/(-loss_dis)
 
+        logging.debug(f'tri loss {loss.item()}; loss_cent is {loss_cent.item()};  loss_dis is {loss_dis.item()}')
         if loss_comb > 1e8:
             raise ValueError('loss too large')
 
