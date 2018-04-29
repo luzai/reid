@@ -151,7 +151,7 @@ class Evaluator(object):
             # except Exception as e:
             #     logging.error(e)
             #     continue
-            self.distmat = to_numpy(distmat)
+            # self.distmat = to_numpy(distmat)
             # self.conf = 'market1501'
             # db_name = 'det.cat.h5'
             # with  lz.Database(db_name) as db:

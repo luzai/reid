@@ -53,7 +53,7 @@ def run(_):
                                   ok=args.gpu_range,
                                   mem=[0.12, 0.05], sleep=32.3)
             # args.batch_size = 16
-            # args.gpu = (1, 2,)
+            # args.gpu = (3, )
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -370,7 +370,7 @@ def main(args):
     for n, v in res.items():
         writer.add_scalar('test/' + n, v, args.epochs)
 
-    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
+    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')) and args.test_best:
         print('Test with best model:')
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
         model.module.load_state_dict(checkpoint['state_dict'])
