@@ -54,10 +54,12 @@ class ScalarLoader(Loader):
         return scalars_df.sort_index().sort_index(axis=1)
 
 
-# path = 'work/cuhk03label.res'
 dfs = []
 names = []
-for path in glob.glob('work.3.8/*'):
+for path in ['work/cu03det.search.1e-01.0e+00.run0',
+             'work/cu03det.search.1e-01.1e-03.run0',
+             'work/cu03det.cent.dis.1e-03',
+             'work/cu03det.cent.dis.dop.0.33.run2',]:
     assert osp.exists(path)
     df = ScalarLoader(path=path).load_scalars()
     if df.index.max() != 66: continue
@@ -69,10 +71,8 @@ for path in glob.glob('work.3.8/*'):
 
 df = pd.concat(dfs, axis=1)
 df = df.transpose()
-df2 = df[['top-1', 'top-1.rk', 'mAP']]
+df = df[['top-1', 'top-5', 'top-10']]
 # df3 = df[['top-1.rk', 'top-5.rk', 'mAP.rk']]
 # print(df)
-# print(df2md(df))
-# print(df.to_latex())
-print(df2.to_latex())
-# print(df3.to_latex())
+print(df2md(df))
+print(df.to_latex())

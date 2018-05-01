@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import numpy as np
-from metric_learn.base_metric import BaseMetricLearner
+# from metric_learn.base_metric import BaseMetricLearner
 
 
 def validate_cov_matrix(M):
@@ -23,7 +23,8 @@ def validate_cov_matrix(M):
     return M
 
 
-class KISSME(BaseMetricLearner):
+# class KISSME(BaseMetricLearner):
+class KISSME(object):
     def __init__(self):
         self.M_ = None
 

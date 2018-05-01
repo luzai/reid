@@ -6,33 +6,32 @@ sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 from lz import *
 
 cfgs = [
-    edict(
-        logs_dir='msmt17.res.long.bak',
-        arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-        dataset='msmt17', dataset_val='msmt17', eval_conf='market1501', combine_trainval=False,
-        # dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',dataset_mode = 'label',
-        # dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-        # dataset='mars', dataset_val='mars', eval_conf='market1501',
-        lr=3e-4, margin=0.5, area=(0.85, 1),
-        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        loss='tri_center',
-        cls_weight=0, tri_weight=1,
-        random_ratio=1,
-        log_at=[124], steps=[80, 120], epochs=125,
-        # evaluate=True,
-        # resume='/home/xinglu/work/reid/work.3.30/msmt17.res.2/model_best.pth',
-        test_best=False,
-    ),
-
     # edict(
-    #     logs_dir='cu03det.cent.dis.dop',
-    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+    #     logs_dir='msmt17.fisher.dop',
+    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
+    #     dataset='msmt17', dataset_val='msmt17', eval_conf='market1501', combine_trainval=False,
+    #     # dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',dataset_mode = 'label',
+    #     # dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+    #     # dataset='mars', dataset_val='mars', eval_conf='market1501',
+    #     lr=3e-4, margin=0.5, area=(0.85, 1),
     #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     dataset_mode='detect',
-    #     dropout=0, loss='tri_center',
+    #     loss='tri_center',
     #     cls_weight=0, tri_weight=1,
-    #     random_ratio=.5, weight_dis_cent=1e-3, lr_cent=1e-1, weight_cent=1e-2, gpu_range=range(3),
-    # )
+    #     log_at=[124, 125], steps=[80, 120], epochs=125,
+    #     random_ratio=.5, weight_dis_cent=1e-3, lr_cent=1e-1, weight_cent=1e-3, gpu_range=range(4),
+    #     # evaluate=True,
+    #     # resume='/home/xinglu/work/reid/work.3.30/msmt17.res.2/model_best.pth',
+    # ),
+
+    edict(
+        logs_dir='cu03det.mgl.bak',
+        dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+        batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+        dataset_mode='detect',
+        dropout=0, loss='tri_center',
+        cls_weight=0, tri_weight=1,
+        random_ratio=1, weight_dis_cent=1e-3, lr_cent=1e-1, weight_cent=1e-3, gpu_range=range(4),
+    )
 ]
 
 # cfg = edict(
@@ -78,14 +77,14 @@ cfgs = [
 #     dataset_mode='detect',
 #     dropout=0, loss='tri_center',
 #     cls_weight=0, tri_weight=1,
-#     random_ratio=1, weight_dis_cent=0, lr_cent=1e-1, weight_cent=1e-2, gpu_range=range(4),
+#     random_ratio=1, weight_dis_cent=0, lr_cent=1e-1, weight_cent=1e-3, gpu_range=range(4),
 # )
 # for dis in [0, 1e-2, 1e-3, 1e-4]:
 #     cfg_t = copy.deepcopy(cfg)
 #     cfg_t.weight_dis_cent = dis
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dis:.0e}'
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dis:.0e}.run1'
 #     cfgs.append(cfg_t)
-
+#
 # cfg = edict(
 #     logs_dir='cu03det.cent.dop',
 #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
@@ -94,16 +93,16 @@ cfgs = [
 #     dropout=0, loss='tri_center',
 #     cls_weight=0, tri_weight=1,
 #     workers=0,
-#     random_ratio=1, weight_dis_cent=0, lr_cent=1e-1, weight_cent=1e-2, gpu_range=range(3),
+#     random_ratio=1, weight_dis_cent=0, lr_cent=1, weight_cent=1e-3, gpu_range=range(3),
 # )
-# for rand_ratio in [.33, .4, .5, .66]:
+# for rand_ratio in [.4, .5, .66]:
 #     cfg_t = copy.deepcopy(cfg)
 #     cfg_t.random_ratio = rand_ratio
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{rand_ratio}.run2'
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{rand_ratio}.run3'
 #     cfgs.append(cfg_t)
 
 base = edict(
-    weight_lda=None,test_best=True,
+    weight_lda=None, test_best=True,
     lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
     steps=[40, 60], epochs=65,
     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', convop='nn.Conv2d',

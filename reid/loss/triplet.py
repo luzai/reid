@@ -70,7 +70,11 @@ class CenterLoss(nn.Module):
 
         dist = []
         for i in range(batch_size):
-            value = distmat[i][mask[i]]
+            value1 = distmat[i][mask[i]]
+            value2 = distmat[i][1 - mask[i]].min()
+            # value2 = distmat[i][1 - mask[i]].mean()
+            # value = value1
+            value = value1 / (value2 + 1)
             dist.append(value)
         dist = torch.cat(dist)
         # dist = torch.max(dist-self.margin2, torch.zeros(batch_size).cuda())
@@ -78,24 +82,16 @@ class CenterLoss(nn.Module):
 
         centers = self.centers
 
-        # distmat2 = calc_distmat2(centers, centers.mean(0, keepdim=True)).squeeze(1)
-        # distmat2 = torch.max(self.margin3 / 2 - distmat2, torch.zeros(ncenters).cuda())
-        # loss_dis2 = distmat2.mean()
-
         distmat3 = calc_distmat2(centers, centers)
-        # # all dis
-        mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
-        distpairs = distmat3[mask]
-        # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
-        distpairs = -distpairs
-        loss_dis3 = distpairs.mean()
+        # mask = to_torch((np.tri(ncenters) - np.identity(ncenters))).type(torch.cuda.ByteTensor)
+        # distpairs = distmat3[mask]
+        # # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
+        # distpairs = -distpairs
+        # loss_dis3 = distpairs.mean()
 
-        # # dop --> dis
-        # mask = to_torch(np.identity(ncenters, dtype=float)).type(torch.cuda.float) * distmat3.max()
-        # min_inds = (distmat3 + mask).argmin(dim=1)
-        # loss_dis3 = -distmat3[:, min_inds].mean()
-
-
+        mask = to_torch(np.identity(ncenters, dtype=np.float32)).cuda() * distmat3.max()
+        min_inds = (distmat3 + mask).argmin(dim=1)
+        loss_dis3 = -distmat3[:, min_inds].mean()
 
         return loss_cent, loss_dis3, distmat3
 

@@ -3,7 +3,7 @@ import os.path as osp
 
 from PIL import Image
 from lz import *
-from lomo.lomo_map import  extract_feature
+# from lomo.lomo_map import extract_feature
 
 class Preprocessor(object):
     def __init__(self, dataset, root=None, transform=None, test_aug=False, has_npy=False, has_pose=False):
@@ -57,6 +57,7 @@ class Preprocessor(object):
         img = self.transform(res['img'])
         if self.has_npy:
             # res['npy'] = to_torch(np.load(fpath3))
+            raise NotImplementedError('do not use lomo cv2')
             res['npy'] = extract_feature(img, fpath)
         res_return = copy.deepcopy(res)
         res_return.update({'img': img})

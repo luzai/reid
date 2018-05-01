@@ -20,9 +20,10 @@ import os, sys, time, \
     functools, signal, cvbase as cvb
 from os import path as osp
 from easydict import EasyDict as edict
-
+# todo remove cvb easydict colorlog
 # import redis, networkx as nx, \
 #  yaml,  subprocess, pprint,json,csv, argparse,string,
+
 import torch, torchvision
 from torch import nn
 from torch.autograd import Variable
