@@ -98,13 +98,20 @@ def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=Fa
         dist = dist + dist.t()
         dist.addmm_(1, -2, x, x.t())
         dist = dist.clamp(min=1e-12).sqrt()
+        raise ValueError('todo')
         return dist
 
     x = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
     y = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
     if rerank:
-        dist = re_ranking(to_numpy(x), to_numpy(y))
-        return dist
+        xx = to_numpy(x)
+        yy = to_numpy(y)
+        if xx.shape[0] > 2000:
+            mem_save = True
+        else:
+            mem_save = False
+        dist = re_ranking(xx, yy, mem_save)
+        return dist, xx, yy
     else:
         m, n = x.size(0), y.size(0)
         x = x.view(m, -1)
@@ -116,7 +123,7 @@ def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=Fa
                torch.pow(y, 2).sum(dim=1, keepdim=True).expand(n, m).t()
         dist.addmm_(1, -2, x, y.t())
         dist = dist.clamp(min=1e-12).sqrt()
-        return to_numpy(dist)
+        return to_numpy(dist), to_numpy(x), to_numpy(y)
 
 
 def query_to_df(query):
@@ -124,12 +131,13 @@ def query_to_df(query):
 
 
 class Evaluator(object):
-    def __init__(self, model, gpu=(0,), conf='cuhk03'):
+    def __init__(self, model, gpu=(0,), conf='cuhk03', args=None):
         super(Evaluator, self).__init__()
         self.model = model
         self.gpu = gpu
         self.distmat = None
         self.conf = conf
+        self.args = args
 
     def evaluate(self, data_loader, query, gallery, metric=None, epoch=None, **kwargs):
         timer = cvb.Timer()
@@ -147,32 +155,30 @@ class Evaluator(object):
         # for rerank in [False, True]:
         for rerank in [False, ]:
             # try:
-            distmat = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+            distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
             # except Exception as e:
             #     logging.error(e)
             #     continue
-            # self.distmat = to_numpy(distmat)
-            # self.conf = 'market1501'
-            # db_name = 'det.cat.h5'
-            # with  lz.Database(db_name) as db:
-            #     for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-            #         if rerank:
-            #             db['rk/' + name] = eval(name)
-            #         else:
-            #             db[name] = eval(name)
-            #
+            db_name = self.args.logs_dir.split('/')[-1] + '.h5'
+            with lz.Database(db_name) as db:
+                for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+                    if rerank:
+                        db['rk/' + name] = eval(name)
+                    else:
+                        db[name] = eval(name)
+                db['smpl'] = xx
             # with pd.HDFStore(db_name) as db:
             #     db['query'] = query_to_df(query)
             #     db['gallery'] = query_to_df(gallery)
 
-            # with lz.Database(db_name) as db:
-            #     print(list(db.keys()))
+            with lz.Database(db_name) as db:
+                print(list(db.keys()))
             # try:
             mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
             # except Exception as e:
             #     logging.error(e)
             #     continue
-            # print('Mean AP: {:4.1%}'.format(mAP))
+            print('Mean AP: {:4.1%}'.format(mAP))
 
             cmc_configs = {
                 'cuhk03': dict(separate_camera_set=True,

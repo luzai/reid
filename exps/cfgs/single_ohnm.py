@@ -23,15 +23,37 @@ cfgs = [
     #     # resume='/home/xinglu/work/reid/work.3.30/msmt17.res.2/model_best.pth',
     # ),
 
+    # edict(
+    #     logs_dir='cu03det.cent.final.1e-3',
+    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     dataset_mode='detect',
+    #     dropout=0, loss='tri_center',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=1e-3, gpu_range=range(4),
+    # ),
+    # edict(
+    #     logs_dir='cu03det.cent.final.1e-2',
+    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     dataset_mode='detect',
+    #     dropout=0, loss='tri_center',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=1e-2, gpu_range=range(4),
+    # ),
     edict(
-        logs_dir='cu03det.mgl.bak',
+        logs_dir='cu03det.mgl.eval',
         dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
         batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
         dataset_mode='detect',
         dropout=0, loss='tri_center',
         cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=1e-3, lr_cent=1e-1, weight_cent=1e-3, gpu_range=range(4),
-    )
+        random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=1e-3, gpu_range=range(4),
+        evaluate=True,
+        resume='/home/xinglu/work/reid/work/cu03det.mgl.final.1e-03.5e-01.run0/model_best.pth',
+        # resume='/home/xinglu/work/reid/work/cu03det.cent.1e-02.run0/model_best.pth',
+    ),
+
 ]
 
 # cfg = edict(
@@ -52,22 +74,26 @@ cfgs = [
 
 
 # cfg = edict(
-#     logs_dir='cu03det.search',
+#     logs_dir='cu03det.mgl.final',
 #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
 #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
 #     dataset_mode='detect',
 #     dropout=0, loss='tri_center',
 #     cls_weight=0, tri_weight=1,
-#     random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=5e-4, gpu_range=range(4),
+#     random_ratio=1, weight_dis_cent=.5, lr_cent=5e-1, weight_cent=.5, gpu_range=range(3),
 # )
-# for weight_cent, lr_cent, run in grid_iter([1e-2, 1e-3, 1e-4, 1e-5, 0],
-#                                            [1e-1, 1, ],
-#                                            [0, ]):
-#     print(weight_cent, lr_cent, run)
+#
+# for dis, weight_cent, lr_cent, run in grid_iter([1e-2, 1e-3, ],
+#                                                 [.5, ],
+#                                                 [.5, ],
+#                                                 [0, ]):
+#     print(dis, weight_cent, lr_cent, run)
 #     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.weight_dis_cent = dis
 #     cfg_t.weight_cent = weight_cent
 #     cfg_t.lr_cent = lr_cent
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{lr_cent:.0e}.{weight_cent:.0e}.run{run}'
+#
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dis:.0e}.{weight_cent:.0e}.run{run}'
 #     cfgs.append(cfg_t)
 
 # cfg = edict(

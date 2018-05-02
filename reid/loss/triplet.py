@@ -71,10 +71,10 @@ class CenterLoss(nn.Module):
         dist = []
         for i in range(batch_size):
             value1 = distmat[i][mask[i]]
-            value2 = distmat[i][1 - mask[i]].min()
+            # value2 = distmat[i][1 - mask[i]].min()
             # value2 = distmat[i][1 - mask[i]].mean()
-            # value = value1
-            value = value1 / (value2 + 1)
+            value = value1
+            # value = value1 / (value2 + 1)
             dist.append(value)
         dist = torch.cat(dist)
         # dist = torch.max(dist-self.margin2, torch.zeros(batch_size).cuda())

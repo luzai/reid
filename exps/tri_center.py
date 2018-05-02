@@ -43,17 +43,17 @@ def run(_):
             args.log_at,
             range(args.epochs - 8, args.epochs, 1)
         ])
-        if args.evaluate:
-            args.logs_dir += '.bak0'
+        # if args.evaluate:
+        #     args.logs_dir += '.bak0'
         args.logs_dir = 'work/' + args.logs_dir
         if args.dbg:
             args.logs_dir += '.bak0'
-        if args.gpu is not None:
-            args.gpu = lz.get_dev(n=len(args.gpu),
-                                  ok=args.gpu_range,
-                                  mem=[0.12, 0.05], sleep=32.3)
-            # args.batch_size = 16
-            # args.gpu = (3, )
+        # if args.gpu is not None:
+        #     args.gpu = lz.get_dev(n=len(args.gpu),
+        #                           ok=args.gpu_range,
+        #                           mem=[0.12, 0.05], sleep=32.3)
+        # args.batch_size = 16
+        # args.gpu = (3, )
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -113,6 +113,12 @@ def get_data(args):
     ])
     dop_info = DopInfo(num_classes)
     print('dop info and its id are', dop_info)
+    trainval_test_loader = DataLoader(Preprocessor(train_set,
+                                                   root=dataset.images_dir,
+                                                   transform=test_transformer,
+                                                   has_npy=npy),
+                                      batch_size=batch_size, num_workers=workers,
+                                      shuffle=False, pin_memory=pin_memory)
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer,
@@ -151,7 +157,7 @@ def get_data(args):
     dataset.gallery = dataset_val.gallery
     dataset.images_dir = dataset_val.images_dir
     # dataset.num_val_ids
-    return dataset, num_classes, train_loader, val_loader, test_loader, dop_info
+    return dataset, num_classes, train_loader, val_loader, test_loader, dop_info, trainval_test_loader
 
 
 def main(args):
@@ -172,7 +178,7 @@ def main(args):
 
     (dataset, num_classes,
      train_loader, val_loader, test_loader,
-     dop_info) = get_data(args)
+     dop_info, trainval_test_loader) = get_data(args)
 
     # Create model
     model = models.create(args.arch,
@@ -198,7 +204,10 @@ def main(args):
             time.sleep(20)
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
+        db_name = args.logs_dir.split('/')[-1] + '.h5'
         load_state_dict(model, checkpoint['state_dict'])
+        with lz.Database(db_name) as db:
+            db['cent'] = to_numpy(checkpoint['cent'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
             best_top1_ = checkpoint['best_top1']
@@ -220,9 +229,10 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf)
+    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        # res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        res = evaluator.evaluate(trainval_test_loader, dataset.trainval, dataset.trainval, metric, final=True)
         lz.logging.info('eval {}'.format(res))
         return 0
     # Criterion
@@ -269,13 +279,14 @@ def main(args):
             hist = trainer.train(epoch, train_loader, optimizer)
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
+                'cent': criterion[1].centers,
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
             }, True, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = TriCenterTrainer(model, criterion, dbg=False,
+    trainer = TriCenterTrainer(model, criterion, dbg=True,
                                logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
@@ -331,6 +342,7 @@ def main(args):
         if epoch % 15 == 0:
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
+                'cent': criterion[1].centers,
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
             }, False, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
@@ -340,6 +352,7 @@ def main(args):
 
         save_checkpoint({
             'state_dict': model.module.state_dict(),
+            'cent': criterion[1].centers,
             'epoch': epoch + 1,
             'best_top1': best_top1,
         }, False, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
@@ -358,6 +371,7 @@ def main(args):
         best_top1 = max(top1, best_top1)
         save_checkpoint({
             'state_dict': model.module.state_dict(),
+            'cent': criterion[1].centers,
             'epoch': epoch + 1,
             'best_top1': best_top1,
         }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
@@ -381,6 +395,7 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
+
 
 if __name__ == '__main__':
     run('')

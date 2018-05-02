@@ -501,6 +501,7 @@ class Database(object):
             self.fid = h5py.File(file, mode)
         except OSError as inst:
             logging.error(f'{inst}')
+            rm(file)
             self.fid = h5py.File(file, 'w')
             logging.error(f'{file} is delete and write !!')
 
