@@ -570,26 +570,27 @@ class TriCenterTrainer(object):
         else:
             loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
 
-        loss_cent, loss_dis, dist_cent = self.criterion2(outputs, targets, )
+        loss_cent, loss_dis, distmat_cent, loss_cent_pull = self.criterion2(outputs, targets, )
         # update_dop_tri(dist, targets, self.dop_info)
-        update_dop_center(dist_cent, self.dop_info)
+        update_dop_center(distmat_cent, self.dop_info)
 
         self.iter += 1
         if self.args.weight_lda is None:
             loss_comb = loss + self.weight_cent * loss_cent + self.args.weight_dis_cent * loss_dis
         else:
-            loss_comb = loss + self.args.weight_lda * loss_cent/(-loss_dis)
+            loss_comb = loss + self.args.weight_lda * loss_cent / (-loss_dis)
 
         logging.debug(f'tri loss {loss.item()}; loss_cent is {loss_cent.item()};  loss_dis is {loss_dis.item()}')
         if loss_comb > 1e8:
             raise ValueError('loss too large')
 
-        if self.dbg and self.iter % 1 == 0:
+        if self.dbg and self.iter % 8 == 0:
             self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
             self.writer.add_scalar('vis/lr', self.lr, self.iter)
             self.writer.add_scalar('vis/loss-center', loss_cent, self.iter)
             self.writer.add_scalar('vis/loss-center-dis', loss_dis, self.iter)
             self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
+            self.writer.add_scalar('vis/loss-center-pull', loss_cent_pull, self.iter)
 
         return loss_comb, prec
 

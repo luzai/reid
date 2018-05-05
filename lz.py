@@ -1,14 +1,8 @@
-import torch, tensorflow as tf
 import matplotlib
 
 # matplotlib.use('TkAgg')
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
-try:
-    import cPickle as pickle
-except:
-    import pickle
 
 import os, sys, time, \
     random, \
@@ -17,7 +11,7 @@ import os, sys, time, \
     h5py, copy, multiprocessing as mp, \
     logging, colorlog, \
     shutil, collections, itertools, math, \
-    functools, signal, cvbase as cvb
+    functools, signal
 from os import path as osp
 from easydict import EasyDict as edict
 # todo remove cvb easydict colorlog
@@ -30,7 +24,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
-from IPython import embed
+# from IPython import embed
 
 root_path = osp.normpath(
     osp.join(osp.abspath(osp.dirname(__file__)))
@@ -51,7 +45,6 @@ InteractiveShell.ast_node_interactivity = "all"
 '''
 
 ori_np_err = np.seterr(all='raise')
-
 
 
 def set_stream_logger(log_level=logging.DEBUG):
@@ -165,7 +158,6 @@ def np_print(arr):
 
 
 np.set_string_function(np_print)
-
 
 
 def wrapped_partial(func, *args, **kwargs):
@@ -343,7 +335,7 @@ def to_numpy(tensor):
         if tensor.shape == ():
             tensor = tensor.item()
             tensor = np.asarray([tensor])
-        elif np.prod(tensor.shape)==1:
+        elif np.prod(tensor.shape) == 1:
             tensor = tensor.item()
             tensor = np.asarray([tensor])
         else:
@@ -528,8 +520,8 @@ class Database(object):
                               )
                 self.fid[key][...] = value
             else:
-                del self.fid[key]
                 logging.debug('old shape {} new shape {} updated'.format(self.fid[key].shape, value.shape))
+                del self.fid[key]
                 self.fid.create_dataset(key, data=value)
         else:
             self.fid.create_dataset(key, data=value)
@@ -555,6 +547,7 @@ class Database(object):
 
 
 def pickle_dump(data, file, **kwargs):
+    import pickle
     kwargs.setdefault('protocol', pickle.HIGHEST_PROTOCOL)  # python2 can read 2
     if isinstance(file, str):
         mkdir_p(osp.dirname(file), delete=False)
@@ -568,6 +561,7 @@ def pickle_dump(data, file, **kwargs):
 
 
 def pickle_load(file, **kwargs):
+    import pickle
     if isinstance(file, str):
         with open(file, 'rb') as f:
             data = pickle.load(f, **kwargs)
@@ -659,7 +653,7 @@ class AsyncDumper(mp.Process):
                 break
             pickle_dump(data, out_file)
 
-    def dump(selfself, obj, filename):
+    def dump(self, obj, filename):
         self.queue.put((obj, filename))
 
 
@@ -853,8 +847,7 @@ def dict_update(to, from_):
         try:
             assert to[k] == v
         except Exception as inst:
-            print(inst)
-            logging.info('update ori key {} from {} to {}'.format(k, to[k], v))
+            logging.debug('update ori key {} from {} to {}'.format(k, to[k], v))
             to[k] = v
     return to
 

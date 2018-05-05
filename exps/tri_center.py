@@ -34,26 +34,42 @@ def run(_):
         if args.loss != 'tri_center':
             print(f'skip {args}')
             continue
-        # args.dbg = False
-        # args.dbg = True
-        if args.dbg:
-            args.epochs = 3
-            args.batch_size = 16
         args.log_at = np.concatenate([
             args.log_at,
             range(args.epochs - 8, args.epochs, 1)
         ])
-        # if args.evaluate:
-        #     args.logs_dir += '.bak0'
         args.logs_dir = 'work/' + args.logs_dir
-        if args.dbg:
-            args.logs_dir += '.bak0'
-        # if args.gpu is not None:
-        #     args.gpu = lz.get_dev(n=len(args.gpu),
-        #                           ok=args.gpu_range,
-        #                           mem=[0.12, 0.05], sleep=32.3)
+        if args.gpu is not None:
+            args.gpu = lz.get_dev(n=len(args.gpu),
+                                  ok=args.gpu_range,
+                                  mem=[0.12, 0.05], sleep=32.3)
         # args.batch_size = 16
         # args.gpu = (3, )
+        # args.epochs = 1
+        # args.logs_dir+='.bak'
+
+        if args.dataset == 'cu03det':
+            args.dataset = 'cuhk03'
+            args.dataset_val = 'cuhk03'
+            args.dataset_mode = 'detect'
+            args.eval_conf = 'cuhk03'
+        elif args.dataset == 'cu03lbl':
+            args.dataset = 'cuhk03'
+            args.dataset_val = 'cuhk03'
+            args.dataset_mode = 'label'
+            args.eval_conf = 'cuhk03'
+        elif args.dataset == 'mkt':
+            args.dataset = 'market1501'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
+        elif args.dataset == 'msmt':
+            args.dataset = 'msmt17'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
+        elif args.dataset == 'cdm':
+            args.dataset = 'cdm'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -113,12 +129,23 @@ def get_data(args):
     ])
     dop_info = DopInfo(num_classes)
     print('dop info and its id are', dop_info)
-    trainval_test_loader = DataLoader(Preprocessor(train_set,
-                                                   root=dataset.images_dir,
-                                                   transform=test_transformer,
-                                                   has_npy=npy),
-                                      batch_size=batch_size, num_workers=workers,
-                                      shuffle=False, pin_memory=pin_memory)
+    trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
+                                                     ('pid', int),
+                                                     ('cid', int)])
+    trainval_t = trainval_t.view(np.recarray)
+
+    trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
+
+    trainval_test_loader = DataLoader(Preprocessor(
+        dataset.val,
+        # dataset.query,
+        # random.choices(trainval_t, k=1367 * 3),
+        # trainval_t.tolist(),
+        root=dataset.images_dir,
+        transform=test_transformer,
+        has_npy=npy),
+        batch_size=batch_size, num_workers=workers,
+        shuffle=False, pin_memory=pin_memory)
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer,
@@ -232,13 +259,14 @@ def main(args):
     evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
         # res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        res = evaluator.evaluate(trainval_test_loader, dataset.trainval, dataset.trainval, metric, final=True)
+        res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
+                                 trainval_test_loader.dataset.dataset, metric, final=True)
         lz.logging.info('eval {}'.format(res))
         return 0
     # Criterion
-    criterion = [TripletLoss(margin=args.margin, mode=args.mode),
+    criterion = [TripletLoss(margin=args.margin, ),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes, margin2=args.margin2,
-                            margin3=args.margin3), ]
+                            margin3=args.margin3, mode = args.mode), ]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
@@ -398,5 +426,9 @@ def main(args):
 
 
 if __name__ == '__main__':
+    tic = time.time()
     run('')
-    mail('tri center finish')
+    toc = time.time()
+    print('consume time ', toc - tic)
+    if toc - tic > 120:
+        mail('tri center finish')

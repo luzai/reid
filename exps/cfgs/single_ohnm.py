@@ -1,131 +1,48 @@
 import sys
 
-sys.path.insert(0, '/data1/xinglu/prj/luzai-tool')
 sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 
 from lz import *
 
 cfgs = [
-    # edict(
-    #     logs_dir='msmt17.fisher.dop',
-    #     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck',
-    #     dataset='msmt17', dataset_val='msmt17', eval_conf='market1501', combine_trainval=False,
-    #     # dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',dataset_mode = 'label',
-    #     # dataset='market1501', dataset_val='market1501', eval_conf='market1501',
-    #     # dataset='mars', dataset_val='mars', eval_conf='market1501',
-    #     lr=3e-4, margin=0.5, area=(0.85, 1),
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     loss='tri_center',
-    #     cls_weight=0, tri_weight=1,
-    #     log_at=[124, 125], steps=[80, 120], epochs=125,
-    #     random_ratio=.5, weight_dis_cent=1e-3, lr_cent=1e-1, weight_cent=1e-3, gpu_range=range(4),
-    #     # evaluate=True,
-    #     # resume='/home/xinglu/work/reid/work.3.30/msmt17.res.2/model_best.pth',
-    # ),
 
-    # edict(
-    #     logs_dir='cu03det.cent.final.1e-3',
-    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     dataset_mode='detect',
-    #     dropout=0, loss='tri_center',
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=1e-3, gpu_range=range(4),
-    # ),
-    # edict(
-    #     logs_dir='cu03det.cent.final.1e-2',
-    #     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    #     dataset_mode='detect',
-    #     dropout=0, loss='tri_center',
-    #     cls_weight=0, tri_weight=1,
-    #     random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=1e-2, gpu_range=range(4),
-    # ),
     edict(
-        logs_dir='cu03det.mgl.eval',
-        dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
+        logs_dir='cu03det.bak',
+        dataset='cu03det',
         batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-        dataset_mode='detect',
-        dropout=0, loss='tri_center',
+        dropout=0, loss='tri_center', mode='ccent',
         cls_weight=0, tri_weight=1,
         random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=1e-3, gpu_range=range(4),
-        evaluate=True,
-        resume='/home/xinglu/work/reid/work/cu03det.mgl.final.1e-03.5e-01.run0/model_best.pth',
-        # resume='/home/xinglu/work/reid/work/cu03det.cent.1e-02.run0/model_best.pth',
+        # evaluate=True,
+        # resume = '/data1/xinglu/prj/open-reid/exps/work/cu03det.mglmean.0e+00.1e-01.run0/model_best.pth',
+        # resume = '/data1/xinglu/prj/open-reid/exps/work/cu03det.cent.final.1e-2/model_best.pth',
     ),
 
 ]
 
 # cfg = edict(
-#     logs_dir='market1501.center.dis.useall',
-#     dataset='market1501', dataset_val='market1501', eval_conf='market1501',
+#     logs_dir='contrast.dis.all',
 #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     dataset_mode='label',
-#     dropout=0, loss='tri_center',
+#     dropout=0, loss='tri_center', mode='ccent',
 #     cls_weight=0, tri_weight=1,
-#     random_ratio=1, weight_dis_cent=0, lr_cent=1e-1, weight_cent=1e-2, gpu_range=range(4),
+#     random_ratio=1, weight_dis_cent=0, lr_cent=5e-1, weight_cent=.5, gpu_range=range(4),
 # )
 #
-# for dis in grid_iter([1e-2, 1e-3]):
+# for dataset, weight_cent, dop, dis in grid_iter(
+#         ['cu03det', 'cu03lbl', 'mkt'],
+#         [1e-1, ],
+#         [1],
+#         [1e-3, 1e-5],
+# ):
 #     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.weight_dis_cent = dis
-#     cfg_t.logs_dir = f'{cfg_t.logs_dir}.{dis:.0e}'
-#     cfgs.append(cfg_t)
-
-
-# cfg = edict(
-#     logs_dir='cu03det.mgl.final',
-#     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-#     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     dataset_mode='detect',
-#     dropout=0, loss='tri_center',
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=1, weight_dis_cent=.5, lr_cent=5e-1, weight_cent=.5, gpu_range=range(3),
-# )
-#
-# for dis, weight_cent, lr_cent, run in grid_iter([1e-2, 1e-3, ],
-#                                                 [.5, ],
-#                                                 [.5, ],
-#                                                 [0, ]):
-#     print(dis, weight_cent, lr_cent, run)
-#     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.weight_dis_cent = dis
 #     cfg_t.weight_cent = weight_cent
-#     cfg_t.lr_cent = lr_cent
+#     cfg_t.random_ratio = dop
+#     cfg_t.dataset = dataset
+#     cfg_t.weight_dis_cent = dis
 #
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dis:.0e}.{weight_cent:.0e}.run{run}'
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.{weight_cent:.0e}.dop{dop:.1f}.dis{dis:.0e}'
 #     cfgs.append(cfg_t)
 
-# cfg = edict(
-#     logs_dir='cu03det.cent.dis',
-#     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-#     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     dataset_mode='detect',
-#     dropout=0, loss='tri_center',
-#     cls_weight=0, tri_weight=1,
-#     random_ratio=1, weight_dis_cent=0, lr_cent=1e-1, weight_cent=1e-3, gpu_range=range(4),
-# )
-# for dis in [0, 1e-2, 1e-3, 1e-4]:
-#     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.weight_dis_cent = dis
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dis:.0e}.run1'
-#     cfgs.append(cfg_t)
-#
-# cfg = edict(
-#     logs_dir='cu03det.cent.dop',
-#     dataset='cuhk03', dataset_val='cuhk03', eval_conf='cuhk03',
-#     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-#     dataset_mode='detect',
-#     dropout=0, loss='tri_center',
-#     cls_weight=0, tri_weight=1,
-#     workers=0,
-#     random_ratio=1, weight_dis_cent=0, lr_cent=1, weight_cent=1e-3, gpu_range=range(3),
-# )
-# for rand_ratio in [.4, .5, .66]:
-#     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.random_ratio = rand_ratio
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{rand_ratio}.run3'
-#     cfgs.append(cfg_t)
 
 base = edict(
     weight_lda=None, test_best=True,
