@@ -30,40 +30,57 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
         if args.loss != 'softmax' and args.loss != 'xent':
+            print(f'skip {args}')
             continue
-        # args.dbg = False
-        # args.dbg = True
-        if args.dbg:
-            args.epochs = 3
-            args.batch_size = 16
         args.log_at = np.concatenate([
-            range(3, 640, 21),
+            args.log_at,
             range(args.epochs - 8, args.epochs, 1)
         ])
-        if args.evaluate:
-            args.logs_dir += '.bak0'
         args.logs_dir = 'work/' + args.logs_dir
-        if args.dbg:
-            args.logs_dir += '.bak0'
         if args.gpu is not None:
             args.gpu = lz.get_dev(n=len(args.gpu),
-                                  # ok=range(3,4),
-                                  ok=range(4),
-                                  mem=[0.26, 0.05], sleep=32.3)
-            # args.gpu = (0, 2,)
+                                  ok=args.gpu_range,
+                                  mem=[0.12, 0.05], sleep=32.3)
+        # args.batch_size = 16
+        # args.gpu = (3, )
+        # args.epochs = 1
+        # args.logs_dir+='.bak'
+
+        if args.dataset == 'cu03det':
+            args.dataset = 'cuhk03'
+            args.dataset_val = 'cuhk03'
+            args.dataset_mode = 'detect'
+            args.eval_conf = 'cuhk03'
+        elif args.dataset == 'cu03lbl':
+            args.dataset = 'cuhk03'
+            args.dataset_val = 'cuhk03'
+            args.dataset_mode = 'label'
+            args.eval_conf = 'cuhk03'
+        elif args.dataset == 'mkt':
+            args.dataset = 'market1501'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
+        elif args.dataset == 'msmt':
+            args.dataset = 'msmt17'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
+        elif args.dataset == 'cdm':
+            args.dataset = 'cdm'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if not args.evaluate:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
-            cvb.dump(args, args.logs_dir + '/conf.pkl')
+            lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
 
         # main(args)
         proc = mp.Process(target=main, args=(args,))
         proc.start()
         lz.logging.info('next')
-        time.sleep(39.46)
+        time.sleep(random.randint(39, 90))
         procs.append(proc)
 
     for proc in procs:
@@ -172,9 +189,6 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args)
     # Create model
-    with lz.Database(args.logs_dir + '/dop.h5', 'a') as db:
-        db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
-        db.flush()
     model = models.create(args.arch,
                           dropout=args.dropout,
                           pretrained=args.pretrained,
@@ -220,7 +234,7 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf)
+    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
         lz.logging.info('eval {}'.format(res))
@@ -244,7 +258,7 @@ def main(args):
     #     param.requires_grad = False
     fast_params = []
     for name, param in model.named_parameters():
-        if name == 'module.post2.2.weight' or name == 'module.post3.0.weight':
+        if name == 'module.embed1.weight' or name == 'module.embed2.weight':
             fast_params.append(param)
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
@@ -356,7 +370,7 @@ def main(args):
         # for n, v in res.items():
         #     writer.add_scalar('train/'+n, v, epoch)
 
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
 
@@ -378,7 +392,7 @@ def main(args):
     for n, v in res.items():
         writer.add_scalar('test/' + n, v, args.epochs)
 
-    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
+    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')) and args.test_best:
         print('Test with best model:')
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
         model.module.load_state_dict(checkpoint['state_dict'])
@@ -388,6 +402,13 @@ def main(args):
             writer.add_scalar('test/' + n, v, args.epochs + 1)
         lz.logging.info('final eval is {}'.format(res))
 
+    writer.close()
+
 
 if __name__ == '__main__':
+    tic = time.time()
     run('')
+    toc = time.time()
+    print('consume time ', toc - tic)
+    if toc - tic > 120:
+        mail('tri xent finish')

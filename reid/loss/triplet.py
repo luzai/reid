@@ -39,7 +39,9 @@ from torch.nn import init
 class CenterLoss(nn.Module):
     name = 'center'
 
-    def __init__(self, num_classes, feat_dim, margin2, margin3, use_gpu=True, mode=None, **kwargs):
+    def __init__(self, num_classes, feat_dim,
+                 margin2, margin3,
+                 use_gpu=True, mode=None, push_scale=1., **kwargs):
         super(CenterLoss, self).__init__()
         self.num_classes = num_classes
         self.feat_dim = feat_dim
@@ -54,9 +56,10 @@ class CenterLoss(nn.Module):
             self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
         init.kaiming_normal_(self.centers, mode='fan_out')
 
-        self.dynamic_weight_cent = nn.Parameter(torch.randn(self.num_classes - 1).cuda())
-        init.constant_(self.dynamic_weight_cent, 1 / (self.num_classes - 1))
-
+        # self.fc = nn.Linear(self.num_classes, self.num_classes - 1)
+        # init.constant_(self.fc.bias, 1 )
+        self.push_scale = push_scale
+        self.push_wei = to_torch(np.ones(self.num_classes - 1, dtype=np.float32) * self.push_scale).cuda()
 
     def forward(self, x, labels, **kwargs):
         """
@@ -75,12 +78,17 @@ class CenterLoss(nn.Module):
 
         dist = []
         dist_centers = []
+        # wei = self.fc(distmat[0])
+        # logging.info(f'mean {wei.mean()} sum {wei.sum()} weight is {wei}')
+
         for i in range(batch_size):
             dist_center = distmat[i][mask[i]]
             # dist_push = distmat[i][1 - mask[i]].min()
             # dist_push = distmat[i][1 - mask[i]].sum()
-            dist_push = (distmat[i][1 - mask[i]] * self.dynamic_weight_cent).sum()
             # dist_push = distmat[i][1 - mask[i]].mean()
+            # dist_push = (self.fc(distmat[i]) * distmat[i][1 - mask[i]]).mean()
+            dist_push = (distmat[i][1 - mask[i]] * self.push_wei).mean()
+
             # value = dist_center
             value = dist_center / (dist_push + 1)
             dist.append(value)
@@ -111,7 +119,7 @@ class CenterLoss(nn.Module):
 
 
 class QuadLoss(nn.Module):
-    name = 'quin'
+    name = 'quad'
 
     def __init__(self, margin=0, mode='hard', **kwargs):
         super(QuadLoss, self).__init__()

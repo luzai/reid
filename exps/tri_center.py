@@ -1,6 +1,5 @@
 import sys
 
-# sys.path.insert(0, '/data1/xinglu/prj/luzai-tool')
 sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 
 from lz import *
@@ -129,12 +128,11 @@ def get_data(args):
     ])
     dop_info = DopInfo(num_classes)
     print('dop info and its id are', dop_info)
-    trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
-                                                     ('pid', int),
-                                                     ('cid', int)])
-    trainval_t = trainval_t.view(np.recarray)
-
-    trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
+    # trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
+    #                                                  ('pid', int),
+    #                                                  ('cid', int)])
+    # trainval_t = trainval_t.view(np.recarray)
+    # trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
 
     trainval_test_loader = DataLoader(Preprocessor(
         dataset.val,
@@ -265,8 +263,10 @@ def main(args):
         return 0
     # Criterion
     criterion = [TripletLoss(margin=args.margin, ),
-                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes, margin2=args.margin2,
-                            margin3=args.margin3, mode = args.mode), ]
+                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
+                            margin2=args.margin2,
+                            margin3=args.margin3, mode=args.mode,
+                            push_scale=args.push_scale), ]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer

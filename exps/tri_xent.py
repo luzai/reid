@@ -21,6 +21,7 @@ from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
 from reid.utils.logging import Logger
 from reid.utils.serialization import *
+from reid.utils.dop import DopInfo
 
 from tensorboardX import SummaryWriter
 
@@ -32,28 +33,42 @@ def run(_):
         if not ('tri' in args.loss and 'xent' in args.loss):
             print(f'skip {args}')
             continue
-
-        # args.dbg = False
-        # args.dbg = True
-        if args.dbg:
-            args.epochs = 3
-            args.batch_size = 16
         args.log_at = np.concatenate([
             args.log_at,
             range(args.epochs - 8, args.epochs, 1)
         ])
-        if args.evaluate:
-            args.logs_dir += '.bak0'
         args.logs_dir = 'work/' + args.logs_dir
-        if args.dbg:
-            args.logs_dir += '.bak0'
         if args.gpu is not None:
             args.gpu = lz.get_dev(n=len(args.gpu),
-                                  # ok=range(3,4),
-                                  ok=range(4),
+                                  ok=args.gpu_range,
                                   mem=[0.12, 0.05], sleep=32.3)
-            # args.gpu = (1, )
-            # args.batch_size = 16
+        # args.batch_size = 16
+        # args.gpu = (3, )
+        # args.epochs = 1
+        # args.logs_dir+='.bak'
+
+        if args.dataset == 'cu03det':
+            args.dataset = 'cuhk03'
+            args.dataset_val = 'cuhk03'
+            args.dataset_mode = 'detect'
+            args.eval_conf = 'cuhk03'
+        elif args.dataset == 'cu03lbl':
+            args.dataset = 'cuhk03'
+            args.dataset_val = 'cuhk03'
+            args.dataset_mode = 'label'
+            args.eval_conf = 'cuhk03'
+        elif args.dataset == 'mkt':
+            args.dataset = 'market1501'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
+        elif args.dataset == 'msmt':
+            args.dataset = 'msmt17'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
+        elif args.dataset == 'cdm':
+            args.dataset = 'cdm'
+            args.dataset_val = 'market1501'
+            args.eval_conf = 'market1501'
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -66,7 +81,7 @@ def run(_):
         proc = mp.Process(target=main, args=(args,))
         proc.start()
         lz.logging.info('next')
-        time.sleep(39.46)
+        time.sleep(random.randint(39, 90))
         procs.append(proc)
 
     for proc in procs:
@@ -74,41 +89,24 @@ def run(_):
 
 
 def get_data(args):
-    (
-        name, split_id,
-        data_dir, height, width,
-        batch_size, num_instances,
-        workers, combine_trainval
-    ) = (
+    (name, split_id,
+     data_dir, height, width,
+     batch_size, num_instances,
+     workers, combine_trainval) = (
         args.dataset, args.split,
         args.data_dir, args.height, args.width,
         args.batch_size, args.num_instances,
-        args.workers, args.combine_trainval,
-    )
+        args.workers, args.combine_trainval,)
     pin_memory = args.pin_mem
     name_val = args.dataset_val
     npy = args.has_npy
     rand_ratio = args.random_ratio
 
-    # if isinstance(name, list) and len(name) != 1:
-    #     names = name
-    #     root = '/home/xinglu/.torch/data/'
-    #     roots = [root + name_ for name_ in names]
-    #     dataset = datasets.creates(name, roots=roots)
-    # else:
     root = osp.join(data_dir, name)
     dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
 
-    # if isinstance(name_val, list) and len(name_val) != 1:
-    #     raise NotImplementedError
-    # else:
     root = osp.join(data_dir, name_val)
     dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
-    # if name_val == 'market1501':
-    #     lim_query = cvb.load(work_path + '/mk.query.pkl')
-    #     dataset_val.query = [ds for ds in dataset_val.query if ds[0] in lim_query]
-    #     lim_gallery = cvb.load(work_path + '/mk.gallery.pkl')
-    #     dataset_val.gallery = [ds for ds in dataset_val.gallery if ds[0] in lim_gallery + lim_query]
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -128,6 +126,24 @@ def get_data(args):
         T.ToTensor(),
         normalizer,
     ])
+    dop_info = DopInfo(num_classes)
+    print('dop info and its id are', dop_info)
+    # trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
+    #                                                  ('pid', int),
+    #                                                  ('cid', int)])
+    # trainval_t = trainval_t.view(np.recarray)
+    # trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
+
+    trainval_test_loader = DataLoader(Preprocessor(
+        dataset.val,
+        # dataset.query,
+        # random.choices(trainval_t, k=1367 * 3),
+        # trainval_t.tolist(),
+        root=dataset.images_dir,
+        transform=test_transformer,
+        has_npy=npy),
+        batch_size=batch_size, num_workers=workers,
+        shuffle=False, pin_memory=pin_memory)
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer,
@@ -137,14 +153,10 @@ def get_data(args):
             train_set, num_instances,
             batch_size=batch_size,
             rand_ratio=rand_ratio,
-            dop_file=args.logs_dir + '/dop.h5'
+            dop_info=dop_info,
         ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
-
-    # fnames = np.asarray(train_set)[:, 0]
-    # fname2ind = dict(zip(fnames, np.arange(fnames.shape[0])))
-    # setattr(train_loader, 'fname2ind', fname2ind)
 
     val_loader = DataLoader(
         Preprocessor(dataset_val.val, root=dataset_val.images_dir,
@@ -170,7 +182,7 @@ def get_data(args):
     dataset.gallery = dataset_val.gallery
     dataset.images_dir = dataset_val.images_dir
     # dataset.num_val_ids
-    return dataset, num_classes, train_loader, val_loader, test_loader
+    return dataset, num_classes, train_loader, val_loader, test_loader, dop_info, trainval_test_loader
 
 
 def main(args):
@@ -189,12 +201,11 @@ def main(args):
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
 
-    dataset, num_classes, train_loader, val_loader, test_loader = \
-        get_data(args)
+    (dataset, num_classes,
+     train_loader, val_loader, test_loader,
+     dop_info, trainval_test_loader) = get_data(args)
+
     # Create model
-    with lz.Database(args.logs_dir + '/dop.h5', 'a') as db:
-        db['dop'] = np.ones(num_classes, dtype=np.int64) * -1
-        db.flush()
     model = models.create(args.arch,
                           dropout=args.dropout,
                           pretrained=args.pretrained,
@@ -218,7 +229,10 @@ def main(args):
             time.sleep(20)
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
+        db_name = args.logs_dir.split('/')[-1] + '.h5'
         load_state_dict(model, checkpoint['state_dict'])
+        with lz.Database(db_name) as db:
+            db['cent'] = to_numpy(checkpoint['cent'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
             best_top1_ = checkpoint['best_top1']
@@ -240,14 +254,20 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf)
+    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        # res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
+                                 trainval_test_loader.dataset.dataset, metric, final=True)
         lz.logging.info('eval {}'.format(res))
         return 0
-
+    if not args.xent_smooth:
+        xent = nn.CrossEntropyLoss()
+    else:
+        xent = CrossEntropyLabelSmooth(num_classes=num_classes)
+    setattr(xent, 'name', 'xent')
     # Criterion
-    criterion = [TripletLoss(margin=args.margin, mode=args.mode), nn.CrossEntropyLoss()]
+    criterion = [TripletLoss(margin=args.margin,),xent]
     criterion = [c.cuda() for c in criterion]
     # Optimizer
 
@@ -257,14 +277,14 @@ def main(args):
     #                              model.module.classifier.parameters()
     #                              ):
     #     param.requires_grad = False
-    slow_params = []
+    fast_params = []
     for name, param in model.named_parameters():
-        if 'conv_offset' in name:
-            slow_params.append(param)
-    slow_params_ids = set(map(id, slow_params))
-    normal_params = [p for p in model.parameters() if id(p) not in slow_params_ids]
+        if name == 'module.embed1.weight' or name == 'module.embed2.weight':
+            fast_params.append(param)
+    fast_params_ids = set(map(id, fast_params))
+    normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': slow_params, 'lr_mult': args.lr_mult},
+        {'params': fast_params, 'lr_mult': 10.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.optimizer == 'adam':
@@ -275,7 +295,8 @@ def main(args):
             weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(
-            filter(lambda p: p.requires_grad, model.parameters()),
+            # filter(lambda p: p.requires_grad, model.parameters()),
+            param_groups,
             lr=args.lr,
             weight_decay=args.weight_decay, momentum=0.9,
             nesterov=True)
@@ -396,7 +417,7 @@ def main(args):
         # for n, v in res.items():
         #     writer.add_scalar('train/'+n, v, epoch)
 
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
 
@@ -418,7 +439,7 @@ def main(args):
     for n, v in res.items():
         writer.add_scalar('test/' + n, v, args.epochs)
 
-    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')):
+    if osp.exists(osp.join(args.logs_dir, 'model_best.pth')) and args.test_best:
         print('Test with best model:')
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
         model.module.load_state_dict(checkpoint['state_dict'])
@@ -428,6 +449,13 @@ def main(args):
             writer.add_scalar('test/' + n, v, args.epochs + 1)
         lz.logging.info('final eval is {}'.format(res))
 
+    writer.close()
+
 
 if __name__ == '__main__':
+    tic = time.time()
     run('')
+    toc = time.time()
+    print('consume time ', toc - tic)
+    if toc - tic > 120:
+        mail('tri xent finish')

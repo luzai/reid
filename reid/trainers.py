@@ -620,7 +620,10 @@ class TriCenterTrainer(object):
             loss_comb.backward()
 
             optimizer.step()
-            for param in self.criterion2.parameters():
+            # for param in self.criterion2.parameters():
+            for name, param in self.criterion2.named_parameters():
+                if name != 'centers': continue
+                # print(name)
                 if not math.isclose(self.weight_cent, 0.):
                     param.grad.data *= (1. / self.weight_cent)
             optimizer_cent.step()
