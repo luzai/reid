@@ -279,7 +279,7 @@ def allow_growth_sess():
     return sess
 
 
-def get_dev(n=1, ok=range(8), mem=(0.1, 0.45), sleep=20):  # e.g. now occupy 0.02<0.1, can assign a device.
+def get_dev(n=1, ok=range(8), mem=(0.1, 0.15), sleep=20):  # e.g. now occupy 0.02<0.1, can assign a device.
     import GPUtil, time
 
     def _limit(devs, ok):

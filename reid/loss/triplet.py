@@ -83,11 +83,13 @@ class CenterLoss(nn.Module):
 
         for i in range(batch_size):
             dist_center = distmat[i][mask[i]]
-            # dist_push = distmat[i][1 - mask[i]].min()
-            # dist_push = distmat[i][1 - mask[i]].sum()
-            # dist_push = distmat[i][1 - mask[i]].mean()
-            # dist_push = (self.fc(distmat[i]) * distmat[i][1 - mask[i]]).mean()
-            dist_push = (distmat[i][1 - mask[i]] * self.push_wei).mean()
+            if self.mode.split('.')[1] == 'min':
+                dist_push = distmat[i][1 - mask[i]].min() * self.push_wei
+            else:
+                # dist_push = distmat[i][1 - mask[i]].sum()
+                # dist_push = distmat[i][1 - mask[i]].mean()
+                # dist_push = (self.fc(distmat[i]) * distmat[i][1 - mask[i]]).mean()
+                dist_push = (distmat[i][1 - mask[i]] * self.push_wei).mean()
 
             # value = dist_center
             value = dist_center / (dist_push + 1)
@@ -97,7 +99,7 @@ class CenterLoss(nn.Module):
 
         if self.mode == 'cent':
             loss_cent = loss_cent_pull
-        elif self.mode == 'ccent':
+        elif 'ccent' in self.mode :
             dist = torch.cat(dist)
             # dist = torch.max(dist-self.margin2, torch.zeros(batch_size).cuda())
             loss_cent = dist.mean()

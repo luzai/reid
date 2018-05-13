@@ -345,32 +345,32 @@ class XentTriTrainer(object):
             x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
-        loss2 = self.criterion2(outputs2, targets)
+        loss2 = self.criterion2(outputs2, targets)  # criterion2 is xent
         prec2, = accuracy(outputs2.data, targets.data)
         prec2 = prec2[0]
         if self.dbg and self.iter % 100 == 0:
-            self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
-            self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
-
             loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg, cids=cids)
             diff = dist_an - dist_ap
-            self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
-            self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
-            self.writer.add_scalar('vis/lr', self.lr, self.iter)
-            self.writer.add_scalar('vis/loss-ttl',
-                                   self.tri_weight * loss + self.cls_weight * loss2, self.iter)
-
             self.writer.add_histogram('an-ap', diff, self.iter)
             self.writer.add_histogram('dist', dist, self.iter)
             self.writer.add_histogram('ap', dist_ap, self.iter)
             self.writer.add_histogram('an', dist_an, self.iter)
         else:
-            loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
+            loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)  # criterion1 is triplet
         if self.tri_weight != 0:
             update_dop_tri(dist, targets, self.dop_info)
 
         self.iter += 1
         loss_comb = self.tri_weight * loss + self.cls_weight * loss2
+
+        if self.dbg and self.iter % 10 == 0:
+            self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
+            self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
+            # self.writer.add_scalar('vis/lr',lr )
+            self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
+            self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
+            self.writer.add_scalar('vis/loss-ttl', loss_comb, self.iter)
+
         return loss_comb, loss, loss2, prec, prec2
 
     def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
@@ -394,10 +394,10 @@ class XentTriTrainer(object):
             loss_comb, loss, loss2, prec1, prec2 = self._forward(inputs, targets, cids)
             if isinstance(targets, tuple):
                 targets, _ = targets
-            losses.update(loss.data[0], targets.size(0))
-            losses2.update(loss2.data[0], targets.size(0))
-            precisions.update(prec1, targets.size(0))
-            precisions2.update(prec2, targets.size(0))
+            losses.update(to_numpy(loss), targets.size(0))
+            losses2.update(to_numpy(loss2), targets.size(0))
+            precisions.update(to_numpy(prec1), targets.size(0))
+            precisions2.update(to_numpy(prec2), targets.size(0))
 
             optimizer.zero_grad()
             loss_comb.backward()
@@ -560,7 +560,7 @@ class TriCenterTrainer(object):
             x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
-        if self.dbg and self.iter % 1 == 0:
+        if self.dbg and self.iter % 100 == 0:
             loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg, cids=cids)
             diff = dist_an - dist_ap
             self.writer.add_histogram('an-ap', diff, self.iter)
@@ -584,7 +584,7 @@ class TriCenterTrainer(object):
         if loss_comb > 1e8:
             raise ValueError('loss too large')
 
-        if self.dbg and self.iter % 8 == 0:
+        if self.dbg and self.iter % 10 == 0:
             self.writer.add_scalar('vis/prec-triplet', prec, self.iter)
             self.writer.add_scalar('vis/lr', self.lr, self.iter)
             self.writer.add_scalar('vis/loss-center', loss_cent, self.iter)
@@ -654,7 +654,6 @@ class XentTrainer(object):
         self.dbg = dbg
         self.cls_weight = args.cls_weight
         self.tri_weight = args.tri_weight
-        self.dop_file = args.logs_dir + '/dop.h5'
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
@@ -672,10 +671,13 @@ class XentTrainer(object):
 
     def _forward(self, inputs, targets, cids=None):
         outputs, outputs2 = self.model(*inputs)
-        # logging.info('{} {}'.format(outputs.size(), outputs2.size()))
         loss2 = self.criterion(outputs2, targets)
         prec2, = accuracy(outputs2.data, targets.data)
         prec2 = prec2[0]
+
+        if self.dbg and self.iter % 10 == 0:
+            self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
+            self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
 
         self.iter += 1
         return loss2, prec2

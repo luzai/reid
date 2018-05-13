@@ -15,7 +15,7 @@ __factory = {
     'cuhk03/label': CUHK03, 'cuhk03/detect': CUHK03, 'cuhk03/combine': CUHK03,
     'market1501': Market1501,
     'dukemtmc': DukeMTMC,
-    'cdm':CDM,
+    'cdm': CDM,
     'msmt17': MSMT17,
     'mars': Mars
 }
@@ -54,7 +54,7 @@ def creates(names, roots, *args, **kwargs):
     dsf = Dataset(root='', split_id=0)
 
     if osp.exists('/home/xinglu/work/cache.pkl'):
-        dsf_dict = unpickle('/home/xinglu/work/cache.pkl')
+        dsf_dict = pickle_load('/home/xinglu/work/cache.pkl')
         for k, v in dsf_dict.items():
             setattr(dsf, k, v)
 

@@ -36,6 +36,8 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
     gallery_ids = np.asarray(gallery_ids)
     query_cams = np.asarray(query_cams)
     gallery_cams = np.asarray(gallery_cams)
+    logging.info(f'face distmat of shape {distmat.shape}, query_ids {query_ids.shape}, gallery_ids {gallery_ids.shape} ')
+
     # Sort and find correct matches
     indices = np.argsort(distmat, axis=1)
     matches = (gallery_ids[indices] == query_ids[:, np.newaxis])

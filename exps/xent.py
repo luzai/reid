@@ -25,6 +25,7 @@ from reid.utils.serialization import *
 
 from tensorboardX import SummaryWriter
 
+
 def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
@@ -131,6 +132,24 @@ def get_data(args):
         T.ToTensor(),
         normalizer,
     ])
+
+    trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
+                                                     ('pid', int),
+                                                     ('cid', int)])
+    trainval_t = trainval_t.view(np.recarray)
+    trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
+
+    trainval_test_loader = DataLoader(Preprocessor(
+        # dataset.val,
+        # dataset.query,
+        # random.choices(trainval_t, k=1367 * 3),
+        trainval_t.tolist(),
+        root=dataset.images_dir,
+        transform=test_transformer,
+        has_npy=npy),
+        batch_size=batch_size, num_workers=workers,
+        shuffle=False, pin_memory=pin_memory)
+
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer,
@@ -167,7 +186,7 @@ def get_data(args):
     dataset.gallery = dataset_val.gallery
     dataset.images_dir = dataset_val.images_dir
     # dataset.num_val_ids
-    return dataset, num_classes, train_loader, val_loader, test_loader
+    return dataset, num_classes, train_loader, val_loader, test_loader, trainval_test_loader
 
 
 def main(args):
@@ -186,7 +205,7 @@ def main(args):
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
 
-    dataset, num_classes, train_loader, val_loader, test_loader = \
+    dataset, num_classes, train_loader, val_loader, test_loader, trainval_test_loader = \
         get_data(args)
     # Create model
     model = models.create(args.arch,
@@ -213,6 +232,9 @@ def main(args):
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
         load_state_dict(model, checkpoint['state_dict'])
+        db_name = args.logs_dir.split('/')[-1] + '.h5'
+        with lz.Database(db_name) as db :
+            db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
             best_top1_ = checkpoint['best_top1']
@@ -236,7 +258,9 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        # res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
+                                 trainval_test_loader.dataset.dataset, metric, final=True)
         lz.logging.info('eval {}'.format(res))
         return 0
     if not args.xent_smooth:
@@ -263,7 +287,7 @@ def main(args):
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': 10.},
+        {'params': fast_params, 'lr_mult': args.lr_mult},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.optimizer == 'adam':
@@ -298,7 +322,7 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = XentTrainer(model, criterion, dbg=False,
+    trainer = XentTrainer(model, criterion, dbg=True,
                           logs_at=args.logs_dir + '/vis', args=args)
 
     # Schedule learning rate
@@ -411,4 +435,4 @@ if __name__ == '__main__':
     toc = time.time()
     print('consume time ', toc - tic)
     if toc - tic > 120:
-        mail('tri xent finish')
+        mail('xent finish')

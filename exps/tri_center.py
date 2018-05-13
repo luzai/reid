@@ -33,42 +33,19 @@ def run(_):
         if args.loss != 'tri_center':
             print(f'skip {args}')
             continue
-        args.log_at = np.concatenate([
-            args.log_at,
-            range(args.epochs - 8, args.epochs, 1)
-        ])
+        # args.log_at = np.concatenate([
+        #     args.log_at,
+        #     range(args.epochs - 8, args.epochs, 1)
+        # ])
         args.logs_dir = 'work/' + args.logs_dir
         if args.gpu is not None:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
-                                  mem=[0.12, 0.05], sleep=32.3)
+                                  mem=[0.12, 0.07], sleep=32.3)
         # args.batch_size = 16
         # args.gpu = (3, )
         # args.epochs = 1
         # args.logs_dir+='.bak'
-
-        if args.dataset == 'cu03det':
-            args.dataset = 'cuhk03'
-            args.dataset_val = 'cuhk03'
-            args.dataset_mode = 'detect'
-            args.eval_conf = 'cuhk03'
-        elif args.dataset == 'cu03lbl':
-            args.dataset = 'cuhk03'
-            args.dataset_val = 'cuhk03'
-            args.dataset_mode = 'label'
-            args.eval_conf = 'cuhk03'
-        elif args.dataset == 'mkt':
-            args.dataset = 'market1501'
-            args.dataset_val = 'market1501'
-            args.eval_conf = 'market1501'
-        elif args.dataset == 'msmt':
-            args.dataset = 'msmt17'
-            args.dataset_val = 'market1501'
-            args.eval_conf = 'market1501'
-        elif args.dataset == 'cdm':
-            args.dataset = 'cdm'
-            args.dataset_val = 'market1501'
-            args.eval_conf = 'market1501'
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
@@ -128,17 +105,17 @@ def get_data(args):
     ])
     dop_info = DopInfo(num_classes)
     print('dop info and its id are', dop_info)
-    # trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
-    #                                                  ('pid', int),
-    #                                                  ('cid', int)])
-    # trainval_t = trainval_t.view(np.recarray)
-    # trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
+    trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
+                                                     ('pid', int),
+                                                     ('cid', int)])
+    trainval_t = trainval_t.view(np.recarray)
+    trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
 
     trainval_test_loader = DataLoader(Preprocessor(
-        dataset.val,
+        # dataset.val,
         # dataset.query,
         # random.choices(trainval_t, k=1367 * 3),
-        # trainval_t.tolist(),
+        trainval_t.tolist(),
         root=dataset.images_dir,
         transform=test_transformer,
         has_npy=npy),
@@ -229,7 +206,7 @@ def main(args):
             time.sleep(20)
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
-        db_name = args.logs_dir.split('/')[-1] + '.h5'
+        db_name = args.logs_dir + '/' + args.logs_dir.split('/')[-1] + '.h5'
         load_state_dict(model, checkpoint['state_dict'])
         with lz.Database(db_name) as db:
             db['cent'] = to_numpy(checkpoint['cent'])
@@ -256,9 +233,9 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
-        # res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
-                                 trainval_test_loader.dataset.dataset, metric, final=True)
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        # res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
+        #                          trainval_test_loader.dataset.dataset, metric, final=True)
         lz.logging.info('eval {}'.format(res))
         return 0
     # Criterion
@@ -426,9 +403,12 @@ def main(args):
 
 
 if __name__ == '__main__':
+    import datetime
+
     tic = time.time()
     run('')
     toc = time.time()
     print('consume time ', toc - tic)
-    if toc - tic > 120:
+    if toc - tic > 600:
         mail('tri center finish')
+    print(datetime.datetime.now().strftime('%D-%H:%M:%S'))

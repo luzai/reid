@@ -47,29 +47,6 @@ def run(_):
         # args.epochs = 1
         # args.logs_dir+='.bak'
 
-        if args.dataset == 'cu03det':
-            args.dataset = 'cuhk03'
-            args.dataset_val = 'cuhk03'
-            args.dataset_mode = 'detect'
-            args.eval_conf = 'cuhk03'
-        elif args.dataset == 'cu03lbl':
-            args.dataset = 'cuhk03'
-            args.dataset_val = 'cuhk03'
-            args.dataset_mode = 'label'
-            args.eval_conf = 'cuhk03'
-        elif args.dataset == 'mkt':
-            args.dataset = 'market1501'
-            args.dataset_val = 'market1501'
-            args.eval_conf = 'market1501'
-        elif args.dataset == 'msmt':
-            args.dataset = 'msmt17'
-            args.dataset_val = 'market1501'
-            args.eval_conf = 'market1501'
-        elif args.dataset == 'cdm':
-            args.dataset = 'cdm'
-            args.dataset_val = 'market1501'
-            args.eval_conf = 'market1501'
-
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if not args.evaluate:
@@ -128,17 +105,17 @@ def get_data(args):
     ])
     dop_info = DopInfo(num_classes)
     print('dop info and its id are', dop_info)
-    # trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
-    #                                                  ('pid', int),
-    #                                                  ('cid', int)])
-    # trainval_t = trainval_t.view(np.recarray)
-    # trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
+    trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
+                                                     ('pid', int),
+                                                     ('cid', int)])
+    trainval_t = trainval_t.view(np.recarray)
+    trainval_t = trainval_t[:np.where(trainval_t.pid == 50)[0].min()]
 
     trainval_test_loader = DataLoader(Preprocessor(
-        dataset.val,
+        # dataset.val,
         # dataset.query,
         # random.choices(trainval_t, k=1367 * 3),
-        # trainval_t.tolist(),
+        trainval_t.tolist(),
         root=dataset.images_dir,
         transform=test_transformer,
         has_npy=npy),
@@ -229,10 +206,10 @@ def main(args):
             time.sleep(20)
         checkpoint = load_checkpoint(args.resume)
         # model.load_state_dict(checkpoint['state_dict'])
-        db_name = args.logs_dir.split('/')[-1] + '.h5'
         load_state_dict(model, checkpoint['state_dict'])
-        with lz.Database(db_name) as db:
-            db['cent'] = to_numpy(checkpoint['cent'])
+        db_name = args.logs_dir.split('/')[-1] + '.h5'
+        with lz.Database(db_name) as db :
+            db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
             best_top1_ = checkpoint['best_top1']
@@ -284,7 +261,7 @@ def main(args):
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': 10.},
+        {'params': fast_params, 'lr_mult': 10.}, # args.lr_mult
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.optimizer == 'adam':
@@ -320,8 +297,9 @@ def main(args):
                   format(epoch, hist))
 
     # Trainer
-    trainer = XentTriTrainer(model, criterion, dbg=False,
-                             logs_at=args.logs_dir + '/vis', args=args)
+    trainer = XentTriTrainer(model, criterion, dbg=True,
+                             logs_at=args.logs_dir + '/vis', args=args,
+                             dop_info=dop_info)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

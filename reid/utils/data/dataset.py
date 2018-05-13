@@ -1,25 +1,29 @@
 from __future__ import print_function
 import os.path as osp
-
 import numpy as np
 
 from ..serialization import read_json
 
 
 def _pluck(identities, indices, relabel=False):
+    pid2lbl = {}
     ret = []
     for index, pid in enumerate(indices):
         pid_images = identities[pid]
         for camid, cam_images in enumerate(pid_images):
             for fname in cam_images:
-                name = osp.splitext(fname)[0]
+                # name = osp.splitext(fname)[0]
                 # x, y, _ = map(int, name.split('_'))
                 # assert pid == x and camid == y
                 if relabel:
                     ret.append((fname, index, camid))
+                    pid2lbl[pid] = index
                 else:
                     ret.append((fname, pid, camid))
-    return ret
+    if relabel:
+        return ret, pid2lbl
+    else:
+        return ret
 
 
 def _stats(tensor):
@@ -47,7 +51,7 @@ class Dataset(object):
 
         # Randomly split train / val
         trainval_pids = np.asarray(self.split['trainval'])
-        np.random.shuffle(trainval_pids)
+        # np.random.shuffle(trainval_pids) # because we use trainval as train, val to visualization
         num = len(trainval_pids)
         if isinstance(num_val, float):
             num_val = int(round(num * num_val))
@@ -59,10 +63,9 @@ class Dataset(object):
 
         self.meta = read_json(osp.join(self.root, 'meta.json'))
         identities = self.meta['identities']
-        self.train = _pluck(identities, train_pids, relabel=True)
-        self.val = _pluck(identities, val_pids, relabel=True)
-        # self.val = _pluck(identities, val_pids, relabel=True)
-        self.trainval = _pluck(identities, trainval_pids, relabel=True)
+        self.train, _ = _pluck(identities, train_pids, relabel=True)
+        self.val, _ = _pluck(identities, val_pids, relabel=True)
+        self.trainval, pid2lbl = _pluck(identities, trainval_pids, relabel=True)
         self.query = _pluck(identities, self.split['query'])
         self.gallery = _pluck(identities, self.split['gallery'])
         self.num_train_ids = len(train_pids)

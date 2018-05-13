@@ -151,28 +151,32 @@ class Evaluator(object):
         features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
         res = {}
-
-        # for rerank in [False, True]:
-        for rerank in [False, ]:
+        final = kwargs.get('final', False)
+        if final:
+            rerank_range = [False, True]
+        else:
+            rerank_range = [False, ]
+        for rerank in rerank_range:
             # try:
             distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
             # except Exception as e:
             #     logging.error(e)
             #     continue
-            db_name = self.args.logs_dir.split('/')[-1] + '.h5'
-            with lz.Database(db_name) as db:
-                for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-                    if rerank:
-                        db['rk/' + name] = eval(name)
-                    else:
-                        db[name] = eval(name)
-                db['smpl'] = xx
-            # with pd.HDFStore(db_name) as db:
-            #     db['query'] = query_to_df(query)
-            #     db['gallery'] = query_to_df(gallery)
+            if final:
+                db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
+                with lz.Database(db_name) as db:
+                    for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+                        if rerank:
+                            db['rk/' + name] = eval(name)
+                        else:
+                            db[name] = eval(name)
+                    db['smpl'] = xx
+                # with pd.HDFStore(db_name) as db:
+                #     db['query'] = query_to_df(query)
+                #     db['gallery'] = query_to_df(gallery)
 
-            with lz.Database(db_name) as db:
-                print(list(db.keys()))
+                with lz.Database(db_name) as db:
+                    print(list(db.keys()))
             # try:
             mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
             # except Exception as e:

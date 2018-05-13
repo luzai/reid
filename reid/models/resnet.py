@@ -985,6 +985,8 @@ def resnet50(**kwargs):
     else:
         return ResNetOri(50, **kwargs)
 
+def resnet34(**kwargs):
+    return ResNetOri(34,**kwargs)
 
 '''
 
