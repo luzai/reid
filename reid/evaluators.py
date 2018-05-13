@@ -88,18 +88,18 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
 
 def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=False):
     if query is None and gallery is None:
-        n = len(features)
-        x = torch.cat(list(features.values()))
-        x = x.view(n, -1)
-        print('feature size ', x.size())
-        if metric is not None:
-            x = metric.transform(x)
-        dist = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(n, n)
-        dist = dist + dist.t()
-        dist.addmm_(1, -2, x, x.t())
-        dist = dist.clamp(min=1e-12).sqrt()
+        # n = len(features)
+        # x = torch.cat(list(features.values()))
+        # x = x.view(n, -1)
+        # print('feature size ', x.size())
+        # if metric is not None:
+        #     x = metric.transform(x)
+        # dist = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(n, n)
+        # dist = dist + dist.t()
+        # dist.addmm_(1, -2, x, x.t())
+        # dist = dist.clamp(min=1e-12).sqrt()
         raise ValueError('todo')
-        return dist
+        # return dist
 
     x = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
     y = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
@@ -110,6 +110,8 @@ def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=Fa
             mem_save = True
         else:
             mem_save = False
+        logging.info(f'mem saving mode {mem_save}')
+
         dist = re_ranking(xx, yy, mem_save)
         return dist, xx, yy
     else:
@@ -214,6 +216,7 @@ class Evaluator(object):
                                        'top-5': cmc_scores[self.conf][4],
                                        'top-10': cmc_scores[self.conf][9],
                                        }])
+        json_dump(res, self.args.logs_dir + '/res.json')
         return res
 
 

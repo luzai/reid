@@ -68,7 +68,7 @@ def set_file_logger(work_dir=None, log_level=logging.DEBUG):
 logging.root.setLevel(logging.DEBUG)
 # set_stream_logger(logging.DEBUG)
 set_stream_logger(logging.INFO)
-set_file_logger(log_level=logging.DEBUG)
+set_file_logger(log_level=logging.INFO)
 
 
 def load_cfg(cfg_file):
@@ -370,7 +370,9 @@ def to_variable(tn, **kwargs):
     tn = to_torch(tn)
     if torch.cuda.is_available():
         tn = tn.cuda()
-    if kwargs.get('volatile', False):
+    volatile = kwargs.get('volatile', False)
+    if 'volatile' in kwargs: del kwargs['volatile']
+    if volatile:
         with torch.no_grad():
             tn = Variable(tn, **kwargs)
     else:
@@ -610,7 +612,7 @@ def yaml_dump(obj, file=None, **kwargs):
 def json_dump(obj, file):
     import codecs, json
     if isinstance(file, str):
-        with codecs.open(file, 'a', encoding='utf-8') as fp:
+        with codecs.open(file, 'w', encoding='utf-8') as fp: # write not append!
             json.dump(obj, fp, ensure_ascii=False)
     elif hasattr(file, 'write'):
         json.dump(obj, file)

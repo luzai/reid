@@ -171,7 +171,7 @@ def main(args):
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
     cudnn.benchmark = True
-    writer = SummaryWriter(args.logs_dir)
+
 
     # Create data loaders
     assert args.num_instances > 1, "num_instances should be greater than 1"
@@ -197,7 +197,7 @@ def main(args):
     print(model)
     param_mb = sum(p.numel() for p in model.parameters()) / 1000000.0
     logging.info('    Total params: %.2fM' % (param_mb))
-    writer.add_scalar('param', param_mb, global_step=0)
+
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
@@ -237,7 +237,7 @@ def main(args):
         # res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
         #                          trainval_test_loader.dataset.dataset, metric, final=True)
         lz.logging.info('eval {}'.format(res))
-        return 0
+        return res
     # Criterion
     criterion = [TripletLoss(margin=args.margin, ),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
@@ -322,6 +322,9 @@ def main(args):
         args.num_instances = args.num_instances_l[res]
         return args
 
+    writer = SummaryWriter(args.logs_dir)
+    writer.add_scalar('param', param_mb, global_step=0)
+
     # schedule = CyclicLR(optimizer)
     schedule = None
     # Start training
@@ -400,6 +403,7 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
+    return res
 
 
 if __name__ == '__main__':

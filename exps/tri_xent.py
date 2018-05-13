@@ -171,7 +171,6 @@ def main(args):
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
     cudnn.benchmark = True
-    writer = SummaryWriter(args.logs_dir)
 
     # Create data loaders
     assert args.num_instances > 1, "num_instances should be greater than 1"
@@ -197,7 +196,6 @@ def main(args):
     print(model)
     param_mb = sum(p.numel() for p in model.parameters()) / 1000000.0
     logging.info('    Total params: %.2fM' % (param_mb))
-    writer.add_scalar('param', param_mb, global_step=0)
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
@@ -233,11 +231,11 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
-        # res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
-        res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
-                                 trainval_test_loader.dataset.dataset, metric, final=True)
+        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        # res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
+        #                          trainval_test_loader.dataset.dataset, metric, final=True)
         lz.logging.info('eval {}'.format(res))
-        return 0
+        return res
     if not args.xent_smooth:
         xent = nn.CrossEntropyLoss()
     else:
@@ -328,6 +326,9 @@ def main(args):
         args.batch_size = args.batch_size_l[res]
         args.num_instances = args.num_instances_l[res]
         return args
+
+    writer = SummaryWriter(args.logs_dir)
+    writer.add_scalar('param', param_mb, global_step=0)
 
     # schedule = CyclicLR(optimizer)
     schedule = None
@@ -428,7 +429,7 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
-
+    return res
 
 if __name__ == '__main__':
     tic = time.time()
