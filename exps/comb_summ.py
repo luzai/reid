@@ -24,14 +24,21 @@ for path in paths:
     name = path.split('/')[-1]
     if 'only' in name: continue
     # if not 'multis.cu03lbl' in name: continue
+    # if not 'multis' in name: continue
+    if not 'cu01' in name and not 'cuhk01' in name: continue
     # path = paths[0]
     if not osp.exists(path + '/conf.pkl'):
         continue
     args = pickle_load(path + '/conf.pkl')
-    if not osp.exists(args.logs_dir + '/res.json'):
+    # if osp.exists(args.logs_dir + '/eval/res.json'):
+    res_path = args.logs_dir + '/eval/res.json'
+    # else:
+    #     res_path = args.logs_dir + '/res.json'
+
+    if not osp.exists(res_path):
         continue
     # print(args.logs_dir)
-    res = json_load(args.logs_dir + '/res.json')
+    res = json_load(res_path)
     # print(args, res)
     res_dict[name] = res
     cfg_dict[name] = args
@@ -44,6 +51,13 @@ def f1(x):
     return r'%.2f' % x
 
 
-print(df[['top-1', 'top-5', 'top-10', ]].to_latex(formatters=[f1, ] * 3))
-print(df[['top-1.rk', 'top-5.rk', 'top-10.rk', ]].to_latex(formatters=[f1, ] * 3))
-# 'top-1.rk', 'top-5', 'top-5.rk',
+print(df[['top-1',
+          # 'mAP',
+          'top-5', 'top-10',
+          ]].to_latex(formatters=[f1, ] * 3))
+print(df[['top-1.rk',
+          # 'mAP.rk',
+          'top-5.rk','top-10.rk',
+          ]].to_latex(formatters=[f1, ] * 3))
+
+

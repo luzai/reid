@@ -68,89 +68,7 @@ def set_file_logger(work_dir=None, log_level=logging.DEBUG):
 logging.root.setLevel(logging.DEBUG)
 # set_stream_logger(logging.DEBUG)
 set_stream_logger(logging.INFO)
-set_file_logger(log_level=logging.INFO)
-
-
-def load_cfg(cfg_file):
-    from importlib import import_module
-    sys.path.append(osp.dirname(cfg_file))
-    module_name = osp.basename(cfg_file).rstrip('.py')
-    cfg = import_module(module_name)
-    return cfg
-
-
-# Based on an original idea by https://gist.github.com/nonZero/2907502 and heavily modified.
-class Uninterrupt(object):
-    """
-    Use as:
-    with Uninterrupt() as u:
-        while not u.interrupted:
-            # train
-    """
-
-    def __init__(self, sigs=(signal.SIGINT,), verbose=False):
-        self.sigs = sigs
-        self.verbose = verbose
-        self.interrupted = False
-        self.orig_handlers = None
-
-    def __enter__(self):
-        if self.orig_handlers is not None:
-            raise ValueError("Can only enter `Uninterrupt` once!")
-
-        self.interrupted = False
-        self.orig_handlers = [signal.getsignal(sig) for sig in self.sigs]
-
-        def handler(signum, frame):
-            self.release()
-            self.interrupted = True
-            if self.verbose:
-                print("Interruption scheduled...", flush=True)
-
-        for sig in self.sigs:
-            signal.signal(sig, handler)
-
-        return self
-
-    def __exit__(self, type_, value, tb):
-        self.release()
-
-    def release(self):
-        if self.orig_handlers is not None:
-            for sig, orig in zip(self.sigs, self.orig_handlers):
-                signal.signal(sig, orig)
-            self.orig_handlers = None
-
-
-def mail(content):
-    import datetime
-    time_str = datetime.datetime.now().strftime('%M-%d %H:%M')
-
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-
-    s = smtplib.SMTP(host='smtp.qq.com', port=587)
-    s.starttls()
-    user_pass = json_load('/home/xinglu/config.me/conf/mail.json')
-    s.login(user_pass['username'], user_pass['password'])
-
-    def send(to_mail="907682447@qq.com", content=''):
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = 'program said'
-        msg['From'] = '907682447@qq.com'
-        msg['To'] = to_mail
-        msg.attach(MIMEText(content, 'plain'))
-        s.sendmail(msg['From'], msg['To'], msg.as_string())
-
-    content = time_str + '\r\n' + content
-    send(content=content)
-    s.quit()
-
-
-def df2md(df1):
-    import tabulate
-    return tabulate.tabulate(df1, headers="keys", tablefmt="pipe")
+set_file_logger(log_level=logging.ERROR)
 
 
 def np_print(arr):
@@ -164,25 +82,6 @@ def wrapped_partial(func, *args, **kwargs):
     partial_func = functools.partial(func, *args, **kwargs)
     functools.update_wrapper(partial_func, func)
     return partial_func
-
-
-def sel_np(A):
-    import json
-    dtype = str(A.dtype)
-    shape = A.shape
-    A = A.ravel().tolist()
-    sav = {'shape': shape, 'dtype': dtype,
-           'A': A
-           }
-    return json.dumps(sav)
-
-
-def desel_np(s):
-    import json
-    sav = json.loads(s)
-    A = sav['A']
-    A = np.array(A, dtype=sav['dtype']).reshape(sav['shape'])
-    return A
 
 
 def cpu_priority(level=19):
@@ -231,6 +130,10 @@ def set_env(key, value):
         os.environ[key] = value + ':' + os.environ[key]
     else:
         os.environ[key] = value
+
+
+# if something like Runtime Error : an illegal memory access was encountered occur
+# os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
 # init_dev((3,))
@@ -320,12 +223,118 @@ def get_md5(url):
     return m.hexdigest()
 
 
+def load_cfg(cfg_file):
+    from importlib import import_module
+    sys.path.append(osp.dirname(cfg_file))
+    module_name = osp.basename(cfg_file).rstrip('.py')
+    cfg = import_module(module_name)
+    return cfg
+
+
+# Based on an original idea by https://gist.github.com/nonZero/2907502 and heavily modified.
+class Uninterrupt(object):
+    """
+    Use as:
+    with Uninterrupt() as u:
+        while not u.interrupted:
+            # train
+    """
+
+    def __init__(self, sigs=(signal.SIGINT,), verbose=False):
+        self.sigs = sigs
+        self.verbose = verbose
+        self.interrupted = False
+        self.orig_handlers = None
+
+    def __enter__(self):
+        if self.orig_handlers is not None:
+            raise ValueError("Can only enter `Uninterrupt` once!")
+
+        self.interrupted = False
+        self.orig_handlers = [signal.getsignal(sig) for sig in self.sigs]
+
+        def handler(signum, frame):
+            self.release()
+            self.interrupted = True
+            if self.verbose:
+                print("Interruption scheduled...", flush=True)
+
+        for sig in self.sigs:
+            signal.signal(sig, handler)
+
+        return self
+
+    def __exit__(self, type_, value, tb):
+        self.release()
+
+    def release(self):
+        if self.orig_handlers is not None:
+            for sig, orig in zip(self.sigs, self.orig_handlers):
+                signal.signal(sig, orig)
+            self.orig_handlers = None
+
+
+def mail(content):
+    import datetime
+    time_str = datetime.datetime.now().strftime('%M-%d %H:%M')
+
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    s = smtplib.SMTP(host='smtp.qq.com', port=587)
+    s.starttls()
+    # user_pass = json_load('/home/xinglu/config.me/conf/mail.json')
+    user_pass = {'username': 'wxlms@outlook.com',
+                 'password': 'yana3140102282'}
+    user_pass = {'username': '907682447@qq.com',
+                 'password': 'luzai123'}
+
+    s.login(user_pass['username'], user_pass['password'])
+
+    def send(to_mail="907682447@qq.com", content=''):
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'program said'
+        msg['From'] = user_pass['username']
+        msg['To'] = to_mail
+        msg.attach(MIMEText(content, 'plain'))
+        s.sendmail(msg['From'], msg['To'], msg.as_string())
+
+    content = time_str + '\r\n' + content
+    send(content=content)
+    s.quit()
+
+
+def df2md(df1):
+    import tabulate
+    return tabulate.tabulate(df1, headers="keys", tablefmt="pipe")
+
+
 def stat_np(array):
     return np.min(array), np.mean(array), np.median(array), np.max(array)
 
 
 def stat_th(tensor):
     return torch.min(tensor), torch.mean(tensor), torch.median(tensor), torch.max(tensor)
+
+
+def sel_np(A):
+    import json
+    dtype = str(A.dtype)
+    shape = A.shape
+    A = A.ravel().tolist()
+    sav = {'shape': shape, 'dtype': dtype,
+           'A': A
+           }
+    return json.dumps(sav)
+
+
+def desel_np(s):
+    import json
+    sav = json.loads(s)
+    A = sav['A']
+    A = np.array(A, dtype=sav['dtype']).reshape(sav['shape'])
+    return A
 
 
 def to_numpy(tensor):
@@ -431,6 +440,18 @@ def grid_iter(*args):
             yield arg[0]
         else:
             yield arg
+
+
+def cross_iter(*args):
+    start = [t[0] for t in args]
+    yield start
+    for ind, arg in enumerate(args):
+        if len(arg) > 1:
+            bak = start[ind]
+            for ar in arg[1:]:
+                start[ind] = ar
+                yield start
+            start[ind] = bak
 
 
 def shuffle_iter(iter):
@@ -612,7 +633,7 @@ def yaml_dump(obj, file=None, **kwargs):
 def json_dump(obj, file):
     import codecs, json
     if isinstance(file, str):
-        with codecs.open(file, 'w', encoding='utf-8') as fp: # write not append!
+        with codecs.open(file, 'w', encoding='utf-8') as fp:  # write not append!
             json.dump(obj, fp, ensure_ascii=False)
     elif hasattr(file, 'write'):
         json.dump(obj, file)
@@ -946,3 +967,4 @@ def i_vis_graph(graph_def, max_const_size=32):
 
 if __name__ == '__main__':
     print("ok")
+    mail('test')

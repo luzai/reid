@@ -206,7 +206,7 @@ def main(args):
         # model.load_state_dict(checkpoint['state_dict'])
         load_state_dict(model, checkpoint['state_dict'])
         db_name = args.logs_dir.split('/')[-1] + '.h5'
-        with lz.Database(db_name) as db :
+        with lz.Database(db_name) as db:
             db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
@@ -242,7 +242,7 @@ def main(args):
         xent = CrossEntropyLabelSmooth(num_classes=num_classes)
     setattr(xent, 'name', 'xent')
     # Criterion
-    criterion = [TripletLoss(margin=args.margin,),xent]
+    criterion = [TripletLoss(margin=args.margin, mode='hard'), xent]
     criterion = [c.cuda() for c in criterion]
     # Optimizer
 
@@ -259,7 +259,7 @@ def main(args):
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': 10.}, # args.lr_mult
+        {'params': fast_params, 'lr_mult': 10.},  # args.lr_mult
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.optimizer == 'adam':
@@ -430,6 +430,7 @@ def main(args):
 
     writer.close()
     return res
+
 
 if __name__ == '__main__':
     tic = time.time()

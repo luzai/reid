@@ -106,13 +106,13 @@ def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=Fa
     if rerank:
         xx = to_numpy(x)
         yy = to_numpy(y)
-        if xx.shape[0] > 2000:
-            mem_save = True
-        else:
-            mem_save = False
-        logging.info(f'mem saving mode {mem_save}')
+        # if xx.shape[0] > 2000:
+        #     mem_save = True
+        # else:
+        #     mem_save = False
+        # logging.info(f'mem saving mode {mem_save}')
 
-        dist = re_ranking(xx, yy, mem_save)
+        dist = re_ranking(xx, yy)
         return dist, xx, yy
     else:
         m, n = x.size(0), y.size(0)
@@ -141,7 +141,7 @@ class Evaluator(object):
         self.conf = conf
         self.args = args
 
-    def evaluate(self, data_loader, query, gallery, metric=None, epoch=None, **kwargs):
+    def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
         timer = cvb.Timer()
         timer.start()
         self.model.eval()

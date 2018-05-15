@@ -172,7 +172,6 @@ def main(args):
         torch.manual_seed(args.seed)
     cudnn.benchmark = True
 
-
     # Create data loaders
     assert args.num_instances > 1, "num_instances should be greater than 1"
     assert args.batch_size % args.num_instances == 0, \
@@ -239,7 +238,7 @@ def main(args):
         lz.logging.info('eval {}'.format(res))
         return res
     # Criterion
-    criterion = [TripletLoss(margin=args.margin, ),
+    criterion = [TripletLoss(margin=args.margin,mode = 'hard' ),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
                             margin2=args.margin2,
                             margin3=args.margin3, mode=args.mode,
@@ -263,6 +262,8 @@ def main(args):
             # model.parameters(),
             param_groups,
             lr=args.lr,
+            betas=args.adam_betas ,
+            eps=args.adam_eps,  # adam hyperparameter
             weight_decay=args.weight_decay)
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(

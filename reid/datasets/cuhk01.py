@@ -1,20 +1,19 @@
-from __future__ import print_function, absolute_import
 import os.path as osp
-
 import numpy as np
-
-from ..utils.data import Dataset
-from ..utils.osutils import mkdir_if_missing
-from ..utils.serialization import write_json
+from reid.utils.data import Dataset
+from reid.utils.osutils import mkdir_if_missing
+from reid.utils.serialization import write_json
 
 
 class CUHK01(Dataset):
     url = 'https://docs.google.com/spreadsheet/viewform?formkey=dF9pZ1BFZkNiMG1oZUdtTjZPalR0MGc6MA'
     md5 = 'e6d55c0da26d80cda210a2edeb448e98'
 
-    def __init__(self, root, split_id=0, num_val=100, download=True, **kwargs):
-        super(CUHK01, self).__init__(root, split_id=split_id)
+    def __init__(self, root, split_id=0, num_val=100, download=True, mode='easy', **kwargs):
+        self.mode = mode
+        root = root + '/' + mode + '/'
 
+        super(CUHK01, self).__init__(root, split_id=split_id)
         if download:
             self.download()
 
@@ -40,7 +39,7 @@ class CUHK01(Dataset):
         # Download the raw zip file
         fpath = osp.join(raw_dir, 'CUHK01.zip')
         if osp.isfile(fpath) and \
-          hashlib.md5(open(fpath, 'rb').read()).hexdigest() == self.md5:
+                hashlib.md5(open(fpath, 'rb').read()).hexdigest() == self.md5:
             print("Using downloaded file: " + fpath)
         else:
             raise RuntimeError("Please download the dataset manually from {} "
@@ -87,5 +86,21 @@ class CUHK01(Dataset):
                      'query': test_pids,
                      'gallery': test_pids}
             splits.append(split)
-        write_json(splits, osp.join(self.root, 'splits.json'))
+        write_json(splits, osp.join(self.root, 'hard/splits.json'))
 
+        splits = []
+        for _ in range(10):
+            pids = np.random.permutation(num).tolist()
+            trainval_pids = sorted(pids[:871])
+            test_pids = sorted(pids[871:])
+            split = {'trainval': trainval_pids,
+                     'query': test_pids,
+                     'gallery': test_pids}
+            splits.append(split)
+        write_json(splits, osp.join(self.root, 'easy/splits.json'))
+
+
+if __name__ == '__main__':
+    print('ok')
+    CUHK01('/home/xinglu/.torch/data/cuhk01/', mode='hard')
+    CUHK01('/home/xinglu/.torch/data/cuhk01/', mode='easy')

@@ -105,17 +105,19 @@ class CenterLoss(nn.Module):
             loss_cent = dist.mean()
 
         centers = self.centers
-
         distmat3 = calc_distmat2(centers, centers)
-        mask = to_torch(np.tri(ncenters, dtype=np.uint8) - np.identity(ncenters, dtype=np.uint8)).cuda()
-        distpairs = distmat3[mask]
-        # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
-        distpairs = -distpairs
-        loss_dis3 = distpairs.mean()
 
-        # mask = to_torch(np.identity(ncenters, dtype=np.float32)).cuda() * distmat3.max()
-        # min_inds = (distmat3 + mask).argmin(dim=1)
-        # loss_dis3 = -distmat3[:, min_inds].mean()
+        if self.mode.split('.')[2] == 'all':
+            mask = to_torch(np.tri(ncenters, dtype=np.uint8) - np.identity(ncenters, dtype=np.uint8)).cuda()
+            distpairs = distmat3[mask]
+            # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda()) # Note here has '-' already!
+            loss_dis3 = -distpairs.mean()
+        else:
+            mask = to_torch(np.identity(ncenters, dtype=np.float32)).cuda() * distmat3.max()
+            loss_dis3 = (distmat3 + mask).min(dim =1)
+            loss_dis3 = -loss_dis3.mean()
+            # min_inds = (distmat3 + mask).argmin(dim=1)
+            # loss_dis3 = -distmat3[:, min_inds].mean()
 
         return loss_cent, loss_dis3, distmat3, loss_cent_pull
 
