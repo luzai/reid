@@ -2,7 +2,8 @@ from __future__ import print_function
 import os.path as osp
 import numpy as np
 
-from ..serialization import read_json
+from reid.utils.serialization import read_json
+import lz
 
 
 def _pluck(identities, indices, relabel=False):
@@ -66,6 +67,7 @@ class Dataset(object):
         self.train, _ = _pluck(identities, train_pids, relabel=True)
         self.val, _ = _pluck(identities, val_pids, relabel=True)
         self.trainval, pid2lbl = _pluck(identities, trainval_pids, relabel=True)
+        self.pid2lbl = pid2lbl
         self.query = _pluck(identities, self.split['query'])
         self.gallery = _pluck(identities, self.split['gallery'])
         self.num_train_ids = len(train_pids)

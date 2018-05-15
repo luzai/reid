@@ -154,6 +154,7 @@ class Evaluator(object):
         assert len(features) != 0
         res = {}
         final = kwargs.get('final', False)
+        suffix = kwargs.get('suffix', '')
         if final:
             rerank_range = [False, True]
         else:
@@ -165,7 +166,7 @@ class Evaluator(object):
             #     logging.error(e)
             #     continue
             if final:
-                db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
+                db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + suffix + '.h5'
                 with lz.Database(db_name) as db:
                     for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
                         if rerank:

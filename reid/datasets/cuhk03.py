@@ -35,6 +35,7 @@ class CUHK03(Dataset):
     def __init__(self, root, split_id=0, num_val=100, download=True, mode='combine', check_integrity=True, **kwargs):
         super(CUHK03, self).__init__(root, split_id=split_id)
         self.mode = mode
+        self.name = 'cuhk03'
         print('use mode ', mode)
         if download:
             self.download(check_integrity)

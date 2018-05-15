@@ -17,7 +17,9 @@ __factory = {
     'dukemtmc': DukeMTMC,
     'cdm': CDM,
     'msmt17': MSMT17,
-    'mars': Mars
+    'mars': Mars,
+    'ilidsvid': iLIDSVID,
+    'prid': PRID,
 }
 
 

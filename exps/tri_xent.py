@@ -35,10 +35,15 @@ def run(_):
             continue
         args.log_at = np.concatenate([
             args.log_at,
-            range(args.epochs - 8, args.epochs, 1)
+            range(args.epochs - 1, args.epochs + 1, 1)
         ])
         args.logs_dir = 'work/' + args.logs_dir
-        if args.gpu is not None:
+
+        if osp.exists(args.logs_dir):
+            print(f'skip {args.logs_dir}')
+            continue
+
+        if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
                                   mem=[0.12, 0.05], sleep=32.3)

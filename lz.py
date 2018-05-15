@@ -633,8 +633,11 @@ def yaml_dump(obj, file=None, **kwargs):
 def json_dump(obj, file):
     import codecs, json
     if isinstance(file, str):
-        with codecs.open(file, 'w', encoding='utf-8') as fp:  # write not append!
-            json.dump(obj, fp, ensure_ascii=False)
+        # with codecs.open(file, 'w', encoding='utf-8') as fp:  # write not append!
+        with open(file,'w') as fp:
+            json.dump(obj, fp,
+                      # ensure_ascii=False
+                      )
     elif hasattr(file, 'write'):
         json.dump(obj, file)
 
