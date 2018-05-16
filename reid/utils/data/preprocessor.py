@@ -116,7 +116,7 @@ class VideoDataset(Dataset):
             """Evenly sample seq_len items from num items."""
             if num >= self.seq_len:
                 num -= num % self.seq_len
-                indices = np.arange(0, num, num / self.seq_len)
+                indices = np.arange(0, num, num // self.seq_len)
             else:
                 # if num is smaller than seq_len, simply replicate the last image
                 # until the seq_len requirement is satisfied
@@ -143,7 +143,7 @@ class VideoDataset(Dataset):
             imgs.append(img)
         imgs = torch.cat(imgs, dim=0)
         res = {'img': imgs, 'pid': pid, 'cid': camid, 'fname': img_paths}
-        return imgs, pid, camid
+        return res
 
 
 class KeyValuePreprocessor(object):

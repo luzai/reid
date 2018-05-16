@@ -30,7 +30,7 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        if args.loss != 'tri_center':
+        if args.loss != 'tcx':
             print(f'skip {args}')
             continue
         # args.log_at = np.concatenate([
@@ -234,20 +234,27 @@ def main(args):
     evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
         res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
-                                 trainval_test_loader.dataset.dataset, metric,
-                                 final=True, prefix='train')
-        # todo prefix in other code
+                                 trainval_test_loader.dataset.dataset, metric, final=True, prefix='train')
+
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric,
                                  final=True, prefix='test')
 
         lz.logging.info('eval {}'.format(res))
         return res
     # Criterion
+    if not args.xent_smooth:
+        xent = nn.CrossEntropyLoss()
+    else:
+        xent = CrossEntropyLabelSmooth(num_classes=num_classes)
+    setattr(xent, 'name', 'xent')
+
     criterion = [TripletLoss(margin=args.margin, mode='hard'),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
                             margin2=args.margin2,
                             margin3=args.margin3, mode=args.mode,
-                            push_scale=args.push_scale), ]
+                            push_scale=args.push_scale),
+                 xent
+                 ]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
@@ -258,7 +265,7 @@ def main(args):
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': 1.},
+        {'params': fast_params, 'lr_mult': 10.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
@@ -297,7 +304,7 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = TriCenterTrainer(model, criterion, dbg=True,
+    trainer = TCXTrainer(model, criterion, dbg=True,
                                logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
@@ -420,5 +427,5 @@ if __name__ == '__main__':
     toc = time.time()
     print('consume time ', toc - tic)
     if toc - tic > 600:
-        mail('tri center finish')
+        mail('tri center xent finish')
     print(datetime.datetime.now().strftime('%D-%H:%M:%S'))

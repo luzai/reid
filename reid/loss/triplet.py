@@ -69,57 +69,54 @@ class CenterLoss(nn.Module):
         """
         batch_size = x.size(0)
         ncenters, nfeas = self.centers.size()
-        distmat = calc_distmat2(x, self.centers)
+        distmat_x2cent = calc_distmat2(x, self.centers)
         classes = torch.arange(self.num_classes).long()
         if self.use_gpu: classes = classes.cuda()
         classes = Variable(classes)
         labels = labels.unsqueeze(1).expand(batch_size, self.num_classes)
         mask = labels.eq(classes.expand(batch_size, self.num_classes))
 
-        dist = []
-        dist_centers = []
+        dists_dcl = []
+        dists_pull = []
         # wei = self.fc(distmat[0])
         # logging.info(f'mean {wei.mean()} sum {wei.sum()} weight is {wei}')
 
         for i in range(batch_size):
-            dist_center = distmat[i][mask[i]]
+            dist_pull = distmat_x2cent[i][mask[i]]
             if self.mode.split('.')[1] == 'min':
-                dist_push = distmat[i][1 - mask[i]].min() * self.push_wei
+                dist_push = distmat_x2cent[i][1 - mask[i]].min() * self.push_wei
             else:
                 # dist_push = distmat[i][1 - mask[i]].sum()
-                # dist_push = distmat[i][1 - mask[i]].mean()
-                # dist_push = (self.fc(distmat[i]) * distmat[i][1 - mask[i]]).mean()
-                dist_push = (distmat[i][1 - mask[i]] * self.push_wei).mean()
+                # dist_push = (distmat_x2cent[i] * self.push_wei).mean()
+                dist_push = (distmat_x2cent[i][1 - mask[i]] * self.push_wei).mean()
 
-            # value = dist_center
-            value = dist_center / (dist_push + 1)
-            dist.append(value)
-            dist_centers.append(dist_center)
-        loss_cent_pull = torch.cat(dist_centers).mean()
+            dists_dcl.append(dist_pull / (dist_push ))
+            dists_pull.append(dist_pull)
+        loss_pull = torch.cat(dists_pull).mean()
 
         if self.mode == 'cent':
-            loss_cent = loss_cent_pull
-        elif 'ccent' in self.mode :
-            dist = torch.cat(dist)
+            loss = loss_pull
+        elif 'ccent' in self.mode:
+            dists_dcl = torch.cat(dists_dcl)
             # dist = torch.max(dist-self.margin2, torch.zeros(batch_size).cuda())
-            loss_cent = dist.mean()
+            loss = dists_dcl.mean()
 
-        centers = self.centers
-        distmat3 = calc_distmat2(centers, centers)
+        distmat_cent2cent = calc_distmat2(self.centers, self.centers)
 
         if self.mode.split('.')[2] == 'all':
             mask = to_torch(np.tri(ncenters, dtype=np.uint8) - np.identity(ncenters, dtype=np.uint8)).cuda()
-            distpairs = distmat3[mask]
-            # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda()) # Note here has '-' already!
-            loss_dis3 = -distpairs.mean()
+            cent_pairs = distmat_cent2cent[mask]
+            # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
+            #  Note here has '-' already!
+            loss_dis = -cent_pairs.mean()
         else:
-            mask = to_torch(np.identity(ncenters, dtype=np.float32)).cuda() * distmat3.max()
-            loss_dis3 = (distmat3 + mask).min(dim =1)
-            loss_dis3 = -loss_dis3.mean()
+            mask = to_torch(np.identity(ncenters, dtype=np.float32)).cuda() * distmat_cent2cent.max()
+            loss_dis = (distmat_cent2cent + mask).min(dim=1)
+            loss_dis = -loss_dis.mean()
             # min_inds = (distmat3 + mask).argmin(dim=1)
             # loss_dis3 = -distmat3[:, min_inds].mean()
 
-        return loss_cent, loss_dis3, distmat3, loss_cent_pull
+        return loss, loss_dis, distmat_cent2cent, loss_pull
 
 
 class QuadLoss(nn.Module):

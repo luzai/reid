@@ -30,13 +30,13 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        if args.loss != 'tri_center':
+        if args.loss != 'tcx':
             print(f'skip {args}')
             continue
-        # args.log_at = np.concatenate([
-        #     args.log_at,
-        #     range(args.epochs - 8, args.epochs, 1)
-        # ])
+        args.log_at = np.concatenate([
+            args.log_at,
+            range(args.epochs - 1, args.epochs + 1, 1)
+        ])
         args.logs_dir = 'work/' + args.logs_dir
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
@@ -76,22 +76,17 @@ def get_data(args):
         args.batch_size, args.num_instances,
         args.workers, args.combine_trainval,)
     pin_memory = args.pin_mem
-    name_val = args.dataset_val
     npy = args.has_npy
     rand_ratio = args.random_ratio
 
-    root = osp.join(data_dir, name)
+    # root = osp.join(data_dir, name)
+    root = data_dir
     dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
-
-    root = osp.join(data_dir, name_val)
-    dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
 
-    train_set = dataset.trainval if combine_trainval else dataset.train
-    num_classes = (dataset.num_trainval_ids if combine_trainval
-                   else dataset.num_train_ids)
+    num_classes = dataset.num_train_pids
 
     train_transformer = T.Compose([
         T.RandomCropFlip(height, width, area=args.area),
@@ -106,61 +101,38 @@ def get_data(args):
     ])
     dop_info = DopInfo(num_classes)
     print('dop info and its id are', dop_info)
-    trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
-                                                     ('pid', int),
-                                                     ('cid', int)])
-    trainval_t = trainval_t.view(np.recarray)
-    trainval_t = trainval_t[:np.where(trainval_t.pid == 10)[0].min()]
-
-    trainval_test_loader = DataLoader(Preprocessor(
-        # dataset.val,
-        # dataset.query,
-        # random.choices(trainval_t, k=1367 * 3),
-        trainval_t.tolist(),
-        root=dataset.images_dir,
-        transform=test_transformer,
-        has_npy=npy),
-        batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=pin_memory)
+    new_train = []
+    for img_paths, pid, camid in dataset.train:
+        for img_path in img_paths:
+            new_train.append((img_path, pid, camid))
     train_loader = DataLoader(
-        Preprocessor(train_set, root=dataset.images_dir,
+        Preprocessor(new_train,
                      transform=train_transformer,
                      has_npy=npy),
         batch_size=batch_size, num_workers=workers,
         sampler=RandomIdentityWeightedSampler(
-            train_set, num_instances,
+            new_train, num_instances,
             batch_size=batch_size,
             rand_ratio=rand_ratio,
             dop_info=dop_info,
         ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
-
-    val_loader = DataLoader(
-        Preprocessor(dataset_val.val, root=dataset_val.images_dir,
-                     transform=test_transformer,
-                     has_npy=npy),
-        batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=pin_memory)
+    dataset_val = dataset
     query_ga = np.concatenate([
         np.asarray(dataset_val.query).reshape(-1, 3),
         np.asarray(list(set(dataset_val.gallery) - set(dataset_val.query))).reshape(-1, 3)
     ])
     query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
                                  names=['fnames', 'pids', 'cids']).tolist()
+    # query_ga = dataset.query+ dataset.gallery
     test_loader = DataLoader(
-        Preprocessor(query_ga,
-                     root=dataset_val.images_dir,
-                     transform=test_transformer,
-                     has_npy=npy),
-        batch_size=batch_size, num_workers=workers,
+        VideoDataset(query_ga,
+                     transform=test_transformer, seq_len=args.seq_len, sample='evenly'
+                     ),
+        batch_size=args.test_batch_size, num_workers=workers,
         shuffle=False, pin_memory=pin_memory)
-    dataset.val = dataset_val.val
-    dataset.query = dataset_val.query
-    dataset.gallery = dataset_val.gallery
-    dataset.images_dir = dataset_val.images_dir
-    # dataset.num_val_ids
-    return dataset, num_classes, train_loader, val_loader, test_loader, dop_info, trainval_test_loader
+    return dataset, num_classes, train_loader, test_loader, dop_info,
 
 
 def main(args):
@@ -178,9 +150,7 @@ def main(args):
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
 
-    (dataset, num_classes,
-     train_loader, val_loader, test_loader,
-     dop_info, trainval_test_loader) = get_data(args)
+    dataset, num_classes, train_loader, test_loader, dop_info = get_data(args)
 
     # Create model
     model = models.create(args.arch,
@@ -231,14 +201,11 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
+    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args, vid=True)
+    # return
     if args.evaluate:
-        res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
-                                 trainval_test_loader.dataset.dataset, metric,
-                                 final=True, prefix='train')
-        # todo prefix in other code
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric,
-                                 final=True, prefix='test')
+                                 final=True, suffix='test')
 
         lz.logging.info('eval {}'.format(res))
         return res
@@ -334,6 +301,7 @@ def main(args):
     # schedule = CyclicLR(optimizer)
     schedule = None
     # Start training
+
     for epoch in range(start_epoch, args.epochs):
         # warm up
         # mAP, acc,rank5 = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)

@@ -151,7 +151,7 @@ def allow_growth():
     tf.Session.__init__ = myinit
 
 
-allow_growth()
+# allow_growth()
 
 '''
 oldinit = Session.__init__

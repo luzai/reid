@@ -7,120 +7,184 @@ from lz import *
 cfgs = [
 
     # edict(
-    #     logs_dir='',
-    #     dataset='cu03det', optimizer='adam', lr=3e-4,
-    #     batch_size=16, num_instances=4, gpu=(2,), num_classes=128,
-    #     dropout=0, loss='tri_xent', xent_smooth=True, gpu_range=range(4), gpu_fix=True,
-    #     cls_weight=1, tri_weight=0, lr_mult=10,
-    #     evaluate=True,
-    #     resume='work/cfisher.only.cu03det.1e+00.1e+00.ccent.all'
+    #     logs_dir='tuning.dcl.cu03lbl.no1.allneg',
+    #     dataset='cu03lbl', log_at=[0, 1, 2, 3, 4, 30, 64, 65],
+    #     epochs=65, steps=[20, 40],
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     dropout=0, loss='tcx', mode='ccent.all.all',
+    #     cls_weight=0, tri_weight=0, lr_mult=10., xent_smooth=True,
+    #     random_ratio=1, weight_dis_cent=0, lr_cent=0.5, weight_cent=1, gpu_range=range(4),
+    #     push_scale=1., embed=None,
+    #     # evaluate=True,
+    #     # resume='/data1/xinglu/prj/open-reid/exps/work/tuning.dcl.cu03lbl',
     # ),
+
+    # edict(
+    #     logs_dir='tri.mars',
+    #     dataset='mars', seq_len=15, vid_pool='avg', workers=8,
+    #     # log_at=[0, 10, 11, 12],
+    #     # epochs=350, steps=[200, 300],
+    #     epochs=11, steps=[6, 9],
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128, test_batch_size=32,
+    #     dropout=0, loss='tcx', mode='ccent.all.all',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0, gpu_range=range(4),
+    #     push_scale=1., embed=None,
+    #     # evaluate=True,
+    # ),
+    # edict(
+    #     logs_dir='xent.cent.mkt.nosmth',
+    #     dataset='mkt', log_at=[0, 30, 64, 65],
+    #     epochs=65, steps=[20, 40],
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    #     dropout=0, loss='tcx', mode='ccent.all.all',
+    #     cls_weight=1, tri_weight=0, lr_mult=10., xent_smooth=False,
+    #     random_ratio=1, weight_dis_cent=0, lr_cent=0.5, weight_cent=1, gpu_range=range(4),
+    #     push_scale=1., embed=None,
+    # )
+    # edict(
+    #     logs_dir='dcl.mars',
+    #     dataset='mars', seq_len=15, vid_pool='avg', workers=8,
+    #     # log_at=[0, 10, 11, 12],
+    #     # epochs=350, steps=[200, 300],
+    #     epochs=11, steps=[6, 9],
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128, test_batch_size=32,
+    #     dropout=0, loss='tcx', mode='ccent.all.all',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, weight_dis_cent=1e-3, lr_cent=0.5, weight_cent=1, gpu_range=range(4),
+    #     push_scale=1., embed=None,
+    #     # evaluate=True,
+    # )
 
 ]
 
+cfg = edict(
+    logs_dir='final.dcl2',
+    dataset='cu03lbl',
+    log_at=[0, 60, 90], epochs=105, steps=[60, 90],
+    batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+    dropout=0, loss='tcx', mode='ccent.all.all',
+    cls_weight=0, tri_weight=0,
+    random_ratio=1, weight_dis_cent=0, lr_cent=0.5, weight_cent=1, gpu_range=range(4),
+    push_scale=1., embed=None
+)
+# cfgs.append(cfg)
+for (dataset,
+     weight_cent,
+     dop,
+     dis,
+     scale,
+     mode,
+     lr_cent
+     ) in grid_iter(
+    ['cu03lbl'],
+    [1, ],  # weight_cent
+    [1, ],  # dop
+    [0, ],  # dis
+    [1, ],  # scale
+    ['ccent.all.all'],  # cent_mode
+    [1, .5]
+):
+    cfg_t = copy.deepcopy(cfg)
+    cfg_t.weight_cent = weight_cent
+    cfg_t.random_ratio = dop
+    cfg_t.dataset = dataset
+    cfg_t.weight_dis_cent = dis
+    cfg_t.push_scale = scale
+    cfg_t.mode = mode
+    cfg_t.lr_cent = lr_cent
+    cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.dis{dis:.0e}.lrcent{lr_cent}'
+    cfgs.append(cfg_t)
 # cfg = edict(
-#     logs_dir='tri_cu01_search.easy',
-#     dataset='cuhk01',
-#     lr=3e-4, margin=0.5, area=(0.85, 1), adam_betas=(.9, .999), adam_eps=1e-8,
-#     steps=[40, 60], epochs=65,
-#     arch='resnet50', weight_decay=5e-4,
+#     logs_dir='xent.cent',
+#     dataset='cu03lbl', log_at=[0, 30, 64, 65],
+#     epochs=65, steps=[20, 40],
+#     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+#     dropout=0, loss='tcx', mode='ccent.all.all',
+#     cls_weight=1, tri_weight=0, lr_mult=10., xent_smooth=True,
+#     random_ratio=1, weight_dis_cent=0, lr_cent=0.5, weight_cent=1, gpu_range=range(4),
+#     push_scale=1., embed=None,
+# )
+# for dataset in ['mkt', 'cu03det']:
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.dataset = dataset
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}'
+#     cfgs.append(cfg_t)
+
+# cfg = edict(
+#     logs_dir='final.tri',
+#     dataset='dukemtmc',
 #     log_at=[0, 30, 64, 65, 66],
 #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
 #     dropout=0, loss='tri_center', mode='ccent.all.all',
 #     cls_weight=0, tri_weight=1,
-#     random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0, gpu_range=(0, 1, 3),
-#     push_scale=1., dataset_mode = 'easy'
-#     # evaluate=True,
+#     random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0, gpu_range=(0, 1,),
+#     push_scale=1., embed=None
 # )
-
-# for lr, margin, adam_eps, batch_size in cross_iter(
-#         [3e-4, 1e-4, 1e-3, 6e-4],
-#         [.5, .3, ],
-#         [1e-8, 1, .1, 1e-4],
-#         [128, 32],
+# # cfgs.append(cfg)
+# for (dataset,
+#      weight_cent,
+#      dop,
+#      dis,
+#      scale,
+#      mode) in grid_iter(
+#     # ['cu01easy', 'cu01hard'],
+#     ['cu03lbl', 'cu03det', 'mkt', 'dukemtmc'],
+#     [0, ],  # weight_cent
+#     [1, ],  # dop
+#     [0, ],  # dis
+#     [1, ],  # scale
+#     ['ccent.all.all'],  # cent_mode
 # ):
 #     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.lr = lr
-#     cfg_t.margin = margin
-#     cfg_t.adam_eps = adam_eps
-#     cfg_t.batch_size = batch_size
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{lr:.0e}.{margin}.{adam_eps:.0e}.{batch_size}'
+#     cfg_t.weight_cent = weight_cent
+#     cfg_t.random_ratio = dop
+#     cfg_t.dataset = dataset
+#     cfg_t.weight_dis_cent = dis
+#     cfg_t.push_scale = scale
+#     cfg_t.mode = mode
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}'
+#     cfgs.append(cfg_t)
+#
+# cfg = edict(
+#     logs_dir='final.xent',
+#     dataset='dukemtmc',
+#     log_at=[0, 30, 64, 65, 66],
+#     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+#     dropout=0, loss='tri_xent', mode='ccent.all.all',
+#     cls_weight=1, tri_weight=0,
+#     random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0, gpu_range=(0,1,),
+#     push_scale=1., embed=None
+# )
+# # cfgs.append(cfg)
+# for (dataset,
+#      weight_cent,
+#      dop,
+#      dis,
+#      scale,
+#      mode, smooth) in grid_iter(
+#     # ['cu01easy', 'cu01hard'],
+#     ['cu03lbl', 'cu03det', 'mkt', 'dukemtmc'],
+#     [0, ],  # weight_cent
+#     [1, ],  # dop
+#     [0, ],  # dis
+#     [1, ],  # scale
+#     ['ccent.all.all'],  # cent_mode
+#     [True, False]
+# ):
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.weight_cent = weight_cent
+#     cfg_t.random_ratio = dop
+#     cfg_t.dataset = dataset
+#     cfg_t.weight_dis_cent = dis
+#     cfg_t.push_scale = scale
+#     cfg_t.mode = mode
+#     cfg_t.xent_smooth = smooth
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.smth{smooth}'
 #     cfgs.append(cfg_t)
 
-cfg = edict(
-    logs_dir='final.tri',
-    dataset='dukemtmc',
-    log_at=[0, 30, 64, 65, 66],
-    batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    dropout=0, loss='tri_center', mode='ccent.all.all',
-    cls_weight=0, tri_weight=1,
-    random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0, gpu_range=(0, 1,),
-    push_scale=1., embed=None
-)
-# cfgs.append(cfg)
-for (dataset,
-     weight_cent,
-     dop,
-     dis,
-     scale,
-     mode) in grid_iter(
-    # ['cu01easy', 'cu01hard'],
-    ['cu03lbl', 'cu03det', 'mkt', 'dukemtmc'],
-    [0, ],  # weight_cent
-    [1, ],  # dop
-    [0, ],  # dis
-    [1, ],  # scale
-    ['ccent.all.all'],  # cent_mode
-):
-    cfg_t = copy.deepcopy(cfg)
-    cfg_t.weight_cent = weight_cent
-    cfg_t.random_ratio = dop
-    cfg_t.dataset = dataset
-    cfg_t.weight_dis_cent = dis
-    cfg_t.push_scale = scale
-    cfg_t.mode = mode
-    cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}'
-    cfgs.append(cfg_t)
-
-cfg = edict(
-    logs_dir='final.xent',
-    dataset='dukemtmc',
-    log_at=[0, 30, 64, 65, 66],
-    batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    dropout=0, loss='tri_xent', mode='ccent.all.all',
-    cls_weight=1, tri_weight=0,
-    random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0, gpu_range=(0,1,),
-    push_scale=1., embed=None
-)
-# cfgs.append(cfg)
-for (dataset,
-     weight_cent,
-     dop,
-     dis,
-     scale,
-     mode, smooth) in grid_iter(
-    # ['cu01easy', 'cu01hard'],
-    ['cu03lbl', 'cu03det', 'mkt', 'dukemtmc'],
-    [0, ],  # weight_cent
-    [1, ],  # dop
-    [0, ],  # dis
-    [1, ],  # scale
-    ['ccent.all.all'],  # cent_mode
-    [True, False]
-):
-    cfg_t = copy.deepcopy(cfg)
-    cfg_t.weight_cent = weight_cent
-    cfg_t.random_ratio = dop
-    cfg_t.dataset = dataset
-    cfg_t.weight_dis_cent = dis
-    cfg_t.push_scale = scale
-    cfg_t.mode = mode
-    cfg_t.xent_smooth = smooth
-    cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.smth{smooth}'
-    cfgs.append(cfg_t)
-
 base = edict(
-    weight_lda=None, test_best=True, push_scale=1., gpu_fix=False,
+    weight_lda=None, test_best=True, push_scale=1., gpu_fix=False, test_batch_size=8,
     lr=3e-4, margin=0.5, area=(0.85, 1), margin2=0.4, margin3=1.3,
     steps=[40, 60], epochs=65,
     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', convop='nn.Conv2d',
@@ -136,6 +200,7 @@ base = edict(
     restart=True, workers=8, split=0, height=256, width=128,
     combine_trainval=True, num_instances=4,
     evaluate=False, dropout=0,
+    seq_len=15, vid_pool='avg',
     # log_at=np.concatenate([
     #     range(0, 640, 21),
     # ]),
@@ -148,7 +213,7 @@ base = edict(
     mode='ccent.all.all',
     gpu=(0,), pin_mem=True, log_start=False, log_middle=True, gpu_range=range(4),
     # tuning
-    dataset='market1501', dataset_mode='combine', dataset_val='market1501',
+    dataset='market1501', dataset_mode=None, dataset_val=None,
     batch_size=128, logs_dir='', embed=None,
     optimizer='adam', normalize=True, decay=0.1,
 )
@@ -199,12 +264,13 @@ for ind, args in enumerate(cfgs):
         args.dataset_val = 'dukemtmc'
         args.eval_conf = 'market1501'
     else:
-        raise ValueError(f'dataset ... {args.dataset}')
-
+        # raise ValueError(f'dataset ... {args.dataset}')
+        args.dataset_val = args.dataset
+        args.eval_conf = 'market1501'
     cfgs[ind] = edict(args)
 
 for ind, args in enumerate(cfgs):
-    if args.evaluate is True and osp.exists(args.resume + '/conf.pkl'):
+    if args.evaluate is True and args.resume is not None and osp.exists(args.resume + '/conf.pkl'):
         resume = args.resume
         # logs_dir = args.logs_dir
         gpu_range = args.gpu_range

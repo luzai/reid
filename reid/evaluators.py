@@ -9,6 +9,54 @@ from reid.utils.rerank import *
 import cvbase as cvb
 
 
+def extract_features_vid(model, data_loader, print_freq=1, limit=None, ):
+    model.eval()
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+
+    features = OrderedDict()
+    labels = OrderedDict()
+    print('extract feature')
+    end = time.time()
+    with torch.no_grad():
+        for i, data in enumerate(data_loader):
+            imgs, npys, fnames, pids = data.get('img'), data.get('npy'), data.get('fname'), data.get('pid')
+            data_time.update(time.time() - end)
+
+            imgs = imgs.cuda()
+            b, s, c, h, w = imgs.size()
+            imgs = imgs.view(b * s, c, h, w)
+            outputs, _ = model(imgs)
+            outputs = outputs.view(b, s, -1)
+            outputs = torch.mean(outputs, 1)
+            outputs = outputs.data.cpu()
+
+            for fname, output, pid in zip(fnames, outputs, pids):
+                # if limit is not None and int(pid) not in limit.tolist():
+                #     continue
+                features[tuple(fname)] = output
+                labels[tuple(fname)] = pid
+
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if (i + 1) % print_freq == 0:
+                print('Extract Features: [{}/{}]\t'
+                      'Time {:.3f} ({:.3f})\t'
+                      'Data {:.3f} ({:.3f})\t'
+                      .format(i + 1, len(data_loader),
+                              batch_time.val, batch_time.avg,
+                              data_time.val, data_time.avg))
+
+    print('Extract Features: [{}/{}]\t'
+          'Time {:.3f} ({:.3f})\t'
+          'Data {:.3f} ({:.3f})\t'
+          .format(i + 1, len(data_loader),
+                  batch_time.val, batch_time.avg,
+                  data_time.val, data_time.avg))
+    print(f'{len(features)} features, each of len {features.values().__iter__().__next__().shape[0]}')
+    return features, labels
+
 def extract_features(model, data_loader, print_freq=1, limit=None, ):
     model.eval()
     batch_time = AverageMeter()
@@ -86,7 +134,7 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
     return res
 
 
-def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=False):
+def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=False, vid=False ):
     if query is None and gallery is None:
         # n = len(features)
         # x = torch.cat(list(features.values()))
@@ -100,9 +148,12 @@ def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=Fa
         # dist = dist.clamp(min=1e-12).sqrt()
         raise ValueError('todo')
         # return dist
-
-    x = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
-    y = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
+    if vid:
+        x = torch.cat([features[tuple(f)].unsqueeze(0) for f, _, _ in query], 0)
+        y = torch.cat([features[tuple(f)].unsqueeze(0) for f, _, _ in gallery], 0)
+    else:
+        x = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
+        y = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
     if rerank:
         xx = to_numpy(x)
         yy = to_numpy(y)
@@ -133,13 +184,14 @@ def query_to_df(query):
 
 
 class Evaluator(object):
-    def __init__(self, model, gpu=(0,), conf='cuhk03', args=None):
+    def __init__(self, model, gpu=(0,), conf='cuhk03', args=None, vid=False):
         super(Evaluator, self).__init__()
         self.model = model
         self.gpu = gpu
         self.distmat = None
         self.conf = conf
         self.args = args
+        self.vid = vid
 
     def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
         timer = cvb.Timer()
@@ -150,15 +202,22 @@ class Evaluator(object):
         query_cams = [cam for _, _, cam in query]
         gallery_cams = [cam for _, _, cam in gallery]
 
-        features, _ = extract_features(self.model, data_loader)
+        if not self.vid:
+            features, _ = extract_features(self.model, data_loader)
+        else:
+            features, _ = extract_features_vid(self.model, data_loader)
         assert len(features) != 0
         res = {}
         final = kwargs.get('final', False)
-        suffix = kwargs.get('suffix', '')
-        if final:
-            rerank_range = [False, True]
+        if 'prefix' in kwargs:
+            prefix = kwargs.get('prefix', '') + '/'
         else:
-            rerank_range = [False, ]
+            prefix = ''
+        logging.info(f'prefix is {prefix}')
+        # if final:
+        #     rerank_range = [False, True]
+        # else:
+        rerank_range = [False, ]
         for rerank in rerank_range:
             # try:
             distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
@@ -166,14 +225,14 @@ class Evaluator(object):
             #     logging.error(e)
             #     continue
             if final:
-                db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + suffix + '.h5'
+                db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
                 with lz.Database(db_name) as db:
                     for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
                         if rerank:
-                            db['rk/' + name] = eval(name)
+                            db[prefix + 'rk/' + name] = eval(name)
                         else:
-                            db[name] = eval(name)
-                    db['smpl'] = xx
+                            db[prefix + name] = eval(name)
+                    db[prefix + 'smpl'] = xx
                 # with pd.HDFStore(db_name) as db:
                 #     db['query'] = query_to_df(query)
                 #     db['gallery'] = query_to_df(gallery)
