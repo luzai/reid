@@ -193,6 +193,93 @@ class Evaluator(object):
         self.args = args
         self.vid = vid
 
+    def evaluate_vid(self,queryloader,galleryloader,metric=None,**kwargs):
+        self.model.eval()
+        res = {}
+        with torch.no_grad():
+            qf, q_pids, q_camids = [], [], []
+            for batch_idx, data in enumerate(queryloader):
+                (imgs, pids, camids) = data['img'], data['pid'], data['cid']
+                imgs = imgs.cuda()
+                b, s, c, h, w = imgs.size()
+                imgs = imgs.view(b * s, c, h, w)
+                features,_ = self.model(imgs)
+                features = features.view(b, s, -1)
+                features = torch.mean(features, 1)
+                features = features.data.cpu()
+                qf.append(features)
+                q_pids.extend(pids)
+                q_camids.extend(camids)
+            qf = torch.cat(qf, 0)
+            q_pids = np.asarray(q_pids)
+            q_camids = np.asarray(q_camids)
+
+            print("Extracted features for query set, obtained {}-by-{} matrix".format(qf.size(0), qf.size(1)))
+
+            gf, g_pids, g_camids = [], [], []
+            for batch_idx, data in enumerate(galleryloader):
+                (imgs, pids, camids) = data['img'], data['pid'], data['cid']
+                imgs = imgs.cuda()
+                b, s, c, h, w = imgs.size()
+                imgs = imgs.view(b * s, c, h, w)
+                features,_ = self.model(imgs)
+                features = features.view(b, s, -1)
+                features = torch.mean(features, 1)
+                features = features.data.cpu()
+                gf.append(features)
+                g_pids.extend(pids)
+                g_camids.extend(camids)
+            gf = torch.cat(gf, 0)
+            g_pids = np.asarray(g_pids)
+            g_camids = np.asarray(g_camids)
+
+            print("Extracted features for gallery set, obtained {}-by-{} matrix".format(gf.size(0), gf.size(1)))
+
+        print("Computing distance matrix")
+        m, n = qf.size(0), gf.size(0)
+        distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
+                  torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
+        distmat.addmm_(1, -2, qf, gf.t())
+        distmat = distmat.numpy()
+        rerank = False
+        print("Computing CMC and mAP")
+        mAP = mean_ap(distmat,q_pids, g_pids, q_camids, g_camids)
+
+        print('Mean AP: {:4.1%}'.format(mAP))
+        cmc_configs = {
+            'cuhk03': dict(separate_camera_set=True,
+                           single_gallery_shot=True,
+                           first_match_break=False),
+            'market1501': dict(separate_camera_set=False,  # hard
+                               single_gallery_shot=False,  # hard
+                               first_match_break=True),
+            'allshots': dict(separate_camera_set=False,  # hard
+                             single_gallery_shot=False,  # hard
+                             first_match_break=False),
+        }
+        cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
+        cmc_scores = {name: cmc(distmat, q_pids, g_pids,
+                                q_camids, g_camids, **params)
+                      for name, params in cmc_configs.items()}
+        print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
+        if rerank:
+            res = lz.dict_concat([res,
+                                  {'mAP.rk': mAP,
+                                   'top-1.rk': cmc_scores[self.conf][0],
+                                   'top-5.rk': cmc_scores[self.conf][4],
+                                   'top-10.rk': cmc_scores[self.conf][9],
+                                   }])
+        else:
+            res = lz.dict_concat([res,
+                                  {'mAP': mAP,
+                                   'top-1': cmc_scores[self.conf][0],
+                                   'top-5': cmc_scores[self.conf][4],
+                                   'top-10': cmc_scores[self.conf][9],
+                                   }])
+
+        json_dump(res, self.args.logs_dir + '/res.json')
+        return res
+
     def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
         timer = cvb.Timer()
         timer.start()
@@ -202,10 +289,7 @@ class Evaluator(object):
         query_cams = [cam for _, _, cam in query]
         gallery_cams = [cam for _, _, cam in gallery]
 
-        if not self.vid:
-            features, _ = extract_features(self.model, data_loader)
-        else:
-            features, _ = extract_features_vid(self.model, data_loader)
+        features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
         res = {}
         final = kwargs.get('final', False)
@@ -219,11 +303,7 @@ class Evaluator(object):
         # else:
         rerank_range = [False, ]
         for rerank in rerank_range:
-            # try:
             distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
-            # except Exception as e:
-            #     logging.error(e)
-            #     continue
             if final:
                 db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
                 with lz.Database(db_name) as db:
@@ -239,11 +319,8 @@ class Evaluator(object):
 
                 with lz.Database(db_name) as db:
                     print(list(db.keys()))
-            # try:
             mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
-            # except Exception as e:
-            #     logging.error(e)
-            #     continue
+
             print('Mean AP: {:4.1%}'.format(mAP))
 
             cmc_configs = {

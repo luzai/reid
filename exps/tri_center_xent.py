@@ -160,23 +160,23 @@ def get_data(args):
                      transform=test_transformer,
                      has_npy=npy),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=pin_memory)
+        shuffle=False, pin_memory=False) # todo for market and dukemtmc
     dataset.val = dataset_val.val
     dataset.query = dataset_val.query
     dataset.gallery = dataset_val.gallery
     dataset.images_dir = dataset_val.images_dir
     if args.vis:
         query = np.asarray(dataset.query, dtype=[('fname', object),
-                                                      ('pids', int),
-                                                      ('cid', int)])
+                                                 ('pids', int),
+                                                 ('cid', int)])
         query = query.view(np.recarray)
         query = query[np.where(np.isin(query.pids, pids_chs))[0]]
 
         dataset.query = query.tolist()
 
         gallery = np.asarray(dataset.gallery, dtype=[('fname', object),
-                                                 ('pids', int),
-                                                 ('cid', int)])
+                                                     ('pids', int),
+                                                     ('cid', int)])
         gallery = gallery.view(np.recarray)
         gallery = gallery[np.where(np.isin(gallery.pids, pids_chs))[0]]
 

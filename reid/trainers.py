@@ -511,7 +511,7 @@ class TCXTrainer(object):
         if loss_comb > 1e8:
             raise ValueError('loss too large')
         elif math.isnan(loss_comb.data.cpu()):
-            raise ValueError(f'loss nan {loss_comb}')
+            raise ValueError(f'loss nan {loss_comb}'+'{}'.format(loss_comb))
         if self.dbg and self.iter % 1 == 0:
             self.writer.add_scalar('vis/prec-triplet', prect, self.iter)
             self.writer.add_scalar('vis/lr', self.lr, self.iter)

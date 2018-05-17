@@ -119,22 +119,19 @@ def get_data(args):
         ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
-    dataset_val = dataset
-    query_ga = np.concatenate([
-        np.asarray(dataset_val.query).reshape(-1, 3),
-        np.asarray(list(set(dataset_val.gallery) -
-                        set(dataset_val.query))).reshape(-1, 3)
-    ])
-    query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
-                                 names=['fnames', 'pids', 'cids']).tolist()
-    # query_ga = dataset.query+ dataset.gallery
-    test_loader = DataLoader(
-        VideoDataset(query_ga,
-                     transform=test_transformer, seq_len=args.seq_len, sample='evenly'
-                     ),
-        batch_size=args.test_batch_size, num_workers=workers,
-        shuffle=False, pin_memory=pin_memory)
-    return dataset, num_classes, train_loader, test_loader, dop_info,
+
+    query_loader = DataLoader(
+        VideoDataset(dataset.query, seq_len=args.seq_len, sample='evenly', transform=test_transformer),
+        batch_size=args.test_batch_size, shuffle=False, num_workers=4,
+        pin_memory=False, drop_last=False,
+    )
+    gallery_loader = DataLoader(
+        VideoDataset(dataset.gallery, seq_len=args.seq_len, sample='evenly', transform=test_transformer),
+        batch_size=args.test_batch_size, shuffle=False, num_workers=4,
+        pin_memory=False, drop_last=False,
+    )
+
+    return dataset, num_classes, train_loader,  dop_info, query_loader, gallery_loader
 
 
 def main(args):
@@ -152,7 +149,7 @@ def main(args):
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
 
-    dataset, num_classes, train_loader, test_loader, dop_info = get_data(args)
+    dataset, num_classes, train_loader, dop_info , query_loader, gallery_loader= get_data(args)
 
     # Create model
     model = models.create(args.arch,
@@ -207,7 +204,7 @@ def main(args):
                           conf=args.eval_conf, args=args, vid=True)
     # return
     if args.evaluate:
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric,
+        res = evaluator.evaluate_vid(query_loader,gallery_loader, metric,
                                  final=True, suffix='test')
 
         lz.logging.info('eval {}'.format(res))
@@ -309,7 +306,7 @@ def main(args):
 
     for epoch in range(start_epoch, args.epochs):
         # warm up
-        # mAP, acc,rank5 = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        # mAP, acc,rank5 = evaluator.evaluate_vid(val_loader, dataset.val, dataset.val, metric)
 
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
@@ -326,7 +323,7 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch % 15 == 0:
+        if epoch % 2 == 0:
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
                 'cent': criterion[1].centers,
@@ -344,12 +341,12 @@ def main(args):
             'best_top1': best_top1,
         }, False, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
 
-        # res = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        # res = evaluator.evaluate_vid(val_loader, dataset.val, dataset.val, metric)
         # for n, v in res.items():
         #     writer.add_scalar('train/'+n, v, epoch)
 
-        res = evaluator.evaluate(
-            test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
+        res = evaluator.evaluate_vid(
+            query_loader, gallery_loader , metric, epoch=epoch)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
 
@@ -368,8 +365,8 @@ def main(args):
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    res = evaluator.evaluate(
-        test_loader, dataset.query, dataset.gallery, metric)
+    res = evaluator.evaluate_vid(
+        query_loader, gallery_loader, metric)
     for n, v in res.items():
         writer.add_scalar('test/' + n, v, args.epochs)
 
@@ -378,8 +375,8 @@ def main(args):
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
         model.module.load_state_dict(checkpoint['state_dict'])
         metric.train(model, train_loader)
-        res = evaluator.evaluate(
-            test_loader, dataset.query, dataset.gallery, metric, final=True)
+        res = evaluator.evaluate_vid(
+            query_loader, gallery_loader, metric, final=True)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, args.epochs + 1)
         lz.logging.info('final eval is {}'.format(res))

@@ -1,6 +1,7 @@
 *.h5
+*.png
 *.ipynb
-log.txt
+log*.txt
 work
 
 *~
