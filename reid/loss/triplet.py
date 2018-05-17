@@ -62,7 +62,6 @@ class CenterLoss(nn.Module):
         # init.constant_(self.fc.bias, 1 )
         self.push_scale = push_scale
         self.push_wei = torch.ones(self.num_classes - 1).cuda() * self.push_scale
-        self.logsoftmax = nn.LogSoftmax(dim=0)
 
     def forward(self, x, labels, **kwargs):
         """
@@ -106,8 +105,18 @@ class CenterLoss(nn.Module):
                                ) * self.push_wei).mean()
                 )
             if 'exp' in modes:
-                dist_now = self.logsoftmax(-distmat_x2cent[i])
-                dists_dcl.append(-dist_now[mask[i]])
+                # choose only most largest k value in negative
+                logits = -distmat_x2cent[i]
+                # neg_topk, _ = torch.topk(logits[1 - mask[i]], k=5, largest=True)
+                # pos = logits[mask[i]]
+                # logits = torch.cat([pos, neg_topk])
+
+                # shift_logits = logits - torch.max(logits)
+                # Z = torch.exp(shift_logits).sum()
+                # log_probs = shift_logits - torch.log(Z)
+
+                dist_now = F.log_softmax(logits, dim=0)
+                dists_dcl.append(-dist_now[0])
                 # dists_dcl
                 # if 'nopos' in modes:
                 #     dists_dcl.append(

@@ -293,7 +293,10 @@ def main(args):
         {'params': fast_params, 'lr_mult': 10.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
-    optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
+    if args.optimizer_cent =='sgd':
+        optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
+    else:
+        optimizer_cent = torch.optim.Adam(criterion[1].parameters(), lr=args.lr_cent, )
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             # model.parameters(),
