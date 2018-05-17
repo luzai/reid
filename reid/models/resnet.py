@@ -5,6 +5,7 @@ from torchvision.models.resnet import conv3x3, model_urls, model_zoo
 from reid.utils.serialization import load_state_dict
 from .common import _make_conv
 
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -100,7 +101,7 @@ def reset_params(module, zero=False):
         for m in module.modules():
             if isinstance(m, nn.Conv2d):
                 if zero:
-                    init.constant(m.weight,0)
+                    init.constant(m.weight, 0)
                 else:
                     init.kaiming_normal_(m.weight, mode='fan_out')
                 if m.bias is not None:
@@ -109,7 +110,7 @@ def reset_params(module, zero=False):
                 init.constant(m.weight, 1)
                 init.constant(m.bias, 0)
             elif isinstance(m, nn.Linear):
-                init.kaiming_normal_(m.weight,  mode='fan_out')
+                init.kaiming_normal_(m.weight, mode='fan_out')
                 if m.bias is not None:
                     init.constant(m.bias, 0)
 
@@ -919,7 +920,9 @@ class ResNetCascade(nn.Module):
             self.embed02 = get_embed(self.out_planes // 4, self.num_features)
             self.embed03 = get_embed(self.out_planes // 2, self.num_features)
             self.embed04 = get_embed(self.out_planes, self.num_features)
-            self.embed_weight = nn.Parameter(to_torch(np.array([0, 0, 0, 1.], dtype=np.float32)))
+            self.embed_weight = nn.Parameter(
+                torch.tensor([0, 0, 0, 1.])
+            )
             reset_params([self.embed1, self.embed2, self.embed3, self.embed4])
         else:
             raise ValueError('fusion unknown')
@@ -985,8 +988,10 @@ def resnet50(**kwargs):
     else:
         return ResNetOri(50, **kwargs)
 
+
 def resnet34(**kwargs):
-    return ResNetOri(34,**kwargs)
+    return ResNetOri(34, **kwargs)
+
 
 '''
 

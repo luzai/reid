@@ -17,7 +17,7 @@ def calc_distmat2(x, y):
     num_x = x.size(0)
     num_y = y.size(0)
     distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
-        torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
+              torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
     distmat.addmm_(1, -2, x, y.t()).clamp_(min=1e-12, max=1e12)
 
     return distmat
@@ -27,7 +27,7 @@ def calc_distmat(x, y):
     num_x = x.size(0)
     num_y = y.size(0)
     distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
-        torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
+              torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
     distmat.addmm_(1, -2, x, y.t()).clamp_(min=1e-12, max=1e12).sqrt_()
 
     return distmat
@@ -61,8 +61,8 @@ class CenterLoss(nn.Module):
         # self.fc = nn.Linear(self.num_classes, self.num_classes - 1)
         # init.constant_(self.fc.bias, 1 )
         self.push_scale = push_scale
-        self.push_wei = to_torch(
-            np.ones(self.num_classes - 1, dtype=np.float32) * self.push_scale).cuda()
+        self.push_wei = torch.ones(self.num_classes - 1).cuda() * self.push_scale
+        self.logsoftmax = nn.LogSoftmax(dim=0)
 
     def forward(self, x, labels, **kwargs):
         """
@@ -92,7 +92,7 @@ class CenterLoss(nn.Module):
                                                   mask[i]].min() * self.push_wei
                 else:
                     dist_push = (
-                        distmat_x2cent[i][1 - mask[i]] * self.push_wei).mean()
+                            distmat_x2cent[i][1 - mask[i]] * self.push_wei).mean()
                 if 'with1' in modes:
                     dists_dcl.append(dist_pull / (dist_push + 1))
                 else:
@@ -106,16 +106,17 @@ class CenterLoss(nn.Module):
                                ) * self.push_wei).mean()
                 )
             if 'exp' in modes:
-                if 'nopos' in modes:
-                    dists_dcl.append(
-                        -torch.exp(-dist_pull) /
-                        torch.exp(-distmat_x2cent[i][1 - mask[i]]).sum()
-                    )
-                else:
-                    dists_dcl.append(
-                        - torch.exp(-dist_pull) /
-                        torch.exp(-distmat_x2cent[i]).sum()
-                    )
+                dist_now = self.logsoftmax(-distmat_x2cent[i])
+                dists_dcl.append(-dist_now[mask[i]])
+                # dists_dcl
+                # if 'nopos' in modes:
+                #     dists_dcl.append(
+                #         -torch.exp(-dist_pull) / torch.exp(-distmat_x2cent[i][1 - mask[i]]).sum()
+                #     )
+                # else:
+                #     dists_dcl.append(
+                #         - torch.exp(-dist_pull) / torch.exp(-distmat_x2cent[i]).sum()
+                #     )
 
         loss_pull = torch.cat(dists_pull).mean()
 
@@ -190,7 +191,7 @@ class QuadLoss(nn.Module):
                 torch.FloatTensor), requires_grad=False)
 
         loss = self.ranking_loss(dist_an, dist_ap, y) + \
-            0.1 * self.ranking_loss(dist_n12, dist_ap, y)
+               0.1 * self.ranking_loss(dist_n12, dist_ap, y)
         # todo 0.1 and different margin
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
@@ -254,8 +255,8 @@ class QuinLoss(nn.Module):
                 torch.FloatTensor), requires_grad=False)
 
         loss = self.ranking_loss(dist_an, dist_ap, y) \
-            + 0.1 * self.ranking_loss(dist_n12, dist_ap, y) \
-            + 0.1 * self.ranking_loss(dist_an, dist_p12, y)
+               + 0.1 * self.ranking_loss(dist_n12, dist_ap, y) \
+               + 0.1 * self.ranking_loss(dist_an, dist_p12, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
         if not dbg:
@@ -291,12 +292,9 @@ class CrossEntropyLabelSmooth(nn.Module):
         """
         log_probs = self.logsoftmax(inputs)
         targets = torch.zeros(log_probs.size()).scatter_(
-            1, targets.unsqueeze(1).data.cpu(), 1)
-        if self.use_gpu:
-            targets = targets.cuda()
-        targets = Variable(targets, requires_grad=False)
+            1, targets.unsqueeze(1).data.cpu(), 1).cuda()
         targets = (1 - self.epsilon) * targets + \
-            self.epsilon / self.num_classes
+                  self.epsilon / self.num_classes
         loss = (- targets * log_probs).mean(0).sum()
         return loss
 
@@ -371,19 +369,10 @@ class TripletLoss(nn.Module):
 
         dist_ap = _concat(dist_ap)
         dist_an = _concat(dist_an)
-        # Compute ranking hinge loss
-        # y = dist_an.data.new()
-        # y.resize_as_(dist_an.data)
-        # y.fill_(1)
-        if torch.cuda.is_available():
-            y = Variable(to_torch(np.ones(dist_an.size())).type(
-                torch.cuda.FloatTensor), requires_grad=False).cuda()
-        else:
-            y = Variable(to_torch(np.ones(dist_an.size())).type(
-                torch.FloatTensor), requires_grad=False)
+        y = torch.ones(dist_an.size(), requires_grad=False).cuda()
         loss = self.ranking_loss(dist_an, dist_ap, y)
         prec = (dist_an.data > dist_ap.data).sum().type(
-            torch.cuda.FloatTensor) / y.size(0)
+            torch.FloatTensor) / y.size(0)
 
         if not dbg:
             return loss, prec, dist

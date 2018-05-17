@@ -47,9 +47,8 @@ matplotlib.style.use('ggplot')
 from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 '''
-
+# torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 ori_np_err = np.seterr(all='raise')
-
 
 def set_stream_logger(log_level=logging.DEBUG):
     sh = colorlog.StreamHandler()

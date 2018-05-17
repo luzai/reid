@@ -1,8 +1,5 @@
 import lz
 from lz import *
-from exps.tri_center import main as cmain
-from exps.tri_xent import main as xmain
-
 
 def clean_empty():
     paths = glob.glob('work/*/*.amax')
@@ -24,7 +21,7 @@ for path in paths:
     name = path.split('/')[-1]
 
     # if 'only' in name: continue
-    if 'final' not in name: continue
+    if 'duke' not in name: continue
     # if 'cfisher' not in name or 'cu'  in name: continue
     # if 'tuning' not in name: continue
     # if not 'cu01' in name and not 'cuhk01' in name: continue
@@ -54,8 +51,8 @@ def f1(x):
 
 
 t = df[['top-1',
-        # 'mAP',
-        'top-5', 'top-10',
+        'mAP',
+        # 'top-5', 'top-10',
         ]]
 print(t.to_latex(formatters=[f1, ] * 3))
 # print(df[['top-1.rk',

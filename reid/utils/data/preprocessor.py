@@ -57,6 +57,7 @@ class Preprocessor(object):
         res['img'] = Image.open(fpath).convert('RGB')
         # self.cache[fpath] = res
         img = self.transform(res['img'])
+        # img = img.type(torch.double)
         if self.has_npy:
             # res['npy'] = to_torch(np.load(fpath3))
             raise NotImplementedError('do not use lomo cv2')

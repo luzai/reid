@@ -8,56 +8,7 @@ from .utils.meters import AverageMeter
 from reid.utils.rerank import *
 import cvbase as cvb
 
-
-def extract_features_vid(model, data_loader, print_freq=1, limit=None, ):
-    model.eval()
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-
-    features = OrderedDict()
-    labels = OrderedDict()
-    print('extract feature')
-    end = time.time()
-    with torch.no_grad():
-        for i, data in enumerate(data_loader):
-            imgs, npys, fnames, pids = data.get('img'), data.get('npy'), data.get('fname'), data.get('pid')
-            data_time.update(time.time() - end)
-
-            imgs = imgs.cuda()
-            b, s, c, h, w = imgs.size()
-            imgs = imgs.view(b * s, c, h, w)
-            outputs, _ = model(imgs)
-            outputs = outputs.view(b, s, -1)
-            outputs = torch.mean(outputs, 1)
-            outputs = outputs.data.cpu()
-
-            for fname, output, pid in zip(fnames, outputs, pids):
-                # if limit is not None and int(pid) not in limit.tolist():
-                #     continue
-                features[tuple(fname)] = output
-                labels[tuple(fname)] = pid
-
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            if (i + 1) % print_freq == 0:
-                print('Extract Features: [{}/{}]\t'
-                      'Time {:.3f} ({:.3f})\t'
-                      'Data {:.3f} ({:.3f})\t'
-                      .format(i + 1, len(data_loader),
-                              batch_time.val, batch_time.avg,
-                              data_time.val, data_time.avg))
-
-    print('Extract Features: [{}/{}]\t'
-          'Time {:.3f} ({:.3f})\t'
-          'Data {:.3f} ({:.3f})\t'
-          .format(i + 1, len(data_loader),
-                  batch_time.val, batch_time.avg,
-                  data_time.val, data_time.avg))
-    print(f'{len(features)} features, each of len {features.values().__iter__().__next__().shape[0]}')
-    return features, labels
-
-def extract_features(model, data_loader, print_freq=1, limit=None, ):
+def extract_features(model, data_loader, print_freq=1):
     model.eval()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -134,7 +85,7 @@ def extract_embeddings(model, data_loader, print_freq=10, ):
     return res
 
 
-def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=False, vid=False ):
+def pairwise_distance(features, query=None, gallery=None, metric=None, rerank=False, vid=False):
     if query is None and gallery is None:
         # n = len(features)
         # x = torch.cat(list(features.values()))
@@ -193,7 +144,7 @@ class Evaluator(object):
         self.args = args
         self.vid = vid
 
-    def evaluate_vid(self,queryloader,galleryloader,metric=None,**kwargs):
+    def evaluate_vid(self, queryloader, galleryloader, metric=None, **kwargs):
         self.model.eval()
         res = {}
         with torch.no_grad():
@@ -203,9 +154,9 @@ class Evaluator(object):
                 imgs = imgs.cuda()
                 b, s, c, h, w = imgs.size()
                 imgs = imgs.view(b * s, c, h, w)
-                features,_ = self.model(imgs)
+                features, _ = self.model(imgs)
                 features = features.view(b, s, -1)
-                features = torch.mean(features, 1)
+                features = torch.mean(features, 1) # use avg
                 features = features.data.cpu()
                 qf.append(features)
                 q_pids.extend(pids)
@@ -222,7 +173,7 @@ class Evaluator(object):
                 imgs = imgs.cuda()
                 b, s, c, h, w = imgs.size()
                 imgs = imgs.view(b * s, c, h, w)
-                features,_ = self.model(imgs)
+                features, _ = self.model(imgs)
                 features = features.view(b, s, -1)
                 features = torch.mean(features, 1)
                 features = features.data.cpu()
@@ -243,7 +194,7 @@ class Evaluator(object):
         distmat = distmat.numpy()
         rerank = False
         print("Computing CMC and mAP")
-        mAP = mean_ap(distmat,q_pids, g_pids, q_camids, g_camids)
+        mAP = mean_ap(distmat, q_pids, g_pids, q_camids, g_camids)
 
         print('Mean AP: {:4.1%}'.format(mAP))
         cmc_configs = {

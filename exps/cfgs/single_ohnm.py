@@ -6,20 +6,20 @@ from lz import *
 
 cfgs = [
 
-    edict(
-        logs_dir='tri.mars.3',
-        dataset='mars', seq_len=15, vid_pool='avg', workers=8,
-        log_at=[10, 11, 12],
-        epochs=11, steps=[6, 9],
-        batch_size=128, num_instances=4, gpu=range(1), num_classes=128, test_batch_size=8,
-        dropout=0, loss='tcxvid', mode='',
-        cls_weight=0, tri_weight=1,
-        random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0, gpu_range=range(4),
-        push_scale=1., embed=None,
-        evaluate=True,
-        resume='work/tri.mars/model_best.pth',
-        # restart=False,
-    ),
+    # edict(
+    #     logs_dir='tri.mars.3',
+    #     dataset='mars', seq_len=15, vid_pool='avg', workers=8,
+    #     log_at=[10, 11, 12],
+    #     epochs=11, steps=[6, 9],
+    #     batch_size=128, num_instances=4, gpu=range(1), num_classes=128, test_batch_size=8,
+    #     dropout=0, loss='tcxvid', mode='',
+    #     cls_weight=0, tri_weight=1,
+    #     random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0, gpu_range=range(4),
+    #     push_scale=1., embed=None,
+    #     evaluate=True,
+    #     resume='work/tri.mars/model_best.pth',
+    #     # restart=False,
+    # ),
     # edict(
     #     logs_dir='tri.ilids',
     #     dataset='ilidsvid', seq_len=15, vid_pool='avg', workers=8,
@@ -91,15 +91,17 @@ cfgs = [
 # for (dataset, mode, lr
 #      ) in grid_iter(
 #     ['cu03lbl'],
-#     ['cent',
-#      'ccent.exp.nopos',
-#      'ccent.exp.withpos',
-#      'ccent.margin',
-#      'ccent.dcl.with1.all',
-#      'ccent.dcl.no1.all',
-#      'ccent.dcl.with1.min',
-#      'ccent.dcl.no1.min'],
-#     [1e-3, 3e-4],
+#     [
+#         # 'cent',
+#         'ccent.exp.nopos',
+#         # 'ccent.exp.withpos',
+#         'ccent.margin',
+#         'ccent.dcl.with1.all',
+#         'ccent.dcl.no1.all',
+#         'ccent.dcl.with1.min',
+#         'ccent.dcl.no1.min'
+#     ],
+#     [1e-2],
 # ):
 #     cfg_t = copy.deepcopy(cfg)
 #     cfg_t.dataset = dataset
