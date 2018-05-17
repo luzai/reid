@@ -74,7 +74,8 @@ class BaseTrainer(object):
 
 class VerfTrainer(BaseTrainer):
     def _parse_data(self, inputs):
-        imgs, fnames, pids, = inputs.get('img'), inputs.get('fname'), inputs.get('pid')
+        imgs, fnames, pids, = inputs.get(
+            'img'), inputs.get('fname'), inputs.get('pid')
         inputs = [Variable(imgs.cuda(), requires_grad=False)]
         targets = Variable(pids.cuda(), requires_grad=False)
         return inputs, (targets, None)
@@ -89,7 +90,8 @@ class VerfTrainer(BaseTrainer):
             pred = pred.data[:, 0]
         else:
             pred = pred.data
-        right = (to_numpy(pred > self.criterion.margin / 2.).reshape(-1) == to_numpy(y.data).reshape(-1))
+        right = (to_numpy(pred > self.criterion.margin /
+                          2.).reshape(-1) == to_numpy(y.data).reshape(-1))
         prec1 = (right.astype(float).sum() / right.shape[0])
         # print(prec1)
         return loss, prec1
@@ -134,7 +136,8 @@ class Trainer(object):
             self.writer = None
 
     def _parse_data(self, inputs):
-        imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
+        imgs, npys, fnames, pids = inputs.get('img'), inputs.get(
+            'npy'), inputs.get('fname'), inputs.get('pid')
         inputs = [imgs, npys]
         inputs = to_variable(inputs, requires_grad=False)
         targets = to_variable(pids, requires_grad=False)
@@ -152,7 +155,8 @@ class Trainer(object):
         if self.dbg and self.iter % 1000 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', outputs, self.iter)
-            x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
+            x = vutils.make_grid(
+                to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
         if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
@@ -166,12 +170,14 @@ class Trainer(object):
             prec = prec[0]
         elif isinstance(self.criterion, TripletLoss):
             if self.dbg and self.iter % 100 == 0:
-                loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg)
+                loss, prec, dist, dist_ap, dist_an = self.criterion(
+                    outputs, targets, dbg=self.dbg)
                 diff = dist_an - dist_ap
                 self.writer.add_histogram('an-ap', diff, self.iter)
 
                 # stat_(self.writer, 'an-ap', diff, self.iter)
-                self.writer.add_scalar('vis/loss', loss - loss_div * self.loss_div_weight, self.iter)
+                self.writer.add_scalar(
+                    'vis/loss', loss - loss_div * self.loss_div_weight, self.iter)
                 self.writer.add_scalar('vis/loss_div', loss_div, self.iter)
                 self.writer.add_scalar('vis/loss_ttl', loss, self.iter)
                 self.writer.add_scalar('vis/prec', prec, self.iter)
@@ -266,10 +272,12 @@ class Trainer(object):
 
 def update_dop_cls(outputs, targets, dop_file):
     targets = to_numpy(targets)
-    targets = targets.reshape((targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
+    targets = targets.reshape(
+        (targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
 
     outputs = to_numpy(outputs)
-    outputs = outputs.reshape((outputs.shape[0] // 4, 4, outputs.shape[1])).sum(axis=1)
+    outputs = outputs.reshape(
+        (outputs.shape[0] // 4, 4, outputs.shape[1])).sum(axis=1)
 
     outputs[np.arange(outputs.shape[0]), targets] = -np.inf
 
@@ -305,7 +313,8 @@ def update_dop_tri(dist, targets, dop_info):
 
 def update_dop_center(dist, dop_info):
     num_classes = dist.shape[0]
-    dist_new = dist + torch.diag(torch.ones(num_classes)).cuda() * torch.max(dist)
+    dist_new = dist + \
+        torch.diag(torch.ones(num_classes)).cuda() * torch.max(dist)
     dop = dop_info.dop
     dop[:] = to_numpy(torch.argmin(dist_new, dim=0))
     dop_info.dop = dop
@@ -328,7 +337,8 @@ class XentTriTrainer(object):
             self.writer = None
 
     def _parse_data(self, inputs):
-        imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
+        imgs, npys, fnames, pids = inputs.get('img'), inputs.get(
+            'npy'), inputs.get('fname'), inputs.get('pid')
         cids = inputs.get('cid')
         inputs = [imgs, npys]
         inputs = to_variable(inputs, requires_grad=False)
@@ -342,21 +352,24 @@ class XentTriTrainer(object):
         if self.dbg and self.iter % 1000 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', outputs, self.iter)
-            x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
+            x = vutils.make_grid(
+                to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
         loss2 = self.criterion2(outputs2, targets)  # criterion2 is xent
         prec2, = accuracy(outputs2.data, targets.data)
         prec2 = prec2[0]
         if self.dbg and self.iter % 100 == 0:
-            loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg, cids=cids)
+            loss, prec, dist, dist_ap, dist_an = self.criterion(
+                outputs, targets, dbg=self.dbg, cids=cids)
             diff = dist_an - dist_ap
             self.writer.add_histogram('an-ap', diff, self.iter)
             self.writer.add_histogram('dist', dist, self.iter)
             self.writer.add_histogram('ap', dist_ap, self.iter)
             self.writer.add_histogram('an', dist_an, self.iter)
         else:
-            loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)  # criterion1 is triplet
+            loss, prec, dist = self.criterion(
+                outputs, targets, dbg=False, cids=cids)  # criterion1 is triplet
         if self.tri_weight != 0:
             update_dop_tri(dist, targets, self.dop_info)
 
@@ -391,7 +404,8 @@ class XentTriTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
-            loss_comb, loss, loss2, prec1, prec2 = self._forward(inputs, targets, cids)
+            loss_comb, loss, loss2, prec1, prec2 = self._forward(
+                inputs, targets, cids)
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(to_numpy(loss), targets.size(0))
@@ -444,7 +458,8 @@ class TCXTrainer(object):
             self.writer = None
 
     def _parse_data(self, inputs):
-        imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
+        imgs, npys, fnames, pids = inputs.get('img'), inputs.get(
+            'npy'), inputs.get('fname'), inputs.get('pid')
         cids = inputs.get('cid')
         inputs = [imgs, npys]
         inputs = to_variable(inputs, requires_grad=False)
@@ -458,39 +473,46 @@ class TCXTrainer(object):
         if self.dbg and self.iter % 1000 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', out_embed, self.iter)
-            x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
+            x = vutils.make_grid(
+                to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
         if self.dbg and self.iter % 100 == 0:
-            losst, prect, dist, dist_ap, dist_an = self.crit_tri(out_embed, targets, dbg=self.dbg, cids=cids)
+            losst, prect, dist, dist_ap, dist_an = self.crit_tri(
+                out_embed, targets, dbg=self.dbg, cids=cids)
             diff = dist_an - dist_ap
             self.writer.add_histogram('an-ap', diff, self.iter)
             self.writer.add_histogram('dist', dist, self.iter)
             self.writer.add_histogram('ap', dist_ap, self.iter)
             self.writer.add_histogram('an', dist_an, self.iter)
         else:
-            losst, prect, dist = self.crit_tri(out_embed, targets, dbg=False, cids=cids)
+            losst, prect, dist = self.crit_tri(
+                out_embed, targets, dbg=False, cids=cids)
         lossx = self.crit_xent(out_cls, targets)
         precx, = accuracy(out_cls.data, targets.data)
         precx = precx[0]
-        loss_cent, loss_dis, distmat_cent, cent_pull = self.crit_cent(out_embed, targets, )
+        loss_cent, loss_dis, distmat_cent, cent_pull = self.crit_cent(
+            out_embed, targets, )
         # update_dop_tri(dist, targets, self.dop_info)
         update_dop_center(distmat_cent, self.dop_info)
 
         self.iter += 1
         if self.args.weight_lda is None:
             loss_comb = self.tri_weight * losst + \
-                        self.weight_cent * loss_cent + \
-                        self.args.weight_dis_cent * loss_dis + \
-                        self.args.cls_weight * lossx
+                self.weight_cent * loss_cent + \
+                self.args.weight_dis_cent * loss_dis + \
+                self.args.cls_weight * lossx
         else:
-            loss_comb = losst + self.args.weight_lda * loss_cent / (-loss_dis)  # todo what if lda div?
+            loss_comb = losst + self.args.weight_lda * \
+                loss_cent / (-loss_dis)  # todo what if lda div?
 
-        logging.debug(f'tri loss {losst.item()}; loss_cent is {loss_cent.item()};  loss_dis is {loss_dis.item()}')
+        logging.debug(
+            f'tri loss {losst.item()}; loss_cent is {loss_cent.item()};  loss_dis is {loss_dis.item()}')
         if loss_comb > 1e8:
             raise ValueError('loss too large')
-
-        if self.dbg and self.iter % 10 == 0:
+        elif math.isnan(loss_comb.data.cpu()):
+            raise ValueError(f'loss nan {loss_comb}')
+        if self.dbg and self.iter % 1 == 0:
             self.writer.add_scalar('vis/prec-triplet', prect, self.iter)
             self.writer.add_scalar('vis/lr', self.lr, self.iter)
             self.writer.add_scalar('vis/loss-center', loss_cent, self.iter)
@@ -499,15 +521,15 @@ class TCXTrainer(object):
             self.writer.add_scalar('vis/center-pull', cent_pull, self.iter)
             self.writer.add_scalar('vis/loss-softmax', lossx, self.iter)
             self.writer.add_scalar('vis/prec-softmax', precx, self.iter)
-        return loss_comb, prect
+        return loss_comb, prect, precx
 
     def train(self, epoch, data_loader, optimizer, optimizer_cent=None, print_freq=5, schedule=None):
 
         batch_time = AverageMeter()
         data_time = AverageMeter()
         losses = AverageMeter()
-        precisions = AverageMeter()
-
+        precisions_tri = AverageMeter()
+        precisionsx = AverageMeter()
         end = time.time()
 
         for i, inputs in enumerate(data_loader):
@@ -517,11 +539,12 @@ class TCXTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
-            loss_comb, prec = self._forward(inputs, targets, cids)
+            loss_comb, prect, precx = self._forward(inputs, targets, cids)
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(to_numpy(loss_comb), targets.size(0))
-            precisions.update(to_numpy(prec), targets.size(0))
+            precisions_tri.update(to_numpy(prect), targets.size(0))
+            precisionsx.update(to_numpy(precx), targets.size(0))
             optimizer_cent.zero_grad()
             optimizer.zero_grad()
             loss_comb.backward()
@@ -529,7 +552,8 @@ class TCXTrainer(object):
             optimizer.step()
             # for param in self.criterion2.parameters():
             for name, param in self.crit_cent.named_parameters():
-                if name != 'centers': continue
+                if name != 'centers':
+                    continue
                 # print(name)
                 if not math.isclose(self.weight_cent, 0.):
                     param.grad.data *= (1. / self.weight_cent)
@@ -541,15 +565,17 @@ class TCXTrainer(object):
                 print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
                       f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
                       f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
-                      f'loss {losses.val:.2f}/{losses.avg:.2f}  '
-                      f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
+                      f'loss {losses.val:.2e}/{losses.avg:.2e}  '
+                      f'prect {precisions_tri.val:.2%}/{precisions_tri.avg:.2%}  '
+                      f'precx {precisionsx.val:.2%}/{precisionsx.avg:.2%}  '
                       )
             # break
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,
             'data-time': data_time.avg,
             'loss_tri': losses.avg,
-            'prec_tri': precisions.avg,
+            'prec_tri': precisions_tri.avg,
+            'prec_xent': precisionsx.avg
         })
 
 
@@ -572,7 +598,8 @@ class TriCenterTrainer(object):
             self.writer = None
 
     def _parse_data(self, inputs):
-        imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
+        imgs, npys, fnames, pids = inputs.get('img'), inputs.get(
+            'npy'), inputs.get('fname'), inputs.get('pid')
         cids = inputs.get('cid')
         inputs = [imgs, npys]
         inputs = to_variable(inputs, requires_grad=False)
@@ -586,30 +613,36 @@ class TriCenterTrainer(object):
         if self.dbg and self.iter % 1000 == 0:
             self.writer.add_histogram('1_input', inputs[0], self.iter)
             self.writer.add_histogram('2_feature', outputs, self.iter)
-            x = vutils.make_grid(to_torch(inputs[0]), normalize=True, scale_each=True)
+            x = vutils.make_grid(
+                to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
 
         if self.dbg and self.iter % 100 == 0:
-            loss, prec, dist, dist_ap, dist_an = self.criterion(outputs, targets, dbg=self.dbg, cids=cids)
+            loss, prec, dist, dist_ap, dist_an = self.criterion(
+                outputs, targets, dbg=self.dbg, cids=cids)
             diff = dist_an - dist_ap
             self.writer.add_histogram('an-ap', diff, self.iter)
             self.writer.add_histogram('dist', dist, self.iter)
             self.writer.add_histogram('ap', dist_ap, self.iter)
             self.writer.add_histogram('an', dist_an, self.iter)
         else:
-            loss, prec, dist = self.criterion(outputs, targets, dbg=False, cids=cids)
+            loss, prec, dist = self.criterion(
+                outputs, targets, dbg=False, cids=cids)
 
-        loss_cent, loss_dis, distmat_cent, loss_cent_pull = self.criterion2(outputs, targets, )
+        loss_cent, loss_dis, distmat_cent, loss_cent_pull = self.criterion2(
+            outputs, targets, )
         # update_dop_tri(dist, targets, self.dop_info)
         update_dop_center(distmat_cent, self.dop_info)
 
         self.iter += 1
         if self.args.weight_lda is None:
-            loss_comb = self.tri_weight * loss + self.weight_cent * loss_cent + self.args.weight_dis_cent * loss_dis
+            loss_comb = self.tri_weight * loss + self.weight_cent * \
+                loss_cent + self.args.weight_dis_cent * loss_dis
         else:
             loss_comb = loss + self.args.weight_lda * loss_cent / (-loss_dis)
 
-        logging.debug(f'tri loss {loss.item()}; loss_cent is {loss_cent.item()};  loss_dis is {loss_dis.item()}')
+        logging.debug(
+            f'tri loss {loss.item()}; loss_cent is {loss_cent.item()};  loss_dis is {loss_dis.item()}')
         if loss_comb > 1e8:
             raise ValueError('loss too large')
 
@@ -619,7 +652,8 @@ class TriCenterTrainer(object):
             self.writer.add_scalar('vis/loss-center', loss_cent, self.iter)
             self.writer.add_scalar('vis/loss-center-dis', loss_dis, self.iter)
             self.writer.add_scalar('vis/loss-triplet', loss, self.iter)
-            self.writer.add_scalar('vis/loss-center-pull', loss_cent_pull, self.iter)
+            self.writer.add_scalar(
+                'vis/loss-center-pull', loss_cent_pull, self.iter)
 
         return loss_comb, prec
 
@@ -651,7 +685,8 @@ class TriCenterTrainer(object):
             optimizer.step()
             # for param in self.criterion2.parameters():
             for name, param in self.criterion2.named_parameters():
-                if name != 'centers': continue
+                if name != 'centers':
+                    continue
                 # print(name)
                 if not math.isclose(self.weight_cent, 0.):
                     param.grad.data *= (1. / self.weight_cent)
@@ -667,6 +702,7 @@ class TriCenterTrainer(object):
                       f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
                       )
             # break
+            # exit(-1)
         return collections.OrderedDict({
             'ttl-time': batch_time.avg,
             'data-time': data_time.avg,

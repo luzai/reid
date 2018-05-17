@@ -2,7 +2,7 @@ from lz import *
 import lz
 
 from tensorboardX import SummaryWriter
-import numpy as np, numpy
+import numpy as np
 
 
 def select(dist, range, descend=True, return_ind=False, global_ind=None):
@@ -17,7 +17,7 @@ def calc_distmat2(x, y):
     num_x = x.size(0)
     num_y = y.size(0)
     distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
-              torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
+        torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
     distmat.addmm_(1, -2, x, y.t()).clamp_(min=1e-12, max=1e12)
 
     return distmat
@@ -27,7 +27,7 @@ def calc_distmat(x, y):
     num_x = x.size(0)
     num_y = y.size(0)
     distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
-              torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
+        torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
     distmat.addmm_(1, -2, x, y.t()).clamp_(min=1e-12, max=1e12).sqrt_()
 
     return distmat
@@ -51,15 +51,18 @@ class CenterLoss(nn.Module):
         self.mode = mode
 
         if self.use_gpu:
-            self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim).cuda())
+            self.centers = nn.Parameter(torch.randn(
+                self.num_classes, self.feat_dim).cuda())
         else:
-            self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
+            self.centers = nn.Parameter(
+                torch.randn(self.num_classes, self.feat_dim))
         init.kaiming_normal_(self.centers, mode='fan_out')
 
         # self.fc = nn.Linear(self.num_classes, self.num_classes - 1)
         # init.constant_(self.fc.bias, 1 )
         self.push_scale = push_scale
-        self.push_wei = to_torch(np.ones(self.num_classes - 1, dtype=np.float32) * self.push_scale).cuda()
+        self.push_wei = to_torch(
+            np.ones(self.num_classes - 1, dtype=np.float32) * self.push_scale).cuda()
 
     def forward(self, x, labels, **kwargs):
         """
@@ -71,50 +74,72 @@ class CenterLoss(nn.Module):
         ncenters, nfeas = self.centers.size()
         distmat_x2cent = calc_distmat2(x, self.centers)
         classes = torch.arange(self.num_classes).long()
-        if self.use_gpu: classes = classes.cuda()
+        if self.use_gpu:
+            classes = classes.cuda()
         classes = Variable(classes)
         labels = labels.unsqueeze(1).expand(batch_size, self.num_classes)
         mask = labels.eq(classes.expand(batch_size, self.num_classes))
 
         dists_dcl = []
         dists_pull = []
-        # wei = self.fc(distmat[0])
-        # logging.info(f'mean {wei.mean()} sum {wei.sum()} weight is {wei}')
-
+        modes = self.mode.split('.')
         for i in range(batch_size):
             dist_pull = distmat_x2cent[i][mask[i]]
-            if self.mode.split('.')[1] == 'min':
-                dist_push = distmat_x2cent[i][1 - mask[i]].min() * self.push_wei
-            else:
-                # dist_push = distmat[i][1 - mask[i]].sum()
-                # dist_push = (distmat_x2cent[i] * self.push_wei).mean()
-                dist_push = (distmat_x2cent[i][1 - mask[i]] * self.push_wei).mean()
-
-            dists_dcl.append(dist_pull / (dist_push ))
             dists_pull.append(dist_pull)
+            if 'dcl' in modes:
+                if 'min' in modes:
+                    dist_push = distmat_x2cent[i][1 -
+                                                  mask[i]].min() * self.push_wei
+                else:
+                    dist_push = (
+                        distmat_x2cent[i][1 - mask[i]] * self.push_wei).mean()
+                if 'with1' in modes:
+                    dists_dcl.append(dist_pull / (dist_push + 1))
+                else:
+                    dists_dcl.append(dist_pull / dist_push)
+            if 'margin' in modes:
+                dists_dcl.append(
+                    (torch.max(torch.zeros(1).cuda(),
+                               dist_pull /
+                               distmat_x2cent[i][1 - mask[i]] -
+                               1 + self.margin2
+                               ) * self.push_wei).mean()
+                )
+            if 'exp' in modes:
+                if 'nopos' in modes:
+                    dists_dcl.append(
+                        -torch.exp(-dist_pull) /
+                        torch.exp(-distmat_x2cent[i][1 - mask[i]]).sum()
+                    )
+                else:
+                    dists_dcl.append(
+                        - torch.exp(-dist_pull) /
+                        torch.exp(-distmat_x2cent[i]).sum()
+                    )
+
         loss_pull = torch.cat(dists_pull).mean()
 
-        if self.mode == 'cent':
+        if 'cent' in modes:
             loss = loss_pull
-        elif 'ccent' in self.mode:
-            dists_dcl = torch.cat(dists_dcl)
-            # dist = torch.max(dist-self.margin2, torch.zeros(batch_size).cuda())
+        elif 'ccent' in modes:
+            if dists_dcl[0].shape == ():
+                dists_dcl = torch.stack(dists_dcl)
+            else:
+                dists_dcl = torch.cat(dists_dcl)
             loss = dists_dcl.mean()
-
+        else:
+            loss = torch.zeros(1).cuda()
         distmat_cent2cent = calc_distmat2(self.centers, self.centers)
 
-        if self.mode.split('.')[2] == 'all':
-            mask = to_torch(np.tri(ncenters, dtype=np.uint8) - np.identity(ncenters, dtype=np.uint8)).cuda()
-            cent_pairs = distmat_cent2cent[mask]
-            # distpairs = torch.max(self.margin3 - distpairs, torch.zeros(distpairs.size(0)).cuda())
-            #  Note here has '-' already!
-            loss_dis = -cent_pairs.mean()
-        else:
-            mask = to_torch(np.identity(ncenters, dtype=np.float32)).cuda() * distmat_cent2cent.max()
-            loss_dis = (distmat_cent2cent + mask).min(dim=1)
-            loss_dis = -loss_dis.mean()
-            # min_inds = (distmat3 + mask).argmin(dim=1)
-            # loss_dis3 = -distmat3[:, min_inds].mean()
+        # if 'disall' in modes:
+        mask = to_torch(np.tri(ncenters, dtype=np.uint8) -
+                        np.identity(ncenters, dtype=np.uint8)).cuda()
+        cent_pairs = distmat_cent2cent[mask]
+        loss_dis = -cent_pairs.mean()
+        # else:
+        #     mask = to_torch(np.identity(ncenters, dtype=np.float32)).cuda() * distmat_cent2cent.max()
+        #     loss_dis = (distmat_cent2cent + mask).min(dim=1)
+        #     loss_dis = -loss_dis.mean()
 
         return loss, loss_dis, distmat_cent2cent, loss_pull
 
@@ -133,7 +158,8 @@ class QuadLoss(nn.Module):
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.t()
         dist.addmm_(1, -2, inputs, inputs.t())
-        dist = dist.clamp(min=1e-12, max=1e+12).sqrt()  # for numerical stability
+        # for numerical stability
+        dist = dist.clamp(min=1e-12, max=1e+12).sqrt()
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
 
@@ -157,11 +183,14 @@ class QuadLoss(nn.Module):
         dist_an = _concat(dist_an)
         dist_n12 = _concat(dist_n12)
         if torch.cuda.is_available():
-            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
+            y = Variable(to_torch(np.ones(dist_an.size())).type(
+                torch.cuda.FloatTensor), requires_grad=False).cuda()
         else:
-            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
+            y = Variable(to_torch(np.ones(dist_an.size())).type(
+                torch.FloatTensor), requires_grad=False)
 
-        loss = self.ranking_loss(dist_an, dist_ap, y) + 0.1 * self.ranking_loss(dist_n12, dist_ap, y)
+        loss = self.ranking_loss(dist_an, dist_ap, y) + \
+            0.1 * self.ranking_loss(dist_n12, dist_ap, y)
         # todo 0.1 and different margin
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
@@ -185,7 +214,8 @@ class QuinLoss(nn.Module):
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.t()
         dist.addmm_(1, -2, inputs, inputs.t())
-        dist = dist.clamp(min=1e-12, max=1e+12).sqrt()  # for numerical stability
+        # for numerical stability
+        dist = dist.clamp(min=1e-12, max=1e+12).sqrt()
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         view_mask = cids.expand(n, n).eq(cids.expand(n, n).t())
@@ -217,13 +247,15 @@ class QuinLoss(nn.Module):
         dist_n12 = _concat(dist_n12)
         dist_p12 = _concat(dist_p12)
         if torch.cuda.is_available():
-            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
+            y = Variable(to_torch(np.ones(dist_an.size())).type(
+                torch.cuda.FloatTensor), requires_grad=False).cuda()
         else:
-            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
+            y = Variable(to_torch(np.ones(dist_an.size())).type(
+                torch.FloatTensor), requires_grad=False)
 
         loss = self.ranking_loss(dist_an, dist_ap, y) \
-               + 0.1 * self.ranking_loss(dist_n12, dist_ap, y) \
-               + 0.1 * self.ranking_loss(dist_an, dist_p12, y)
+            + 0.1 * self.ranking_loss(dist_n12, dist_ap, y) \
+            + 0.1 * self.ranking_loss(dist_an, dist_p12, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
 
         if not dbg:
@@ -258,10 +290,13 @@ class CrossEntropyLabelSmooth(nn.Module):
             targets: ground truth labels with shape (num_classes)
         """
         log_probs = self.logsoftmax(inputs)
-        targets = torch.zeros(log_probs.size()).scatter_(1, targets.unsqueeze(1).data.cpu(), 1)
-        if self.use_gpu: targets = targets.cuda()
+        targets = torch.zeros(log_probs.size()).scatter_(
+            1, targets.unsqueeze(1).data.cpu(), 1)
+        if self.use_gpu:
+            targets = targets.cuda()
         targets = Variable(targets, requires_grad=False)
-        targets = (1 - self.epsilon) * targets + self.epsilon / self.num_classes
+        targets = (1 - self.epsilon) * targets + \
+            self.epsilon / self.num_classes
         loss = (- targets * log_probs).mean(0).sum()
         return loss
 
@@ -314,10 +349,10 @@ class TripletLoss(nn.Module):
                 dist_an.append(neg)
             elif self.mode == 'rand':
                 posp = dist[i][mask[i]]
-                dist_ap.append(posp[numpy.random.randint(0, posp.size(0))])
+                dist_ap.append(posp[np.random.randint(0, posp.size(0))])
 
                 negp = dist[i][mask[i] == 0]
-                dist_an.append(negp[numpy.random.randint(0, negp.size(0))])
+                dist_an.append(negp[np.random.randint(0, negp.size(0))])
             elif self.mode == 'lift':
                 negp = dist[i][mask[i] == 0]
                 posp = (dist[i][mask[i]].max()).expand(negp.size(0))
@@ -341,11 +376,14 @@ class TripletLoss(nn.Module):
         # y.resize_as_(dist_an.data)
         # y.fill_(1)
         if torch.cuda.is_available():
-            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.cuda.FloatTensor), requires_grad=False).cuda()
+            y = Variable(to_torch(np.ones(dist_an.size())).type(
+                torch.cuda.FloatTensor), requires_grad=False).cuda()
         else:
-            y = Variable(to_torch(np.ones(dist_an.size())).type(torch.FloatTensor), requires_grad=False)
+            y = Variable(to_torch(np.ones(dist_an.size())).type(
+                torch.FloatTensor), requires_grad=False)
         loss = self.ranking_loss(dist_an, dist_ap, y)
-        prec = (dist_an.data > dist_ap.data).sum().type(torch.cuda.FloatTensor) / y.size(0)
+        prec = (dist_an.data > dist_ap.data).sum().type(
+            torch.cuda.FloatTensor) / y.size(0)
 
         if not dbg:
             return loss, prec, dist

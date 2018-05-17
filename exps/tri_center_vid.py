@@ -30,13 +30,13 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        if args.loss != 'tcx':
-            print(f'skip {args}')
+        if args.loss != 'tcxvid':
+            print(f'skip {args.loss} {args.logs_dir}')
             continue
-        args.log_at = np.concatenate([
-            args.log_at,
-            range(args.epochs - 1, args.epochs + 1, 1)
-        ])
+        # args.log_at = np.concatenate([
+        #     args.log_at,
+        #     range(args.epochs - 1, args.epochs + 1, 1)
+        # ])
         args.logs_dir = 'work/' + args.logs_dir
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
@@ -81,7 +81,8 @@ def get_data(args):
 
     # root = osp.join(data_dir, name)
     root = data_dir
-    dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
+    dataset = datasets.create(
+        name, root, split_id=split_id, mode=args.dataset_mode)
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -121,7 +122,8 @@ def get_data(args):
     dataset_val = dataset
     query_ga = np.concatenate([
         np.asarray(dataset_val.query).reshape(-1, 3),
-        np.asarray(list(set(dataset_val.gallery) - set(dataset_val.query))).reshape(-1, 3)
+        np.asarray(list(set(dataset_val.gallery) -
+                        set(dataset_val.query))).reshape(-1, 3)
     ])
     query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
                                  names=['fnames', 'pids', 'cids']).tolist()
@@ -201,7 +203,8 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args, vid=True)
+    evaluator = Evaluator(model, gpu=args.gpu,
+                          conf=args.eval_conf, args=args, vid=True)
     # return
     if args.evaluate:
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric,
@@ -223,12 +226,14 @@ def main(args):
         if name == 'module.embed1.weight' or name == 'module.embed2.weight':
             fast_params.append(param)
     fast_params_ids = set(map(id, fast_params))
-    normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
+    normal_params = [p for p in model.parameters() if id(p)
+                     not in fast_params_ids]
     param_groups = [
         {'params': fast_params, 'lr_mult': 1.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
-    optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
+    optimizer_cent = torch.optim.SGD(
+        criterion[1].parameters(), lr=args.lr_cent, )
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             # model.parameters(),
@@ -343,7 +348,8 @@ def main(args):
         # for n, v in res.items():
         #     writer.add_scalar('train/'+n, v, epoch)
 
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
+        res = evaluator.evaluate(
+            test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
 
@@ -362,7 +368,8 @@ def main(args):
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    res = evaluator.evaluate(
+        test_loader, dataset.query, dataset.gallery, metric)
     for n, v in res.items():
         writer.add_scalar('test/' + n, v, args.epochs)
 
@@ -371,7 +378,8 @@ def main(args):
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth'))
         model.module.load_state_dict(checkpoint['state_dict'])
         metric.train(model, train_loader)
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, final=True)
+        res = evaluator.evaluate(
+            test_loader, dataset.query, dataset.gallery, metric, final=True)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, args.epochs + 1)
         lz.logging.info('final eval is {}'.format(res))

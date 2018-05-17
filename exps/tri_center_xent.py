@@ -31,7 +31,7 @@ def run(_):
     procs = []
     for args in cfgs.cfgs:
         if args.loss != 'tcx':
-            print(f'skip {args}')
+            print(f'skip {args.loss} {args.logs_dir}')
             continue
         # args.log_at = np.concatenate([
         #     args.log_at,
@@ -146,8 +146,14 @@ def get_data(args):
         np.asarray(dataset_val.query).reshape(-1, 3),
         np.asarray(list(set(dataset_val.gallery) - set(dataset_val.query))).reshape(-1, 3)
     ])
+
     query_ga = np.rec.fromarrays((query_ga[:, 0], query_ga[:, 1].astype(int), query_ga[:, 2].astype(int)),
-                                 names=['fnames', 'pids', 'cids']).tolist()
+                                 names=['fnames', 'pids', 'cids'])
+    if args.vis:
+        pids_chs = np.unique(query_ga.pids)[:10]
+        query_ga = query_ga[np.where(np.isin(query_ga.pids, pids_chs))[0]]
+
+    query_ga = query_ga.tolist()
     test_loader = DataLoader(
         Preprocessor(query_ga,
                      root=dataset_val.images_dir,
@@ -159,6 +165,23 @@ def get_data(args):
     dataset.query = dataset_val.query
     dataset.gallery = dataset_val.gallery
     dataset.images_dir = dataset_val.images_dir
+    if args.vis:
+        query = np.asarray(dataset.query, dtype=[('fname', object),
+                                                      ('pids', int),
+                                                      ('cid', int)])
+        query = query.view(np.recarray)
+        query = query[np.where(np.isin(query.pids, pids_chs))[0]]
+
+        dataset.query = query.tolist()
+
+        gallery = np.asarray(dataset.gallery, dtype=[('fname', object),
+                                                 ('pids', int),
+                                                 ('cid', int)])
+        gallery = gallery.view(np.recarray)
+        gallery = gallery[np.where(np.isin(gallery.pids, pids_chs))[0]]
+
+        dataset.gallery = gallery.tolist()
+
     # dataset.num_val_ids
     return dataset, num_classes, train_loader, val_loader, test_loader, dop_info, trainval_test_loader
 
@@ -209,7 +232,9 @@ def main(args):
         db_name = args.logs_dir + '/' + args.logs_dir.split('/')[-1] + '.h5'
         load_state_dict(model, checkpoint['state_dict'])
         with lz.Database(db_name) as db:
-            db['cent'] = to_numpy(checkpoint['cent'])
+            if 'cent' in checkpoint:
+                db['cent'] = to_numpy(checkpoint['cent'])
+            db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
             best_top1_ = checkpoint['best_top1']
@@ -305,7 +330,7 @@ def main(args):
                   format(epoch, hist))
     # Trainer
     trainer = TCXTrainer(model, criterion, dbg=True,
-                               logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
+                         logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

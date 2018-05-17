@@ -4,7 +4,10 @@ import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-import os, sys, time, \
+import os
+import sys
+import time
+import \
     random, \
     subprocess, glob, re, \
     numpy as np, pandas as pd, \
@@ -18,7 +21,8 @@ from easydict import EasyDict as edict
 # import redis, networkx as nx, \
 #  yaml,  subprocess, pprint,json,csv, argparse,string,
 
-import torch, torchvision
+import torch
+import torchvision
 from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -58,7 +62,7 @@ def set_stream_logger(log_level=logging.DEBUG):
 
 def set_file_logger(work_dir=None, log_level=logging.DEBUG):
     work_dir = work_dir or os.getcwd()
-    fh = logging.FileHandler(os.path.join(work_dir, 'log.txt'))
+    fh = logging.FileHandler(os.path.join(work_dir, 'log_err.txt'))
     fh.setLevel(log_level)
     fh.setFormatter(
         logging.Formatter('%(asctime)s %(filename)s [line:%(lineno)d] %(levelname)s %(message)s'))
@@ -111,7 +115,8 @@ def get_gpu_memory_map():
 
 
 def init_dev(n=(0,)):
-    import os, logging
+    import os
+    import logging
 
     logging.info('use gpu {}'.format(n))
     home = os.environ['HOME']
@@ -122,7 +127,8 @@ def init_dev(n=(0,)):
         devs += str(n_) + ','
     os.environ["CUDA_VISIBLE_DEVICES"] = devs
     set_env('PATH', home + '/local/cuda/bin')
-    set_env('LD_LIBRARY_PATH', home + '/local/cuda/lib64:' + home + '/local/cuda/extras/CUPTI/lib64')
+    set_env('LD_LIBRARY_PATH', home + '/local/cuda/lib64:' +
+            home + '/local/cuda/extras/CUPTI/lib64')
 
 
 def set_env(key, value):
@@ -182,15 +188,18 @@ def allow_growth_sess():
     return sess
 
 
-def get_dev(n=1, ok=range(8), mem=(0.1, 0.15), sleep=20):  # e.g. now occupy 0.02<0.1, can assign a device.
-    import GPUtil, time
+# e.g. now occupy 0.02<0.1, can assign a device.
+def get_dev(n=1, ok=range(8), mem=(0.1, 0.15), sleep=20):
+    import GPUtil
+    import time
 
     def _limit(devs, ok):
         devs = [int(dev) for dev in devs if int(dev) in ok]
         return devs
 
     def get_dev_one(mem):
-        devs = GPUtil.getAvailable(order='memory', maxLoad=1, maxMemory=mem, limit=n)
+        devs = GPUtil.getAvailable(
+            order='memory', maxLoad=1, maxMemory=mem, limit=n)
         devs = _limit(devs, ok)
         if len(devs) >= n:
             logging.info('available {}'.format(devs))
@@ -204,9 +213,11 @@ def get_dev(n=1, ok=range(8), mem=(0.1, 0.15), sleep=20):  # e.g. now occupy 0.0
 
     while len(devs) < n:
         devs = get_dev_one(mem[0])
-        if devs: return devs
+        if devs:
+            return devs
         devs = get_dev_one(mem[1])
-        if devs: return devs
+        if devs:
+            return devs
 
         print('no enough device available')
         GPUtil.showUtilization()
@@ -380,7 +391,8 @@ def to_variable(tn, **kwargs):
     if torch.cuda.is_available():
         tn = tn.cuda()
     volatile = kwargs.get('volatile', False)
-    if 'volatile' in kwargs: del kwargs['volatile']
+    if 'volatile' in kwargs:
+        del kwargs['volatile']
     if volatile:
         with torch.no_grad():
             tn = Variable(tn, **kwargs)
@@ -425,7 +437,7 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
         else:
             logging.error('dimension mismatch for param "{}", in the model are {}'
                           ' and in the checkpoint are {}, ...'.format(
-                name, own_state[name].size(), param.size()))
+                              name, own_state[name].size(), param.size()))
 
     missing = set(own_state.keys()) - set(success)
     if len(missing) > 0:
@@ -433,6 +445,7 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
 
 
 def grid_iter(*args):
+
     res = list(itertools.product(*args))
     np.random.shuffle(res)
     for arg in res:
@@ -475,7 +488,8 @@ def optional_arg_decorator(fn):
 
 
 def randomword(length):
-    import random, string
+    import random
+    import string
     return ''.join(random.choice(string.ascii_lowercase) for _ in range(length))
 
 
@@ -543,7 +557,8 @@ class Database(object):
                               )
                 self.fid[key][...] = value
             else:
-                logging.debug('old shape {} new shape {} updated'.format(self.fid[key].shape, value.shape))
+                logging.debug('old shape {} new shape {} updated'.format(
+                    self.fid[key].shape, value.shape))
                 del self.fid[key]
                 self.fid.create_dataset(key, data=value)
         else:
@@ -571,7 +586,8 @@ class Database(object):
 
 def pickle_dump(data, file, **kwargs):
     import pickle
-    kwargs.setdefault('protocol', pickle.HIGHEST_PROTOCOL)  # python2 can read 2
+    # python2 can read 2
+    kwargs.setdefault('protocol', pickle.HIGHEST_PROTOCOL)
     if isinstance(file, str):
         mkdir_p(osp.dirname(file), delete=False)
         print('pickle into', file)
@@ -631,10 +647,11 @@ def yaml_dump(obj, file=None, **kwargs):
 
 
 def json_dump(obj, file):
-    import codecs, json
+    import codecs
+    import json
     if isinstance(file, str):
         # with codecs.open(file, 'w', encoding='utf-8') as fp:  # write not append!
-        with open(file,'w') as fp:
+        with open(file, 'w') as fp:
             json.dump(obj, fp,
                       # ensure_ascii=False
                       )
@@ -656,7 +673,7 @@ def json_load(file):
 
 def append_file(line, file=None):
     file = file or 'append.txt'
-    with open(file, 'a') as  f:
+    with open(file, 'a') as f:
         f.writelines(line + '\n')
 
 
@@ -684,7 +701,8 @@ class AsyncDumper(mp.Process):
 
 
 def mkdir_p(path, delete=True):
-    if path == '': return
+    if path == '':
+        return
     if delete:
         rm(path)
     if not osp.exists(path):
@@ -807,7 +825,8 @@ def print_graph_info():
     import tensorflow as tf
     graph = tf.get_default_graph()
     graph.get_tensor_by_name("Placeholder:0")
-    layers = [op.name for op in graph.get_operations() if op.type == "Placeholder"]
+    layers = [op.name for op in graph.get_operations() if op.type ==
+              "Placeholder"]
     print([graph.get_tensor_by_name(layer + ":0") for layer in layers])
     print([op.type for op in graph.get_operations()])
     print([n.name for n in tf.get_default_graph().as_graph_def().node])
@@ -829,7 +848,8 @@ def chdir_to_root(fn):
 def scp(src, dest, dry_run=False):
     cmd = ('scp -r ' + src + ' ' + dest)
     print(cmd)
-    if dry_run: return
+    if dry_run:
+        return
     return shell(cmd, block=False)
 
 
@@ -873,7 +893,8 @@ def dict_update(to, from_):
         try:
             assert to[k] == v
         except Exception as inst:
-            logging.debug('update ori key {} from {} to {}'.format(k, to[k], v))
+            logging.debug(
+                'update ori key {} from {} to {}'.format(k, to[k], v))
             to[k] = v
     return to
 
@@ -932,6 +953,7 @@ def i_vis_graph(graph_def, max_const_size=32):
     import tensorflow as tf
     from IPython.display import display, HTML, SVG
     import os
+
     def strip_consts(graph_def, max_const_size=32):
         """Strip large constant values from graph_def."""
         import tensorflow as tf
@@ -944,7 +966,8 @@ def i_vis_graph(graph_def, max_const_size=32):
                 tensor = n.attr['value'].tensor
                 size = len(tensor.tensor_content)
                 if size > max_const_size:
-                    tensor.tensor_content = tf.compat.as_bytes("<stripped %d bytes>" % size)
+                    tensor.tensor_content = tf.compat.as_bytes(
+                        "<stripped %d bytes>" % size)
         return strip_def
 
     if hasattr(graph_def, 'as_graph_def'):

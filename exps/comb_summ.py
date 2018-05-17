@@ -22,13 +22,13 @@ cfg_dict = {}
 for path in paths:
     # name = args.logs_dir.split('/')[-1]
     name = path.split('/')[-1]
+
     # if 'only' in name: continue
-    # if 'final' not in name: continue
+    if 'final' not in name: continue
     # if 'cfisher' not in name or 'cu'  in name: continue
-    if 'tuning' not in name: continue
-    # if not 'multis.cu03lbl' in name: continue
-    # if not 'multis' in name: continue
+    # if 'tuning' not in name: continue
     # if not 'cu01' in name and not 'cuhk01' in name: continue
+
     if not osp.exists(path + '/conf.pkl'):
         continue
     args = pickle_load(path + '/conf.pkl')
