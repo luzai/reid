@@ -42,7 +42,7 @@ class CenterLoss(nn.Module):
     def __init__(self, num_classes, feat_dim,
                  margin2, margin3,
                  use_gpu=True, mode=None, push_scale=1.,
-                 args=None , **kwargs):
+                 args=None, **kwargs):
         super(CenterLoss, self).__init__()
         self.num_classes = num_classes
         self.feat_dim = feat_dim
@@ -109,7 +109,7 @@ class CenterLoss(nn.Module):
             if 'exp' in modes:
                 # choose only most largest k value in negative
                 logits = -distmat_x2cent[i]
-                if self.args.topk !=-1:
+                if self.args.topk != -1:
                     neg_topk, _ = torch.topk(logits[1 - mask[i]], k=self.args.topk, largest=True)
                     pos = logits[mask[i]]
                     logits = torch.cat([pos, neg_topk])
@@ -314,11 +314,13 @@ class CrossEntropyLabelSmooth(nn.Module):
 class TripletLoss(nn.Module):
     name = 'tri'
 
-    def __init__(self, margin=0, mode='hard'):
+    def __init__(self, margin=0, mode='hard', args=None, **kwargs ):
         super(TripletLoss, self).__init__()
         self.margin = margin
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
         self.mode = mode
+        self.margin2 = args.margin2
+        self.margin3 = args.margin3
 
     def forward(self, inputs, targets, dbg=False, cids=None):
         n = inputs.size(0)
@@ -333,12 +335,6 @@ class TripletLoss(nn.Module):
             if self.mode == 'hard':
                 some_pos = dist[i][mask[i]]
                 some_neg = dist[i][mask[i] == 0]
-                # print(some_pos.size(),some_neg.size())
-
-                # for pos in select(some_pos, (0, 1), descend=True):
-                #     for neg in select(some_neg, (0, 1), descend=False):
-                #         dist_ap.append(pos)
-                #         dist_an.append(neg)
 
                 neg = some_neg.min()
                 pos = some_pos.max()
@@ -379,8 +375,8 @@ class TripletLoss(nn.Module):
                     dist_ap.extend(posp_)
                     dist_an.extend(negp_)
 
-        dist_ap = _concat(dist_ap)
-        dist_an = _concat(dist_an)
+        dist_ap = _concat(dist_ap) * self.margin2
+        dist_an = _concat(dist_an) / self.margin3
         y = torch.ones(dist_an.size(), requires_grad=False).cuda()
         loss = self.ranking_loss(dist_an, dist_ap, y)
         prec = (dist_an.data > dist_ap.data).sum().type(

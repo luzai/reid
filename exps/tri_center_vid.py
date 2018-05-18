@@ -55,15 +55,15 @@ def run(_):
             lz.mkdir_p(args.logs_dir, delete=True)
             lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
 
-        main(args)
-    #     proc = mp.Process(target=main, args=(args,))
-    #     proc.start()
-    #     lz.logging.info('next')
-    #     time.sleep(random.randint(39, 90))
-    #     procs.append(proc)
-    #
-    # for proc in procs:
-    #     proc.join()
+        # main(args)
+        proc = mp.Process(target=main, args=(args,))
+        proc.start()
+        lz.logging.info('next')
+        time.sleep(random.randint(39, 90))
+        procs.append(proc)
+
+    for proc in procs:
+        proc.join()
 
 
 def get_data(args):

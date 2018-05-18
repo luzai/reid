@@ -273,7 +273,7 @@ def main(args):
         xent = CrossEntropyLabelSmooth(num_classes=num_classes)
     setattr(xent, 'name', 'xent')
 
-    criterion = [TripletLoss(margin=args.margin, mode='hard'),
+    criterion = [TripletLoss(margin=args.margin, mode='hard', args = args),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
                             margin2=args.margin2,
                             margin3=args.margin3, mode=args.mode,
