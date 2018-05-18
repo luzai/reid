@@ -55,15 +55,15 @@ def run(_):
             lz.mkdir_p(args.logs_dir, delete=True)
             lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
 
-        # main(args)
-        proc = mp.Process(target=main, args=(args,))
-        proc.start()
-        lz.logging.info('next')
-        time.sleep(random.randint(39, 90))
-        procs.append(proc)
-
-    for proc in procs:
-        proc.join()
+        main(args)
+    #     proc = mp.Process(target=main, args=(args,))
+    #     proc.start()
+    #     lz.logging.info('next')
+    #     time.sleep(random.randint(39, 90))
+    #     procs.append(proc)
+    #
+    # for proc in procs:
+    #     proc.join()
 
 
 def get_data(args):
@@ -122,12 +122,12 @@ def get_data(args):
 
     query_loader = DataLoader(
         VideoDataset(dataset.query, seq_len=args.seq_len, sample='evenly', transform=test_transformer),
-        batch_size=args.test_batch_size, shuffle=False, num_workers=4,
+        batch_size=args.test_batch_size, shuffle=False, num_workers=args.workers,
         pin_memory=False, drop_last=False,
     )
     gallery_loader = DataLoader(
         VideoDataset(dataset.gallery, seq_len=args.seq_len, sample='evenly', transform=test_transformer),
-        batch_size=args.test_batch_size, shuffle=False, num_workers=4,
+        batch_size=args.test_batch_size, shuffle=False, num_workers=args.workers,
         pin_memory=False, drop_last=False,
     )
 

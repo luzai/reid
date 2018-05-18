@@ -277,7 +277,8 @@ def main(args):
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
                             margin2=args.margin2,
                             margin3=args.margin3, mode=args.mode,
-                            push_scale=args.push_scale),
+                            push_scale=args.push_scale,
+                            args = args ),
                  xent
                  ]
     if args.gpu is not None:

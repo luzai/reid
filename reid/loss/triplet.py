@@ -41,7 +41,8 @@ class CenterLoss(nn.Module):
 
     def __init__(self, num_classes, feat_dim,
                  margin2, margin3,
-                 use_gpu=True, mode=None, push_scale=1., **kwargs):
+                 use_gpu=True, mode=None, push_scale=1.,
+                 args=None , **kwargs):
         super(CenterLoss, self).__init__()
         self.num_classes = num_classes
         self.feat_dim = feat_dim
@@ -49,6 +50,7 @@ class CenterLoss(nn.Module):
         self.margin2 = margin2
         self.margin3 = margin3
         self.mode = mode
+        self.args = args
 
         if self.use_gpu:
             self.centers = nn.Parameter(torch.randn(
@@ -107,15 +109,16 @@ class CenterLoss(nn.Module):
             if 'exp' in modes:
                 # choose only most largest k value in negative
                 logits = -distmat_x2cent[i]
-                # neg_topk, _ = torch.topk(logits[1 - mask[i]], k=5, largest=True)
-                # pos = logits[mask[i]]
-                # logits = torch.cat([pos, neg_topk])
+                if self.args.topk !=-1:
+                    neg_topk, _ = torch.topk(logits[1 - mask[i]], k=self.args.topk, largest=True)
+                    pos = logits[mask[i]]
+                    logits = torch.cat([pos, neg_topk])
 
-                # shift_logits = logits - torch.max(logits)
-                # Z = torch.exp(shift_logits).sum()
-                # log_probs = shift_logits - torch.log(Z)
+                shift_logits = logits - torch.max(logits)
+                Z = torch.exp(shift_logits).sum()
+                dist_now = shift_logits - torch.log(Z)
 
-                dist_now = F.log_softmax(logits, dim=0)
+                # dist_now = F.log_softmax(logits, dim=0)
                 dists_dcl.append(-dist_now[0])
                 # dists_dcl
                 # if 'nopos' in modes:

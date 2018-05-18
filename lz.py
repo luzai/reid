@@ -50,6 +50,7 @@ InteractiveShell.ast_node_interactivity = "all"
 # torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 ori_np_err = np.seterr(all='raise')
 
+
 def set_stream_logger(log_level=logging.DEBUG):
     sh = colorlog.StreamHandler()
     sh.setLevel(log_level)
@@ -79,38 +80,6 @@ def np_print(arr):
 
 
 np.set_string_function(np_print)
-
-
-def wrapped_partial(func, *args, **kwargs):
-    partial_func = functools.partial(func, *args, **kwargs)
-    functools.update_wrapper(partial_func, func)
-    return partial_func
-
-
-def cpu_priority(level=19):
-    import psutil
-    p = psutil.Process(os.getpid())
-    p.nice(level)
-
-
-def get_gpu_memory_map():
-    """Get the current gpu usage.
-
-    Returns
-    -------
-    usage: dict
-        Keys are device ids as integers.
-        Values are memory usage as integers in MB.
-    """
-    result = subprocess.check_output(
-        [
-            'nvidia-smi', '--query-gpu=memory.used',
-            '--format=csv,nounits,noheader'
-        ])
-    # Convert lines into a dictionary
-    gpu_memory = [int(x) for x in result.strip().split('\n')]
-    gpu_memory_map = dict(zip(range(len(gpu_memory)), gpu_memory))
-    return gpu_memory_map
 
 
 def init_dev(n=(0,)):
@@ -222,6 +191,151 @@ def get_dev(n=1, ok=range(8), mem=(0.1, 0.15), sleep=20):
         GPUtil.showUtilization()
         sleep = int(sleep)
         time.sleep(random.randint(max(0, sleep - 20), sleep + 20))
+
+
+def wrapped_partial(func, *args, **kwargs):
+    partial_func = functools.partial(func, *args, **kwargs)
+    functools.update_wrapper(partial_func, func)
+    return partial_func
+
+
+def cpu_priority(level=19):
+    import psutil
+    p = psutil.Process(os.getpid())
+    p.nice(level)
+
+
+def get_gpu_memory_map():
+    """Get the current gpu usage.
+
+    Returns
+    -------
+    usage: dict
+        Keys are device ids as integers.
+        Values are memory usage as integers in MB.
+    """
+    result = subprocess.check_output(
+        [
+            'nvidia-smi', '--query-gpu=memory.used',
+            '--format=csv,nounits,noheader'
+        ])
+    # Convert lines into a dictionary
+    gpu_memory = [int(x) for x in result.strip().split('\n')]
+    gpu_memory_map = dict(zip(range(len(gpu_memory)), gpu_memory))
+    return gpu_memory_map
+
+
+class Logger(object):
+    def __init__(self, fpath=None):
+        self.console = sys.stdout
+        self.file = None
+        if fpath is not None:
+            mkdir_p(os.path.dirname(fpath))
+            self.file = open(fpath, 'w')
+
+    def __del__(self):
+        self.close()
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        self.close()
+
+    def write(self, msg):
+        self.console.write(msg)
+        if self.file is not None:
+            self.file.write(msg)
+
+    def flush(self):
+        self.console.flush()
+        if self.file is not None:
+            self.file.flush()
+            os.fsync(self.file.fileno())
+
+    def close(self):
+        self.console.close()
+        if self.file is not None:
+            self.file.close()
+
+
+class Timer(object):
+    """A flexible Timer class.
+
+    :Example:
+
+    >>> import time
+    >>> import cvbase as cvb
+    >>> with cvb.Timer():
+    >>>     # simulate a code block that will run for 1s
+    >>>     time.sleep(1)
+    1.000
+    >>> with cvb.Timer(print_tmpl='hey it taks {:.1f} seconds'):
+    >>>     # simulate a code block that will run for 1s
+    >>>     time.sleep(1)
+    hey it taks 1.0 seconds
+    >>> timer = cvb.Timer()
+    >>> time.sleep(0.5)
+    >>> print(timer.since_start())
+    0.500
+    >>> time.sleep(0.5)
+    >>> print(timer.since_last_check())
+    0.500
+    >>> print(timer.since_start())
+    1.000
+
+    """
+
+    def __init__(self, start=True, print_tmpl=None):
+        self._is_running = False
+        self.print_tmpl = print_tmpl if print_tmpl else '{:.3f}'
+        if start:
+            self.start()
+
+    @property
+    def is_running(self):
+        """bool: indicate whether the timer is running"""
+        return self._is_running
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        print(self.print_tmpl.format(self.since_last_check()))
+        self._is_running = False
+
+    def start(self):
+        """Start the timer."""
+        if not self._is_running:
+            self._t_start = time.time()
+            self._is_running = True
+        self._t_last = time.time()
+
+    def since_start(self):
+        """Total time since the timer is started.
+
+        Returns(float): the time in seconds
+        """
+        if not self._is_running:
+            raise ValueError('timer is not running')
+        self._t_last = time.time()
+        print(self.print_tmpl.format(self._t_last - self._t_start))
+        return self._t_last - self._t_start
+
+    def since_last_check(self, aux=''):
+        """Time since the last checking.
+
+        Either :func:`since_start` or :func:`since_last_check` is a checking operation.
+
+        Returns(float): the time in seconds
+        """
+        if not self._is_running:
+            raise ValueError('timer is not running')
+        dur = time.time() - self._t_last
+        self._t_last = time.time()
+        logging.info(f'{aux} {self.print_tmpl.format(dur)}')
+        return dur
 
 
 def get_md5(url):
@@ -436,7 +550,7 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
         else:
             logging.error('dimension mismatch for param "{}", in the model are {}'
                           ' and in the checkpoint are {}, ...'.format(
-                              name, own_state[name].size(), param.size()))
+                name, own_state[name].size(), param.size()))
 
     missing = set(own_state.keys()) - set(success)
     if len(missing) > 0:
@@ -444,7 +558,6 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
 
 
 def grid_iter(*args):
-
     res = list(itertools.product(*args))
     np.random.shuffle(res)
     for arg in res:

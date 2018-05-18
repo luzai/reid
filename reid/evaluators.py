@@ -6,7 +6,7 @@ from .evaluation_metrics import cmc, mean_ap
 from .feature_extraction import *
 from .utils.meters import AverageMeter
 from reid.utils.rerank import *
-import cvbase as cvb
+
 
 def extract_features(model, data_loader, print_freq=1):
     model.eval()
@@ -143,10 +143,12 @@ class Evaluator(object):
         self.conf = conf
         self.args = args
         self.vid = vid
+        self.timer = lz.Timer()
 
     def evaluate_vid(self, queryloader, galleryloader, metric=None, **kwargs):
         self.model.eval()
         res = {}
+        self.timer.since_last_check('start eval')
         with torch.no_grad():
             qf, q_pids, q_camids = [], [], []
             for batch_idx, data in enumerate(queryloader):
@@ -156,7 +158,7 @@ class Evaluator(object):
                 imgs = imgs.view(b * s, c, h, w)
                 features, _ = self.model(imgs)
                 features = features.view(b, s, -1)
-                features = torch.mean(features, 1) # use avg
+                features = torch.mean(features, 1)  # use avg
                 features = features.data.cpu()
                 qf.append(features)
                 q_pids.extend(pids)
@@ -166,6 +168,7 @@ class Evaluator(object):
             q_camids = np.asarray(q_camids)
 
             print("Extracted features for query set, obtained {}-by-{} matrix".format(qf.size(0), qf.size(1)))
+            self.timer.since_last_check('extract query')
 
             gf, g_pids, g_camids = [], [], []
             for batch_idx, data in enumerate(galleryloader):
@@ -185,6 +188,7 @@ class Evaluator(object):
             g_camids = np.asarray(g_camids)
 
             print("Extracted features for gallery set, obtained {}-by-{} matrix".format(gf.size(0), gf.size(1)))
+            self.timer.since_last_check('extract gallery')
 
         print("Computing distance matrix")
         m, n = qf.size(0), gf.size(0)
@@ -193,9 +197,10 @@ class Evaluator(object):
         distmat.addmm_(1, -2, qf, gf.t())
         distmat = distmat.numpy()
         rerank = False
+        self.timer.since_last_check('distmat ')
         print("Computing CMC and mAP")
         mAP = mean_ap(distmat, q_pids, g_pids, q_camids, g_camids)
-
+        self.timer.since_last_check('mAP ok ')
         print('Mean AP: {:4.1%}'.format(mAP))
         cmc_configs = {
             'cuhk03': dict(separate_camera_set=True,
@@ -229,16 +234,21 @@ class Evaluator(object):
                                    }])
 
         json_dump(res, self.args.logs_dir + '/res.json')
+        self.timer.since_last_check('cmc ok')
+
         return res
 
     def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
-        timer = cvb.Timer()
-        timer.start()
+
         self.model.eval()
         query_ids = [pid for _, pid, _ in query]
         gallery_ids = [pid for _, pid, _ in gallery]
         query_cams = [cam for _, _, cam in query]
         gallery_cams = [cam for _, _, cam in gallery]
+        query_ids = np.asarray(query_ids)
+        gallery_ids = np.asarray(gallery_ids)
+        query_cams = np.asarray(query_cams)
+        gallery_cams = np.asarray(gallery_cams)
 
         features, _ = extract_features(self.model, data_loader)
         assert len(features) != 0
@@ -255,56 +265,58 @@ class Evaluator(object):
         rerank_range = [False, ]
         for rerank in rerank_range:
             distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
-            if final:
-                db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
-                with lz.Database(db_name) as db:
-                    for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-                        if rerank:
-                            db[prefix + 'rk/' + name] = eval(name)
-                        else:
-                            db[prefix + name] = eval(name)
-                    db[prefix + 'smpl'] = xx
-                # with pd.HDFStore(db_name) as db:
-                #     db['query'] = query_to_df(query)
-                #     db['gallery'] = query_to_df(gallery)
-
-                with lz.Database(db_name) as db:
-                    print(list(db.keys()))
-            mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
-
-            print('Mean AP: {:4.1%}'.format(mAP))
-
-            cmc_configs = {
-                'cuhk03': dict(separate_camera_set=True,
-                               single_gallery_shot=True,
-                               first_match_break=False),
-                'market1501': dict(separate_camera_set=False,  # hard
-                                   single_gallery_shot=False,  # hard
-                                   first_match_break=True),
-                'allshots': dict(separate_camera_set=False,  # hard
-                                 single_gallery_shot=False,  # hard
-                                 first_match_break=False),
-            }
-            cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
-            cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
-                                    query_cams, gallery_cams, **params)
-                          for name, params in cmc_configs.items()}
-            print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
-            if rerank:
-                res = lz.dict_concat([res,
-                                      {'mAP.rk': mAP,
-                                       'top-1.rk': cmc_scores[self.conf][0],
-                                       'top-5.rk': cmc_scores[self.conf][4],
-                                       'top-10.rk': cmc_scores[self.conf][9],
-                                       }])
-            else:
-                res = lz.dict_concat([res,
-                                      {'mAP': mAP,
-                                       'top-1': cmc_scores[self.conf][0],
-                                       'top-5': cmc_scores[self.conf][4],
-                                       'top-10': cmc_scores[self.conf][9],
-                                       }])
-        json_dump(res, self.args.logs_dir + '/res.json')
+            mAP, all_cmc = eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, max_rank=10)
+            res = {'mAP':mAP ,'top-1':all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
+        #     if final:
+        #         db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
+        #         with lz.Database(db_name) as db:
+        #             for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+        #                 if rerank:
+        #                     db[prefix + 'rk/' + name] = eval(name)
+        #                 else:
+        #                     db[prefix + name] = eval(name)
+        #             db[prefix + 'smpl'] = xx
+        #         # with pd.HDFStore(db_name) as db:
+        #         #     db['query'] = query_to_df(query)
+        #         #     db['gallery'] = query_to_df(gallery)
+        #
+        #         with lz.Database(db_name) as db:
+        #             print(list(db.keys()))
+        #
+        #     mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+        #     print('Mean AP: {:4.1%}'.format(mAP))
+        #
+        #     cmc_configs = {
+        #         'cuhk03': dict(separate_camera_set=True,
+        #                        single_gallery_shot=True,
+        #                        first_match_break=False),
+        #         'market1501': dict(separate_camera_set=False,  # hard
+        #                            single_gallery_shot=False,  # hard
+        #                            first_match_break=True),
+        #         'allshots': dict(separate_camera_set=False,  # hard
+        #                          single_gallery_shot=False,  # hard
+        #                          first_match_break=False),
+        #     }
+        #     cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
+        #     cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
+        #                             query_cams, gallery_cams, **params)
+        #                   for name, params in cmc_configs.items()}
+        #     print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
+        #     if rerank:
+        #         res = lz.dict_concat([res,
+        #                               {'mAP.rk': mAP,
+        #                                'top-1.rk': cmc_scores[self.conf][0],
+        #                                'top-5.rk': cmc_scores[self.conf][4],
+        #                                'top-10.rk': cmc_scores[self.conf][9],
+        #                                }])
+        #     else:
+        #         res = lz.dict_concat([res,
+        #                               {'mAP': mAP,
+        #                                'top-1': cmc_scores[self.conf][0],
+        #                                'top-5': cmc_scores[self.conf][4],
+        #                                'top-10': cmc_scores[self.conf][9],
+        #                                }])
+        # json_dump(res, self.args.logs_dir + '/res.json')
         return res
 
 
@@ -439,6 +451,7 @@ class SiameseEvaluator(object):
         self.embed_dist_fn = embed_dist_fn
 
     def evaluate(self, data_loader, query, gallery, cache_file=None):
+
         # Extract features image by image
         features, _ = extract_features(self.base_model, data_loader, )
         if cache_file is not None:
@@ -464,7 +477,6 @@ class SiameseEvaluator(object):
 
         # Convert embeddings to distance matrix
         distmat = embeddings.contiguous().view(len(query), len(gallery))
-        # cvb.dump(distmat.cpu(),'dbg.pkl')
         query_ids = [pid for _, pid, _ in query]
         gallery_ids = [pid for _, pid, _ in gallery]
         query_cams = [cam for _, _, cam in query]
@@ -487,3 +499,58 @@ class SiameseEvaluator(object):
         print('market1501 cmc-1', mcmc1, 'cu cmc-1', ccmc1)
 
         return mAP, mcmc1
+
+
+def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
+    """Evaluation with market1501 metric
+    Key: for each query identity, its gallery images from the same camera view are discarded.
+    """
+    num_q, num_g = distmat.shape
+    if num_g < max_rank:
+        max_rank = num_g
+        print("Note: number of gallery samples is quite small, got {}".format(num_g))
+    indices = np.argsort(distmat, axis=1)
+    matches = (g_pids[indices] == q_pids[:, np.newaxis]).astype(np.int32)
+
+    # compute cmc curve for each query
+    all_cmc = []
+    all_AP = []
+    num_valid_q = 0.  # number of valid query
+    for q_idx in range(num_q):
+        # get query pid and camid
+        q_pid = q_pids[q_idx]
+        q_camid = q_camids[q_idx]
+
+        # remove gallery samples that have the same pid and camid with query
+        order = indices[q_idx]
+        remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
+        keep = np.invert(remove)
+
+        # compute cmc curve
+        orig_cmc = matches[q_idx][keep]  # binary vector, positions with value 1 are correct matches
+        if not np.any(orig_cmc):
+            # this condition is true when query identity does not appear in gallery
+            continue
+
+        cmc = orig_cmc.cumsum()
+        cmc[cmc > 1] = 1
+
+        all_cmc.append(cmc[:max_rank])
+        num_valid_q += 1.
+
+        # compute average precision
+        # reference: https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Average_precision
+        num_rel = orig_cmc.sum()
+        tmp_cmc = orig_cmc.cumsum()
+        tmp_cmc = [x / (i + 1.) for i, x in enumerate(tmp_cmc)]
+        tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
+        AP = tmp_cmc.sum() / num_rel
+        all_AP.append(AP)
+
+    assert num_valid_q > 0, "Error: all query identities do not appear in gallery"
+
+    all_cmc = np.asarray(all_cmc).astype(np.float32)
+    all_cmc = all_cmc.sum(0) / num_valid_q
+    mAP = np.mean(all_AP)
+
+    return mAP, all_cmc
