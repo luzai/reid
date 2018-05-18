@@ -72,47 +72,6 @@ class BaseTrainer(object):
         raise NotImplementedError
 
 
-class VerfTrainer(BaseTrainer):
-    def _parse_data(self, inputs):
-        imgs, fnames, pids, = inputs.get(
-            'img'), inputs.get('fname'), inputs.get('pid')
-        inputs = [Variable(imgs.cuda(), requires_grad=False)]
-        targets = Variable(pids.cuda(), requires_grad=False)
-        return inputs, (targets, None)
-
-    def _forward(self, inputs, targets):
-        targets, info = targets
-        # self.model.eval()
-        pred, y, info = self.model(inputs[0], targets, info)
-
-        loss = self.criterion(pred, y)
-        if len(pred.shape) == 2:
-            pred = pred.data[:, 0]
-        else:
-            pred = pred.data
-        right = (to_numpy(pred > self.criterion.margin /
-                          2.).reshape(-1) == to_numpy(y.data).reshape(-1))
-        prec1 = (right.astype(float).sum() / right.shape[0])
-        # print(prec1)
-        return loss, prec1
-
-
-class SiameseTrainer(BaseTrainer):
-    def _parse_data(self, inputs):
-        (imgs1, _, pids1, _), (imgs2, _, pids2, _) = inputs
-        imgs1, imgs2 = inputs[0].get('img'), inputs[1].get('img')
-        pids1, pids2 = inputs[0].get('pid'), inputs[1].get('pid')
-        inputs = [Variable(imgs1), Variable(imgs2)]
-        targets = Variable((pids1 == pids2).long().cuda())
-        return inputs, targets
-
-    def _forward(self, inputs, targets):
-        outputs = self.model(*inputs)
-        loss = self.criterion(outputs, targets)
-        prec1, = accuracy(outputs.data, targets.data)
-        return loss, prec1[0]
-
-
 def stat_(writer, tag, tensor, iter):
     writer.add_scalars('groups/' + tag, {
         'mean': torch.mean(tensor),
@@ -708,4 +667,85 @@ class TriCenterTrainer(object):
             'data-time': data_time.avg,
             'loss_tri': losses.avg,
             'prec_tri': precisions.avg,
+        })
+
+
+class XentTrainer(object):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, **kwargs):
+        self.model = model
+        self.criterion = criterion[0]
+        self.iter = 0
+        self.dbg = dbg
+        self.cls_weight = args.cls_weight
+        self.tri_weight = args.tri_weight
+        if dbg:
+            mkdir_p(logs_at, delete=True)
+            self.writer = SummaryWriter(logs_at)
+        else:
+            self.writer = None
+
+    def _parse_data(self, inputs):
+        imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
+        cids = inputs.get('cid')
+        inputs = [imgs, npys]
+        inputs = to_variable(inputs, requires_grad=False)
+        targets = to_variable(pids, requires_grad=False)
+        cids = to_variable(cids, requires_grad=False)
+        return inputs, targets, fnames, cids
+
+    def _forward(self, inputs, targets, cids=None):
+        outputs, outputs2 = self.model(*inputs)
+        loss2 = self.criterion(outputs2, targets)
+        prec2, = accuracy(outputs2.data, targets.data)
+        prec2 = prec2[0]
+
+        if self.dbg and self.iter % 10 == 0:
+            self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
+            self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
+
+        self.iter += 1
+        return loss2, prec2
+
+    def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
+
+        batch_time = AverageMeter()
+        data_time = AverageMeter()
+        losses = AverageMeter()
+        precisions = AverageMeter()
+
+        end = time.time()
+
+        for i, inputs in enumerate(data_loader):
+            data_time.update(time.time() - end)
+            inputs, targets, fnames, cids = self._parse_data(inputs)
+            if schedule is not None:
+                schedule.batch_step()
+            self.lr = optimizer.param_groups[0]['lr']
+            self.model.train()
+            loss, prec = self._forward(inputs, targets, cids)
+            if isinstance(targets, tuple):
+                targets, _ = targets
+            losses.update(to_numpy(loss), targets.size(0))
+            precisions.update(prec, targets.size(0))
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if (i + 1) % print_freq == 0:
+                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
+                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
+                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
+                      f'loss {losses.val:.2f}/{losses.avg:.2f}  '
+                      f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
+                      )
+            # break
+        return collections.OrderedDict({
+            'ttl-time': batch_time.avg,
+            'data-time': data_time.avg,
+            'loss': losses.avg,
+            'prec': precisions.avg,
         })
