@@ -398,28 +398,32 @@ class Uninterrupt(object):
             self.orig_handlers = None
 
 
-def mail(content, username =None, password = None):
-
+def mail(content, ):
     import datetime
+    user_pass = {'username': 'wxlms@outlook.com',
+                 'password': 'yana3140102282',
+                 'host': 'smtp.outlook.com',
+                 'port': 587}
+    user_pass = {'username': '907682447@qq.com',
+                 'password': 'luzai123',
+                 'host': 'smtp.qq.com',
+                 'port': 587}
+    # user_pass = {'username': '3140102282@zju.edu.cn',
+    #              'password': 'eePh9zie',
+    #              'host': 'smtp.zju.edu.cn',
+    #              'port': 25}
+
     time_str = datetime.datetime.now().strftime('%M-%d %H:%M')
 
     import smtplib
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
-    s = smtplib.SMTP(host='smtp.zju.edu.cn', port=587, )
+    s = smtplib.SMTP(host=user_pass['host'], port=user_pass['port'], timeout=10)
     s.starttls()
-    # user_pass = json_load('/home/xinglu/config.me/conf/mail.json')
-    user_pass = {'username': 'wxlms@outlook.com',
-                 'password': 'yana3140102282'}
-    user_pass = {'username': '907682447@qq.com',
-                 'password': 'luzai123'}
-    user_pass = {'username': '3140102282@zju.edu.cn',
-                 'password': 'eePh9zie'}
-
     s.login(user_pass['username'], user_pass['password'])
 
-    def send(to_mail="907682447@qq.com", content=''):
+    def send(to_mail=user_pass['username'], content=''):
         msg = MIMEMultipart('alternative')
         msg['Subject'] = 'program said'
         msg['From'] = user_pass['username']
@@ -761,11 +765,11 @@ def yaml_dump(obj, file=None, **kwargs):
         raise TypeError('"file" must be a filename str or a file-object')
 
 
-def json_dump(obj, file):
-    import codecs
+def json_dump(obj, file, mode='a'):  # write not append!
+    # import codecs
     import json
     if isinstance(file, str):
-        # with codecs.open(file, 'w', encoding='utf-8') as fp:  # write not append!
+        # with codecs.open(file, mode, encoding='utf-8') as fp:
         with open(file, 'w') as fp:
             json.dump(obj, fp,
                       # ensure_ascii=False

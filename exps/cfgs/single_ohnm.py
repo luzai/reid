@@ -6,34 +6,35 @@ from lz import *
 
 cfgs = [
     # edict(
-    #     logs_dir='eval',
+    #     logs_dir='eval3',
     #     dataset='mkt', log_at=[0, 1, 2, 30, 64, 65],
     #     epochs=65, steps=[20, 40],
-    #     batch_size=128, num_instances=4, gpu=(1,), num_classes=128,
+    #     batch_size=128, num_instances=4, gpu=(2,), num_classes=128,
     #     dropout=0, loss='tcx', mode='ccent.ccentall.disall',
     #     cls_weight=0, tri_weight=0, lr_mult=10., xent_smooth=True,
     #     random_ratio=.5,
     #     weight_dis_cent=0, weight_cent=1,
-    #     gpu_range=range(4), gpu_fix=True,
+    #     gpu_range=range(4), gpu_fix=False,
     #     push_scale=1, embed=None, margin2=0.05,
     #     lr=1e-2, optimizer='sgd',
     #     lr_cent=1e-2, optimizer_cent='sgd',
     #     # lr=3e-4, optimizer='adam',
     #     # lr_cent=3e-4, optimizer_cent='adam',
     #     evaluate=True, vis=False,
-    #     resume='work/final.xent.mkt.smthTrue/model_best.pth'
+    #     # resume='work/final.xent.mkt.smthTrue/model_best.pth'
+    #     resume='work/tri.margin.mkt.mg0.5.mg2_1.0.mg3_1.0/model_best.pth'
     # ),
 
 ]
 
 cfg = edict(
-    logs_dir='tri.margin',
+    logs_dir='tri.margin.2',
     dataset='cu03det',
     log_at=[0, 30, 64, 65, 66],
     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
     dropout=0, loss='tcx', mode='',
-    cls_weight=0, tri_weight=1,
-    random_ratio=1, weight_dis_cent=0, lr_cent=0, weight_cent=0,
+    cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    random_ratio=1, lr_cent=0,
     gpu_range=range(4),
     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
 )
@@ -43,10 +44,10 @@ for (dataset,
      margin2,
      margin3
      ) in grid_iter(
-    ['cu03lbl', 'mkt'],
-    [0, .3, ],
-    [1., 1.1, ],
-    [1., 1.1, ]
+    ['mkt', ],
+    [.5, ],
+    [1., ],
+    [1., ]
 ):
     cfg_t = copy.deepcopy(cfg)
     cfg_t.dataset = dataset
@@ -56,23 +57,23 @@ for (dataset,
     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
     cfgs.append(cfg_t)
 
-for (dataset,
-     margin,
-     margin2,
-     margin3
-     ) in grid_iter(
-    ['cu03det'],
-    [0, .3, ],
-    [1.01, 1.001],
-    [1.01, 1.001]
-):
-    cfg_t = copy.deepcopy(cfg)
-    cfg_t.dataset = dataset
-    cfg_t.margin = margin
-    cfg_t.margin2 = margin2
-    cfg_t.margin3 = margin3
-    cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
-    cfgs.append(cfg_t)
+# for (dataset,
+#      margin,
+#      margin2,
+#      margin3
+#      ) in grid_iter(
+#     ['cu03det'],
+#     [0, ],
+#     [1.1, ],
+#     [1.1, ]
+# ):
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.dataset = dataset
+#     cfg_t.margin = margin
+#     cfg_t.margin2 = margin2
+#     cfg_t.margin3 = margin3
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
+#     cfgs.append(cfg_t)
 
 # cfg = edict(
 #     logs_dir='final.xent',
@@ -112,7 +113,7 @@ for (dataset,
 #     cfgs.append(cfg_t)
 
 base = edict(
-    optimizer_cent='adam', topk=5, test_best=False,
+    optimizer_cent='adam', topk=5, test_best=True,
     weight_lda=None,
     push_scale=1., gpu_fix=False, test_batch_size=8,
     lr=3e-4, margin=0.5, area=(0.85, 1),
@@ -254,5 +255,6 @@ if __name__ == '__main__':
     res = [df.columns[r] for r in res]
     df1 = df[res]
     df1.index = df1.logs_dir
-    del df1['logs_dir']
-    print(tabulate.tabulate(df1, headers="keys", tablefmt="pipe"))
+    # del df1['logs_dir']
+
+    print(tabulate.tabulate(df1.sort_values(by='logs_dir'), headers="keys", tablefmt="pipe"))

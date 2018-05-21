@@ -1,7 +1,6 @@
 import lz
 from lz import *
-from exps.tri_center import main as cmain
-from exps.tri_xent import main as xmain
+from exps.tri_center_xent import main
 
 os.chdir(root_path + '/exps')
 
@@ -18,11 +17,8 @@ for path in paths:
             print('not same', args.logs_dir)
         args.logs_dir = path + '/eval'
         args.gpu_range = range(4)
-        # if osp.exists(args.logs_dir + '/res.json'):     continue
-        # if args.dataset == 'market1501': continue
-        # if args.logs_dir != 'work/tri_cu01_search.3e-04.0.5.1e-08.32': continue
-        # if 'multis' not in path: continue
-        if not 'cu01' in path: continue
+        if osp.exists(args.logs_dir + '/res.json'): continue
+        if 'mkt' not in  args.logs_dir: continue
         args.dataset_val = args.dataset
         args.eval_conf = 'market1501'
 
@@ -36,18 +32,12 @@ for path in paths:
             logging.info(args.logs_dir, 'shoule delete')
             # rm(args.logs_dir)
             continue
-        if 'cent' in args.loss:
-            # res = cmain(args)  # will release mem??
-            proc = mp.Process(target=cmain, args=(args,))
-            proc.start()
-            proc.join()
-        elif 'xent' in args.loss:
-            # res = xmain(args)
-            proc = mp.Process(target=xmain, args=(args,))
-            proc.start()
-            proc.join()
-        else:
-            raise ValueError(args.loss)
+
+        # res = cmain(args)  # will not release mem
+        proc = mp.Process(target=main, args=(args,))
+        proc.start()
+        proc.join()
+
         # print(res)
         # json_dump(res, args.logs_dir + '/res.json')
         # break

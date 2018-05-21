@@ -38,6 +38,10 @@ def run(_):
         #     range(args.epochs - 8, args.epochs, 1)
         # ])
         args.logs_dir = 'work/' + args.logs_dir
+        if osp.exists(args.logs_dir) and osp.exists(args.logs_dir+'/checkpoint.64.pth'):
+            os.listdir(args.logs_dir)
+            continue
+
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
@@ -55,15 +59,15 @@ def run(_):
             lz.mkdir_p(args.logs_dir, delete=True)
             lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
 
-        # main(args)
-        proc = mp.Process(target=main, args=(args,))
-        proc.start()
-        lz.logging.info('next')
-        time.sleep(random.randint(39, 90))
-        procs.append(proc)
-
-    for proc in procs:
-        proc.join()
+        main(args)
+    #     proc = mp.Process(target=main, args=(args,))
+    #     proc.start()
+    #     lz.logging.info('next')
+    #     time.sleep(random.randint(39, 90))
+    #     procs.append(proc)
+    #
+    # for proc in procs:
+    #     proc.join()
 
 
 def get_data(args):
@@ -83,8 +87,8 @@ def get_data(args):
     root = osp.join(data_dir, name)
     dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
     pid2lbl = dataset.pid2lbl
-    np.unique(list(pid2lbl.keys())).shape
-    np.unique(list(pid2lbl.values())).shape
+    # np.unique(list(pid2lbl.keys())).shape
+    # np.unique(list(pid2lbl.values())).shape
     # pid2lbl[7]
     root = osp.join(data_dir, name_val)
     dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
@@ -163,7 +167,7 @@ def get_data(args):
                      transform=test_transformer,
                      has_npy=npy),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=False) # todo for market and dukemtmc
+        shuffle=False, pin_memory=False)  # todo for market and dukemtmc
     dataset.val = dataset_val.val
     dataset.query = dataset_val.query
     dataset.gallery = dataset_val.gallery
@@ -230,7 +234,10 @@ def main(args):
         while not osp.exists(args.resume):
             lz.logging.warning(' no chkpoint {} '.format(args.resume))
             time.sleep(20)
-        checkpoint = load_checkpoint(args.resume)
+        if torch.cuda.is_available():
+            checkpoint = load_checkpoint(args.resume)
+        else:
+            checkpoint = load_checkpoint(args.resume, map_location='cpu')
         # model.load_state_dict(checkpoint['state_dict'])
         db_name = args.logs_dir + '/' + args.logs_dir.split('/')[-1] + '.h5'
         load_state_dict(model, checkpoint['state_dict'])
@@ -276,12 +283,12 @@ def main(args):
         xent = CrossEntropyLabelSmooth(num_classes=num_classes)
     setattr(xent, 'name', 'xent')
 
-    criterion = [TripletLoss(margin=args.margin, mode='hard', args = args),
+    criterion = [TripletLoss(margin=args.margin, mode='hard', args=args),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
                             margin2=args.margin2,
                             margin3=args.margin3, mode=args.mode,
                             push_scale=args.push_scale,
-                            args = args ),
+                            args=args),
                  xent
                  ]
     if args.gpu is not None:
@@ -297,7 +304,7 @@ def main(args):
         {'params': fast_params, 'lr_mult': 10.},
         {'params': normal_params, 'lr_mult': 1.},
     ]
-    if args.optimizer_cent =='sgd':
+    if args.optimizer_cent == 'sgd':
         optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
     else:
         optimizer_cent = torch.optim.Adam(criterion[1].parameters(), lr=args.lr_cent, )
@@ -448,6 +455,7 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
+    json_dump(res, args.logs_dir + '/res.json', 'w')
     return res
 
 

@@ -273,7 +273,7 @@ def update_dop_tri(dist, targets, dop_info):
 def update_dop_center(dist, dop_info):
     num_classes = dist.shape[0]
     dist_new = dist + \
-        torch.diag(torch.ones(num_classes)).cuda() * torch.max(dist)
+               torch.diag(torch.ones(num_classes)).cuda() * torch.max(dist)
     dop = dop_info.dop
     dop[:] = to_numpy(torch.argmin(dist_new, dim=0))
     dop_info.dop = dop
@@ -436,38 +436,48 @@ class TCXTrainer(object):
                 to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
         # triplet
-        if self.dbg and self.iter % 100 == 0:
-            losst, prect, dist, dist_ap, dist_an = self.crit_tri(
-                out_embed, targets, dbg=self.dbg, cids=cids)
-            diff = dist_an - dist_ap
-            self.writer.add_histogram('an-ap', diff, self.iter)
-            self.writer.add_histogram('dist', dist, self.iter)
-            self.writer.add_histogram('ap', dist_ap, self.iter)
-            self.writer.add_histogram('an', dist_an, self.iter)
+        if not math.isclose(self.tri_weight, 0):
+            if self.dbg and self.iter % 100 == 0:
+                losst, prect, dist, dist_ap, dist_an = self.crit_tri(
+                    out_embed, targets, dbg=self.dbg, cids=cids)
+                diff = dist_an - dist_ap
+                self.writer.add_histogram('an-ap', diff, self.iter)
+                self.writer.add_histogram('dist', dist, self.iter)
+                self.writer.add_histogram('ap', dist_ap, self.iter)
+                self.writer.add_histogram('an', dist_an, self.iter)
+            else:
+                losst, prect, dist = self.crit_tri(
+                    out_embed, targets, dbg=False, cids=cids)
         else:
-            losst, prect, dist = self.crit_tri(
-                out_embed, targets, dbg=False, cids=cids)
+            losst, prect, dist = 0, 0, 0
         # xent
-        lossx = self.crit_xent(out_cls, targets)
-        precx, = accuracy(out_cls.data, targets.data)
-        precx = precx[0]
+        if not math.isclose(self.cls_weight, 0):
+            lossx = self.crit_xent(out_cls, targets)
+            precx, = accuracy(out_cls.data, targets.data)
+            precx = precx[0]
+        else:
+            lossx, precx = 0, 0
         # cent
-        loss_cent, loss_dis, distmat_cent, cent_pull = self.crit_cent(
-            out_embed, targets, )
+        if not math.isclose(self.args.weight_cent, 0):
+            loss_cent, loss_dis, distmat_cent, cent_pull = self.crit_cent(
+                out_embed, targets, )
+        else:
+            loss_cent, loss_dis, distmat_cent, cent_pull = 0, 0, 0, 0
+
         if not math.isclose(self.weight_cent, 0):
             update_dop_center(distmat_cent, self.dop_info)
         elif not math.isclose(self.tri_weight, 0):
             update_dop_tri(dist, targets, self.dop_info)
 
         self.iter += 1
-        if self.args.weight_lda is None:
-            loss_comb = self.tri_weight * losst + \
-                self.weight_cent * loss_cent + \
-                self.args.weight_dis_cent * loss_dis + \
-                self.args.cls_weight * lossx
-        else:
-            loss_comb = losst + self.args.weight_lda * \
-                loss_cent / (-loss_dis)  # todo what if lda div?
+        # if self.args.weight_lda is None:
+        loss_comb = self.tri_weight * losst + \
+                    self.weight_cent * loss_cent + \
+                    self.args.weight_dis_cent * loss_dis + \
+                    self.args.cls_weight * lossx
+        # else:
+        #     loss_comb = losst + self.args.weight_lda * \
+        #                 loss_cent / (-loss_dis)
 
         logging.debug(
             f'tri loss {losst.item()}; '
@@ -602,7 +612,7 @@ class TriCenterTrainer(object):
         self.iter += 1
         if self.args.weight_lda is None:
             loss_comb = self.tri_weight * loss + self.weight_cent * \
-                loss_cent + self.args.weight_dis_cent * loss_dis
+                        loss_cent + self.args.weight_dis_cent * loss_dis
         else:
             loss_comb = loss + self.args.weight_lda * loss_cent / (-loss_dis)
 

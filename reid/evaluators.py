@@ -232,7 +232,7 @@ class Evaluator(object):
                                    'top-10': cmc_scores[self.conf][9],
                                    }])
 
-        json_dump(res, self.args.logs_dir + '/res.json')
+        json_dump(res, self.args.logs_dir + '/res.json', 'w')
         self.timer.since_last_check('cmc ok')
 
         return res
@@ -264,8 +264,7 @@ class Evaluator(object):
         rerank_range = [False, ]
         for rerank in rerank_range:
             distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
-            mAP, all_cmc = eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, max_rank=10)
-            res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
+
             if final:
                 db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
                 with lz.Database(db_name) as db:
@@ -281,6 +280,9 @@ class Evaluator(object):
 
                 with lz.Database(db_name) as db:
                     print(list(db.keys()))
+
+            mAP, all_cmc = eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, max_rank=10)
+            res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
 
             # mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
         #     print('Mean AP: {:4.1%}'.format(mAP))
@@ -380,4 +382,6 @@ if __name__ == '__main__':
         for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
             locals()[name] = db['test/' + name]
         print(distmat.shape)
+        timer = lz.Timer()
         eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, 10)
+        timer.since_start()
