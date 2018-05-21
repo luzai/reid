@@ -83,6 +83,9 @@ class CenterLoss(nn.Module):
 
         dists_dcl = []
         dists_pull = []
+        if not self.mode:
+            return torch.zeros(1).cuda(), torch.zeros(1).cuda(),torch.zeros(1).cuda(),torch.zeros(1).cuda(),
+
         modes = self.mode.split('.')
         for i in range(batch_size):
             dist_pull = distmat_x2cent[i][mask[i]]
@@ -314,7 +317,7 @@ class CrossEntropyLabelSmooth(nn.Module):
 class TripletLoss(nn.Module):
     name = 'tri'
 
-    def __init__(self, margin=0, mode='hard', args=None, **kwargs ):
+    def __init__(self, margin=0, mode='hard', args=None, **kwargs):
         super(TripletLoss, self).__init__()
         self.margin = margin
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)

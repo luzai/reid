@@ -82,7 +82,10 @@ def get_data(args):
 
     root = osp.join(data_dir, name)
     dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
-
+    pid2lbl = dataset.pid2lbl
+    np.unique(list(pid2lbl.keys())).shape
+    np.unique(list(pid2lbl.values())).shape
+    # pid2lbl[7]
     root = osp.join(data_dir, name_val)
     dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode)
 

@@ -4,6 +4,7 @@ from torchvision.transforms import *
 from PIL import Image
 import random
 import math
+import numpy as np
 
 
 class RectScale(object):
@@ -13,6 +14,9 @@ class RectScale(object):
         self.interpolation = interpolation
 
     def __call__(self, img):
+        if isinstance(img, np.ndarray):
+            type(img)
+            return img
         w, h = img.size
         if h == self.height and w == self.width:
             return img
@@ -47,10 +51,11 @@ class RandomSizedRectCrop(object):
                           interpolation=self.interpolation)
         return scale(img)
 
+
 # todo more aug, try random erasing
 
 class RandomCropFlip(object):
-    def __init__(self, height, width, interpolation=Image.BILINEAR, area=(0.85, 1), aspect=(1.5, 3)): # 0.64, 1; 2,3
+    def __init__(self, height, width, interpolation=Image.BILINEAR, area=(0.85, 1), aspect=(1.5, 3)):  # 0.64, 1; 2,3
         self.height = height
         self.width = width
         self.interpolation = interpolation

@@ -435,7 +435,7 @@ class TCXTrainer(object):
             x = vutils.make_grid(
                 to_torch(inputs[0]), normalize=True, scale_each=True)
             self.writer.add_image('input', x, self.iter)
-
+        # triplet
         if self.dbg and self.iter % 100 == 0:
             losst, prect, dist, dist_ap, dist_an = self.crit_tri(
                 out_embed, targets, dbg=self.dbg, cids=cids)
@@ -447,13 +447,17 @@ class TCXTrainer(object):
         else:
             losst, prect, dist = self.crit_tri(
                 out_embed, targets, dbg=False, cids=cids)
+        # xent
         lossx = self.crit_xent(out_cls, targets)
         precx, = accuracy(out_cls.data, targets.data)
         precx = precx[0]
+        # cent
         loss_cent, loss_dis, distmat_cent, cent_pull = self.crit_cent(
             out_embed, targets, )
-        # update_dop_tri(dist, targets, self.dop_info)
-        update_dop_center(distmat_cent, self.dop_info)
+        if not math.isclose(self.weight_cent, 0):
+            update_dop_center(distmat_cent, self.dop_info)
+        elif not math.isclose(self.tri_weight, 0):
+            update_dop_tri(dist, targets, self.dop_info)
 
         self.iter += 1
         if self.args.weight_lda is None:
@@ -466,7 +470,9 @@ class TCXTrainer(object):
                 loss_cent / (-loss_dis)  # todo what if lda div?
 
         logging.debug(
-            f'tri loss {losst.item()}; loss_cent is {loss_cent.item()};  loss_dis is {loss_dis.item()}')
+            f'tri loss {losst.item()}; '
+            f'loss_cent is {loss_cent.item()};'
+            f'  loss_dis is {loss_dis.item()}')
         if loss_comb > 1e8:
             raise ValueError('loss too large')
         elif math.isnan(loss_comb.data.cpu()):

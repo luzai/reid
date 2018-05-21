@@ -398,7 +398,8 @@ class Uninterrupt(object):
             self.orig_handlers = None
 
 
-def mail(content):
+def mail(content, username =None, password = None):
+
     import datetime
     time_str = datetime.datetime.now().strftime('%M-%d %H:%M')
 
@@ -406,13 +407,15 @@ def mail(content):
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
-    s = smtplib.SMTP(host='smtp.qq.com', port=587)
+    s = smtplib.SMTP(host='smtp.zju.edu.cn', port=587, )
     s.starttls()
     # user_pass = json_load('/home/xinglu/config.me/conf/mail.json')
     user_pass = {'username': 'wxlms@outlook.com',
                  'password': 'yana3140102282'}
     user_pass = {'username': '907682447@qq.com',
                  'password': 'luzai123'}
+    user_pass = {'username': '3140102282@zju.edu.cn',
+                 'password': 'eePh9zie'}
 
     s.login(user_pass['username'], user_pass['password'])
 

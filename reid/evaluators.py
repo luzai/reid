@@ -1,10 +1,9 @@
 from collections import OrderedDict
-from .utils.data.sampler import *
-from torch.utils.data import DataLoader
-from .utils.data.preprocessor import *
-from .evaluation_metrics import cmc, mean_ap
-from .feature_extraction import *
-from .utils.meters import AverageMeter
+from reid.utils.data.sampler import *
+from reid.utils.data.preprocessor import *
+from reid.evaluation_metrics import cmc, mean_ap
+from reid.feature_extraction import *
+from reid.utils.meters import AverageMeter
 from reid.utils.rerank import *
 
 
@@ -266,24 +265,24 @@ class Evaluator(object):
         for rerank in rerank_range:
             distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
             mAP, all_cmc = eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, max_rank=10)
-            res = {'mAP':mAP ,'top-1':all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
-        #     if final:
-        #         db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
-        #         with lz.Database(db_name) as db:
-        #             for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-        #                 if rerank:
-        #                     db[prefix + 'rk/' + name] = eval(name)
-        #                 else:
-        #                     db[prefix + name] = eval(name)
-        #             db[prefix + 'smpl'] = xx
-        #         # with pd.HDFStore(db_name) as db:
-        #         #     db['query'] = query_to_df(query)
-        #         #     db['gallery'] = query_to_df(gallery)
-        #
-        #         with lz.Database(db_name) as db:
-        #             print(list(db.keys()))
-        #
-        #     mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+            res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
+            if final:
+                db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
+                with lz.Database(db_name) as db:
+                    for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+                        if rerank:
+                            db[prefix + 'rk/' + name] = eval(name)
+                        else:
+                            db[prefix + name] = eval(name)
+                    db[prefix + 'smpl'] = xx
+                # with pd.HDFStore(db_name) as db:
+                #     db['query'] = query_to_df(query)
+                #     db['gallery'] = query_to_df(gallery)
+
+                with lz.Database(db_name) as db:
+                    print(list(db.keys()))
+
+            # mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
         #     print('Mean AP: {:4.1%}'.format(mAP))
         #
         #     cmc_configs = {
@@ -373,3 +372,12 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     mAP = np.mean(all_AP)
 
     return mAP, all_cmc
+
+
+if __name__ == '__main__':
+    with lz.Database(lz.root_path + '/exps/work/eval/eval.h5', 'r') as db:
+        print(list(db.keys()))
+        for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+            locals()[name] = db['test/' + name]
+        print(distmat.shape)
+        eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, 10)
