@@ -2,7 +2,6 @@ from __future__ import print_function, absolute_import
 import os.path as osp
 
 from reid.utils.data import Dataset
-from reid.utils.osutils import mkdir_if_missing
 from reid.utils.serialization import write_json, read_json
 import tarfile
 from lz import *

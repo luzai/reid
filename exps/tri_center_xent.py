@@ -19,7 +19,6 @@ from reid.mining import *
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
-from reid.utils.logging import Logger
 from reid.utils.serialization import *
 from reid.utils.dop import DopInfo
 
@@ -86,7 +85,7 @@ def get_data(args):
 
     root = osp.join(data_dir, name)
     dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode)
-    pid2lbl = dataset.pid2lbl
+    # pid2lbl = dataset.pid2lbl
     # np.unique(list(pid2lbl.keys())).shape
     # np.unique(list(pid2lbl.values())).shape
     # pid2lbl[7]

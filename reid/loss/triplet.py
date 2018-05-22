@@ -84,7 +84,8 @@ class CenterLoss(nn.Module):
         dists_dcl = []
         dists_pull = []
         if not self.mode:
-            return torch.zeros(1).cuda(), torch.zeros(1).cuda(),torch.zeros(1).cuda(),torch.zeros(1).cuda(),
+            _zero = torch.zeros(1).cuda()
+            return _zero, _zero, _zero, _zero
 
         modes = self.mode.split('.')
         for i in range(batch_size):
@@ -322,6 +323,8 @@ class TripletLoss(nn.Module):
         self.margin = margin
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
         self.mode = mode
+        # self.margin2 = torch.tensor(args.margin2).cuda()
+        # self.margin3 = torch.tensor(args.margin3).cuda()
         self.margin2 = args.margin2
         self.margin3 = args.margin3
 

@@ -2,7 +2,6 @@ from __future__ import print_function, absolute_import
 
 from torch.nn import Parameter
 
-from .osutils import mkdir_if_missing
 import lz, json
 from lz import *
 

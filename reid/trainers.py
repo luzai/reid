@@ -397,6 +397,8 @@ class XentTriTrainer(object):
         })
 
 
+
+
 class TCXTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
         self.model = model
@@ -427,6 +429,8 @@ class TCXTrainer(object):
         return inputs, targets, fnames, cids
 
     def _forward(self, inputs, targets, cids=None):
+        _zero = torch.zeros(1).cuda()
+
         out_embed, out_cls = self.model(*inputs)
         # logging.info('output embedding {} outpus class{}'.format(out_embed.size(), out_cls.size()))
         if self.dbg and self.iter % 1000 == 0:
@@ -449,20 +453,20 @@ class TCXTrainer(object):
                 losst, prect, dist = self.crit_tri(
                     out_embed, targets, dbg=False, cids=cids)
         else:
-            losst, prect, dist = 0, 0, 0
+            losst, prect, dist = _zero, _zero, _zero
         # xent
         if not math.isclose(self.cls_weight, 0):
             lossx = self.crit_xent(out_cls, targets)
             precx, = accuracy(out_cls.data, targets.data)
             precx = precx[0]
         else:
-            lossx, precx = 0, 0
+            lossx, precx = _zero, _zero
         # cent
         if not math.isclose(self.args.weight_cent, 0):
             loss_cent, loss_dis, distmat_cent, cent_pull = self.crit_cent(
                 out_embed, targets, )
         else:
-            loss_cent, loss_dis, distmat_cent, cent_pull = 0, 0, 0, 0
+            loss_cent, loss_dis, distmat_cent, cent_pull = _zero, _zero, _zero, _zero
 
         if not math.isclose(self.weight_cent, 0):
             update_dop_center(distmat_cent, self.dop_info)

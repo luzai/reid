@@ -225,12 +225,19 @@ def get_gpu_memory_map():
     return gpu_memory_map
 
 
+def mkdir_if_missing(dir_path):
+    import errno
+    try:
+        os.makedirs(dir_path)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
 class Logger(object):
     def __init__(self, fpath=None):
         self.console = sys.stdout
         self.file = None
         if fpath is not None:
-            mkdir_p(os.path.dirname(fpath))
+            mkdir_if_missing(os.path.dirname(fpath))
             self.file = open(fpath, 'w')
 
     def __del__(self):
@@ -425,7 +432,7 @@ def mail(content, ):
 
     def send(to_mail=user_pass['username'], content=''):
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = 'program said'
+        msg['Subject'] = f'ps: {content[:6]}'
         msg['From'] = user_pass['username']
         msg['To'] = to_mail
         msg.attach(MIMEText(content, 'plain'))

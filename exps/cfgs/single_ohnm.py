@@ -23,12 +23,13 @@ cfgs = [
     #     evaluate=True, vis=False,
     #     # resume='work/final.xent.mkt.smthTrue/model_best.pth'
     #     resume='work/tri.margin.mkt.mg0.5.mg2_1.0.mg3_1.0/model_best.pth'
+    #     # resume='work/final.tri.mkt/model_best.pth'
     # ),
 
 ]
 
 cfg = edict(
-    logs_dir='tri.margin.2',
+    logs_dir='tri.margin.3',
     dataset='cu03det',
     log_at=[0, 30, 64, 65, 66],
     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
@@ -45,9 +46,9 @@ for (dataset,
      margin3
      ) in grid_iter(
     ['mkt', ],
-    [.5, ],
-    [1., ],
-    [1., ]
+    [.5, 0.],
+    [1., 1.1],
+    [1., 1.1]
 ):
     cfg_t = copy.deepcopy(cfg)
     cfg_t.dataset = dataset
@@ -57,23 +58,23 @@ for (dataset,
     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
     cfgs.append(cfg_t)
 
-# for (dataset,
-#      margin,
-#      margin2,
-#      margin3
-#      ) in grid_iter(
-#     ['cu03det'],
-#     [0, ],
-#     [1.1, ],
-#     [1.1, ]
-# ):
-#     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.dataset = dataset
-#     cfg_t.margin = margin
-#     cfg_t.margin2 = margin2
-#     cfg_t.margin3 = margin3
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
-#     cfgs.append(cfg_t)
+for (dataset,
+     margin,
+     margin2,
+     margin3
+     ) in grid_iter(
+    ['cu03det'],
+    [0., 0.5],
+    [1.1, 1.],
+    [1.1, 1.]
+):
+    cfg_t = copy.deepcopy(cfg)
+    cfg_t.dataset = dataset
+    cfg_t.margin = margin
+    cfg_t.margin2 = margin2
+    cfg_t.margin3 = margin3
+    cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
+    cfgs.append(cfg_t)
 
 # cfg = edict(
 #     logs_dir='final.xent',

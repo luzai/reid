@@ -1,7 +1,6 @@
 import os.path as osp
 
 from reid.utils.data import Dataset
-from reid.utils.osutils import mkdir_if_missing
 from reid.utils.serialization import write_json
 from reid.datasets import *
 

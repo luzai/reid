@@ -281,42 +281,43 @@ class Evaluator(object):
                 with lz.Database(db_name) as db:
                     print(list(db.keys()))
 
-            mAP, all_cmc = eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, max_rank=10)
-            res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
+            # mAP, all_cmc = eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, max_rank=10)
+            # res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
 
-            # mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
-        #     print('Mean AP: {:4.1%}'.format(mAP))
-        #
-        #     cmc_configs = {
-        #         'cuhk03': dict(separate_camera_set=True,
-        #                        single_gallery_shot=True,
-        #                        first_match_break=False),
-        #         'market1501': dict(separate_camera_set=False,  # hard
-        #                            single_gallery_shot=False,  # hard
-        #                            first_match_break=True),
-        #         'allshots': dict(separate_camera_set=False,  # hard
-        #                          single_gallery_shot=False,  # hard
-        #                          first_match_break=False),
-        #     }
-        #     cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
-        #     cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
-        #                             query_cams, gallery_cams, **params)
-        #                   for name, params in cmc_configs.items()}
-        #     print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
-        #     if rerank:
-        #         res = lz.dict_concat([res,
-        #                               {'mAP.rk': mAP,
-        #                                'top-1.rk': cmc_scores[self.conf][0],
-        #                                'top-5.rk': cmc_scores[self.conf][4],
-        #                                'top-10.rk': cmc_scores[self.conf][9],
-        #                                }])
-        #     else:
-        #         res = lz.dict_concat([res,
-        #                               {'mAP': mAP,
-        #                                'top-1': cmc_scores[self.conf][0],
-        #                                'top-5': cmc_scores[self.conf][4],
-        #                                'top-10': cmc_scores[self.conf][9],
-        #                                }])
+            mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+            print('Mean AP: {:4.1%}'.format(mAP))
+
+            cmc_configs = {
+                'cuhk03': dict(separate_camera_set=True,
+                               single_gallery_shot=True,
+                               first_match_break=False),
+                'market1501': dict(separate_camera_set=False,  # hard
+                                   single_gallery_shot=False,  # hard
+                                   first_match_break=True),
+                'allshots': dict(separate_camera_set=False,  # hard
+                                 single_gallery_shot=False,  # hard
+                                 first_match_break=False),
+            }
+            cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
+            cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
+                                    query_cams, gallery_cams, **params)
+                          for name, params in cmc_configs.items()}
+            print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
+            if rerank:
+                res = lz.dict_concat([res,
+                                      {'mAP.rk': mAP,
+                                       'top-1.rk': cmc_scores[self.conf][0],
+                                       'top-5.rk': cmc_scores[self.conf][4],
+                                       'top-10.rk': cmc_scores[self.conf][9],
+                                       }])
+            else:
+                res = lz.dict_concat([res,
+                                      {'mAP': mAP,
+                                       'top-1': cmc_scores[self.conf][0],
+                                       'top-5': cmc_scores[self.conf][4],
+                                       'top-10': cmc_scores[self.conf][9],
+                                       }])
+
         # json_dump(res, self.args.logs_dir + '/res.json')
         return res
 
