@@ -1,8 +1,12 @@
+# cython: boundscheck=False, wraparound=False, nonecheck=False
+
 import sys
 
 sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 
 from lz import *
+
+parallel = True
 
 cfgs = [
     # edict(
@@ -29,14 +33,14 @@ cfgs = [
 ]
 
 cfg = edict(
-    logs_dir='tri.margin.3',
+    logs_dir='tri.margin.5',
     dataset='cu03det',
     log_at=[0, 30, 64, 65, 66],
     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
     dropout=0, loss='tcx', mode='',
     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     random_ratio=1, lr_cent=0,
-    gpu_range=range(4),
+    gpu_range=range(4), lr_mult=1.,
     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
 )
 
@@ -46,10 +50,11 @@ for (dataset,
      margin3
      ) in grid_iter(
     ['mkt', ],
-    [.5, 0.],
-    [1., 1.1],
-    [1., 1.1]
+    [.5],
+    [ 1],
+    [ 1]
 ):
+    # if margin == 0 and margin2 == 1.1 and margin3 == 1.1: continue
     cfg_t = copy.deepcopy(cfg)
     cfg_t.dataset = dataset
     cfg_t.margin = margin
@@ -58,23 +63,23 @@ for (dataset,
     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
     cfgs.append(cfg_t)
 
-for (dataset,
-     margin,
-     margin2,
-     margin3
-     ) in grid_iter(
-    ['cu03det'],
-    [0., 0.5],
-    [1.1, 1.],
-    [1.1, 1.]
-):
-    cfg_t = copy.deepcopy(cfg)
-    cfg_t.dataset = dataset
-    cfg_t.margin = margin
-    cfg_t.margin2 = margin2
-    cfg_t.margin3 = margin3
-    cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
-    cfgs.append(cfg_t)
+# for (dataset,
+#      margin,
+#      margin2,
+#      margin3
+#      ) in grid_iter(
+#     ['cu03det'],
+#     [0., 0.5],
+#     [1.1, 1.],
+#     [1.1, 1.]
+# ):
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.dataset = dataset
+#     cfg_t.margin = margin
+#     cfg_t.margin2 = margin2
+#     cfg_t.margin3 = margin3
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
+#     cfgs.append(cfg_t)
 
 # cfg = edict(
 #     logs_dir='final.xent',

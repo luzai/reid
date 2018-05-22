@@ -1,20 +1,12 @@
-# --------------------------------------------------------
-# Fast R-CNN
-# Copyright (c) 2015 Microsoft
-# Licensed under The MIT License [see LICENSE for details]
-# Written by Sergey Karayev
-# --------------------------------------------------------
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True
 
 cimport cython
 cimport numpy as np
 import numpy as np
 
-DTYPE = np.float
-ctypedef np.float_t DTYPE_t
-
-def bbox_overlaps(
-        np.ndarray[DTYPE_t, ndim=2] boxes,
-        np.ndarray[DTYPE_t, ndim=2] query_boxes):
+cpdef bbox_overlaps(
+        cython.floating [:,:] boxes,
+        cython.floating [:,:] query_boxes):
     """
     Parameters
     ----------
@@ -24,12 +16,13 @@ def bbox_overlaps(
     -------
     overlaps: (N, K) ndarray of overlap between boxes and query_boxes
     """
-    cdef unsigned int N = boxes.shape[0]
-    cdef unsigned int K = query_boxes.shape[0]
-    cdef np.ndarray[DTYPE_t, ndim=2] overlaps = np.zeros((N, K), dtype=DTYPE)
-    cdef DTYPE_t iw, ih, box_area
-    cdef DTYPE_t ua
-    cdef unsigned int k, n
+    cdef:
+        unsigned int N = boxes.shape[0]
+        unsigned int K = query_boxes.shape[0]
+        cython.floating[:,:] overlaps = np.zeros((N, K))
+        cython.floating iw, ih, box_area
+        cython.floating ua
+        unsigned int k, n
     for k in range(K):
         box_area = (
                 (query_boxes[k, 2] - query_boxes[k, 0] + 1) *
@@ -52,64 +45,108 @@ def bbox_overlaps(
                         box_area - iw * ih
                     )
                     overlaps[n, k] = iw * ih / ua
-    return overlaps
+    return np.asarray(overlaps)
 
-def eval_market1501(
-        np.ndarray[np.float32_t, ndim=2] distmat,
-        np.ndarray[np.int64_t, ndim=1] q_pids,
-        np.ndarray[np.int64_t, ndim=1] g_pids,
-        np.ndarray[np.int64_t, ndim=1] q_camids,
-        np.ndarray[np.int64_t, ndim=1] g_camids,
-        unsigned int  max_rank,
+cpdef eval_market1501_wrap(distmat,
+        q_pids,
+        g_pids,
+        q_camids,
+        g_camids,
+        max_rank):
+    distmat = np.asarray(distmat,dtype = np.float32)
+    q_pids = np.asarray(q_pids, dtype = np.int64)
+    g_pids = np.asarray(g_pids , dtype = np.int64)
+    q_camids=np.asarray(q_camids,dtype=np.int64)
+    g_camids=np.asarray(g_camids, dtype=np.int64)
+    return eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank)
+
+cpdef eval_market1501(
+        float[:,:] distmat,
+        long[:] q_pids,
+        long[:] g_pids,
+        long[:] q_camids,
+        long[:] g_camids,
+        long max_rank,
 ):
     # return 0,0
-    cdef unsigned int num_q = distmat.shape[0], num_g = distmat.shape[1]
+    cdef:
+        long num_q = distmat.shape[0], num_g = distmat.shape[1]
 
     if num_g < max_rank:
         max_rank = num_g
         print("Note: number of gallery samples is quite small, got {}".format(num_g))
 
-    indices = np.argsort(distmat, axis=1)
-    matches = (g_pids[indices] == q_pids[:, np.newaxis]).astype(np.int32)
+    cdef:
+        long[:,:] indices = np.argsort(distmat, axis=1)
+        long[:,:] matches = (np.asarray(g_pids)[np.asarray(indices)] == np.asarray(q_pids)[:, np.newaxis]).astype(np.int64)
+        float[:,:] all_cmc = np.zeros((num_q,max_rank),dtype=np.float32)
+        float[:] all_AP = np.zeros(num_q,dtype=np.float32)
+        long q_pid, q_camid
+        long[:] order=np.zeros(num_g,dtype=np.int64), keep =np.zeros(num_g,dtype=np.int64)
+        long[:] g_tmp=np.zeros(num_g,dtype=np.int64)
 
-    all_cmc = []
-    all_AP = []
-    num_valid_q = 0.  # number of valid query
+        long num_valid_q = 0, q_idx, idx
+        long[:] orig_cmc=np.zeros(num_g,dtype=np.int64)
+        float[:] cmc=np.zeros(num_g,dtype=np.float32), tmp_cmc=np.zeros(num_g,dtype=np.float32)
+        long num_orig_cmc=0, num_rel=0
+        float tmp_cmc_sum =0.
+        # num_orig_cmc is the valid size of orig_cmc, cmc and tmp_cmc
+        unsigned int orig_cmc_flag=0
+
     for q_idx in range(num_q):
         # get query pid and camid
         q_pid = q_pids[q_idx]
         q_camid = q_camids[q_idx]
-
         # remove gallery samples that have the same pid and camid with query
         order = indices[q_idx]
-        remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
-        keep = np.invert(remove)
-
+        for idx in range(num_g):
+            keep[idx] = ( g_pids[order[idx]] !=q_pid) | (g_camids[order[idx]]!=q_camid )
         # compute cmc curve
-        orig_cmc = matches[q_idx][keep]  # binary vector, positions with value 1 are correct matches
-        if not np.any(orig_cmc):
+        num_orig_cmc=0
+        orig_cmc_flag=0
+        for idx in range(num_g):
+            if keep[idx]:
+                orig_cmc[num_orig_cmc] = matches[q_idx][idx]
+                num_orig_cmc +=1
+                orig_cmc_flag=1
+        if not orig_cmc_flag:
             # this condition is true when query identity does not appear in gallery
             continue
-
-        cmc = orig_cmc.cumsum()
-        cmc[cmc > 1] = 1
-
-        all_cmc.append(cmc[:max_rank])
-        num_valid_q += 1.
-
+        for idx in range(num_orig_cmc):
+            if idx == 0:
+                cmc[idx] = orig_cmc[idx]
+            else:
+                cmc[idx] = cmc[idx-1] + orig_cmc[idx-1]
+            if cmc[idx] >1:
+                cmc[idx] =1
+        all_cmc[q_idx] = cmc[:max_rank]
+        num_valid_q+=1
+        # print('cmc', np.asarray(cmc)[:14].tolist())
         # compute average precision
         # reference: https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Average_precision
-        num_rel = orig_cmc.sum()
-        tmp_cmc = orig_cmc.cumsum()
-        tmp_cmc = [x / (i + 1.) for i, x in enumerate(tmp_cmc)]
-        tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
-        AP = tmp_cmc.sum() / num_rel
-        all_AP.append(AP)
+        num_rel = 0
+        # print('ori cmc', np.asarray(orig_cmc)[:14].tolist())
+        for idx in range(num_orig_cmc):
+            num_rel += orig_cmc[idx]
+        for idx in range(num_orig_cmc):
+            if idx==0:
+                tmp_cmc[idx]=orig_cmc[idx]
+            else:
+                tmp_cmc[idx]=orig_cmc[idx]+tmp_cmc[idx-1]
+        for idx in range(num_orig_cmc):
+            tmp_cmc[idx] = tmp_cmc[idx] / (idx+1.) * orig_cmc[idx]
+        # print('tmp_cmc', np.asarray(tmp_cmc)[:14].tolist())
+
+        tmp_cmc_sum=0.
+        for idx in range(num_orig_cmc):
+            tmp_cmc_sum+=tmp_cmc[idx]
+        all_AP[q_idx] = tmp_cmc_sum / num_rel
+        # print('final',tmp_cmc_sum, num_rel)
 
     assert num_valid_q > 0, "Error: all query identities do not appear in gallery"
+    # print_dbg('all ap', all_AP)
+    # print_dbg('all cmc', all_cmc)
+    return  np.mean(all_AP), np.asarray(all_cmc).astype(np.float32).sum(axis=0) / num_valid_q
 
-    all_cmc = np.asarray(all_cmc).astype(np.float32)
-    all_cmc = all_cmc.sum(0) / num_valid_q
-    mAP = np.mean(all_AP)
-
-    return mAP, all_cmc
+def print_dbg(msg, val):
+    print(msg, np.asarray(val))

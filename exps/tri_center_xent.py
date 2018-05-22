@@ -53,20 +53,21 @@ def run(_):
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
-        if not args.evaluate:
+        if not args.evaluate and not args.vis:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
             lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
+        if not cfgs.parallel:
+            main(args)
+        else:
+            proc = mp.Process(target=main, args=(args,))
+            proc.start()
+            lz.logging.info('next')
+            time.sleep(random.randint(39, 90))
+            procs.append(proc)
 
-        main(args)
-    #     proc = mp.Process(target=main, args=(args,))
-    #     proc.start()
-    #     lz.logging.info('next')
-    #     time.sleep(random.randint(39, 90))
-    #     procs.append(proc)
-    #
-    # for proc in procs:
-    #     proc.join()
+    for proc in procs:
+        proc.join()
 
 
 def get_data(args):
@@ -300,7 +301,7 @@ def main(args):
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': 10.},
+        {'params': fast_params, 'lr_mult': args.lr_mult},
         {'params': normal_params, 'lr_mult': 1.},
     ]
     if args.optimizer_cent == 'sgd':

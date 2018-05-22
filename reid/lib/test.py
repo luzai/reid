@@ -1,19 +1,21 @@
-# cython: boundscheck=False, wraparound=False, nonecheck=False
+import pyximport
+pyximport.install()
 
-from reid.lib.cython_eval import bbox_overlaps, eval_market1501
+from reid.lib.cython_eval import bbox_overlaps, eval_market1501_wrap
 import lz
 from lz import *
-res = bbox_overlaps(np.random.rand(10, 4), np.random.rand(5, 4, ))
-print(res)
+
+# print(np.random.rand(5, 4).dtype)
+# res = bbox_overlaps(np.random.rand(10, 4), np.random.rand(5, 4))
+# res = np.asarray(res)
+# print(res)
 
 with lz.Database(lz.root_path + '/exps/work/eval/eval.h5', 'r') as db:
     print(list(db.keys()))
     for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
         locals()[name] = db['test/' + name]
-
-    print(distmat.shape)
     timer = lz.Timer()
-    res = eval_market1501(distmat, query_ids, gallery_ids, query_cams, gallery_cams, 10)
+    res = eval_market1501_wrap(distmat, query_ids, gallery_ids, query_cams, gallery_cams, 10)
     print(res)
     timer.since_start()
 
@@ -21,3 +23,4 @@ with lz.Database(lz.root_path + '/exps/work/eval/eval.h5', 'r') as db:
 #   0.96793348  0.97030878  0.97209024  0.97298098]
 #  dtype:float32 shape:(10,))
 # 291.666
+
