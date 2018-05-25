@@ -339,11 +339,13 @@ def main(args):
                 'cent': criterion[1].centers,
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
-            }, True, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
+            }, True, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = TCXTrainer(model, criterion, dbg=True,
+    # trainer = TCXTrainer(model, criterion, dbg=True,
+    #                      logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
+    trainer = TriTrainer(model, criterion, dbg=True,
                          logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
@@ -388,7 +390,8 @@ def main(args):
         args = adjust_bs(epoch, args)
 
         hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule,
-                             optimizer_cent=optimizer_cent)
+                             # optimizer_cent=optimizer_cent
+                             )
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)

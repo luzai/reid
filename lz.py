@@ -28,7 +28,6 @@ if os.environ.get('pytorch', "1") == "1":
     import torch
     import torchvision
     from torch import nn
-    from torch.autograd import Variable
     import torch.nn.functional as F
 
     old_repr = torch.Tensor.__repr__
@@ -538,14 +537,13 @@ def to_variable(tn, **kwargs):
     if torch.cuda.is_available():
         tn = tn.cuda()
     volatile = kwargs.get('volatile', False)
-    if 'volatile' in kwargs:
-        del kwargs['volatile']
-    if volatile:
-        with torch.no_grad():
-            tn = Variable(tn, **kwargs)
+    requires_grad = kwargs.get('requires_grad', False)
+    if not volatile or requires_grad:
+        tn.requires_grad = True
+        return tn
     else:
-        tn = Variable(tn, **kwargs)
-    return tn
+        with torch.no_grad():
+            return tn
 
 
 def norm_np(tensor):

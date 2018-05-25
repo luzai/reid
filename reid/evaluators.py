@@ -324,8 +324,8 @@ class Evaluator(object):
                                            }])
             timer.since_start()
         # todo
-        res['mAP'] += 0.01
-        res['top-1'] += 0.01
+        # res['mAP'] += 0.01
+        # res['top-1'] += 0.01
         # json_dump(res, self.args.logs_dir + '/res.json')
         return res
 

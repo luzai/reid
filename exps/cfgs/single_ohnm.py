@@ -32,10 +32,12 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='tri.advtrue',
+        logs_dir='tri.advtrue.v2',
         dataset='cu03det',
-        log_at=[0, 30, 64, 65, 66], gpu_fix=True,
-        batch_size=128, num_instances=4, gpu=(0,1), num_classes=128,
+        log_at=[0, 30, 64, 65, 66],
+        gpu_fix=True, gpu=(0, 1),
+        # gpu=(0, ),
+        batch_size=128, num_instances=4, num_classes=128,
         dropout=0, loss='tcx', mode='',
         cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
         random_ratio=1, lr_cent=0,
