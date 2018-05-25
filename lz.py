@@ -12,23 +12,53 @@ import \
     subprocess, glob, re, \
     numpy as np, pandas as pd, \
     h5py, copy, multiprocessing as mp, \
-    logging, colorlog, \
+    logging, \
     shutil, collections, itertools, math, \
     functools, signal
 from os import path as osp
 from easydict import EasyDict as edict
-# todo remove cvb easydict colorlog
-# import redis, networkx as nx, \
-#  yaml,  subprocess, pprint,json,csv, argparse,string,
 
-import torch
-import torchvision
-from torch import nn
-from torch.autograd import Variable
-import torch.nn.functional as F
+# import redis, networkx as nx, \
+#  yaml, subprocess, pprint, json, csv, argparse, string, colorlog
+# from IPython import embed
 from tensorboardX import SummaryWriter
 
-# from IPython import embed
+if os.environ.get('pytorch', "1") == "1":
+    print('import pytorch')
+    import torch
+    import torchvision
+    from torch import nn
+    from torch.autograd import Variable
+    import torch.nn.functional as F
+
+    old_repr = torch.Tensor.__repr__
+
+
+    def new_repr(obj):
+        return f'{old_repr(obj)} \n type: {obj.type()} shape: {obj.shape} '
+
+
+    torch.Tensor.__repr__ = new_repr
+
+else:
+    print('import tf')
+    import tensorflow as tf
+
+
+    def allow_growth():
+        import tensorflow as tf
+        oldinit = tf.Session.__init__
+
+        def myinit(session_object, target='', graph=None, config=None):
+            if config is None:
+                config = tf.ConfigProto()
+            config.gpu_options.allow_growth = True
+            oldinit(session_object, target, graph, config)
+
+        tf.Session.__init__ = myinit
+
+
+    allow_growth()
 
 root_path = osp.normpath(
     osp.join(osp.abspath(osp.dirname(__file__)))
@@ -52,6 +82,7 @@ ori_np_err = np.seterr(all='raise')
 
 
 def set_stream_logger(log_level=logging.DEBUG):
+    import colorlog
     sh = colorlog.StreamHandler()
     sh.setLevel(log_level)
     sh.setFormatter(
@@ -112,20 +143,6 @@ def set_env(key, value):
 
 # init_dev((3,))
 
-def allow_growth():
-    import tensorflow as tf
-    oldinit = tf.Session.__init__
-
-    def myinit(session_object, target='', graph=None, config=None):
-        if config is None:
-            config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        oldinit(session_object, target, graph, config)
-
-    tf.Session.__init__ = myinit
-
-
-# allow_growth()
 
 '''
 oldinit = Session.__init__
@@ -232,6 +249,8 @@ def mkdir_if_missing(dir_path):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
+
+
 class Logger(object):
     def __init__(self, fpath=None):
         self.console = sys.stdout
@@ -319,7 +338,7 @@ class Timer(object):
             self._is_running = True
         self._t_last = time.time()
 
-    def since_start(self):
+    def since_start(self, aux=''):
         """Total time since the timer is started.
 
         Returns(float): the time in seconds
@@ -327,7 +346,7 @@ class Timer(object):
         if not self._is_running:
             raise ValueError('timer is not running')
         self._t_last = time.time()
-        print(self.print_tmpl.format(self._t_last - self._t_start))
+        logging.info(f'{aux} time {self.print_tmpl.format(self._t_last - self._t_start)}')
         return self._t_last - self._t_start
 
     def since_last_check(self, aux=''):
@@ -341,7 +360,7 @@ class Timer(object):
             raise ValueError('timer is not running')
         dur = time.time() - self._t_last
         self._t_last = time.time()
-        logging.info(f'{aux} {self.print_tmpl.format(dur)}')
+        logging.info(f'{aux} time {self.print_tmpl.format(dur)}')
         return dur
 
 
@@ -430,16 +449,17 @@ def mail(content, ):
     s.starttls()
     s.login(user_pass['username'], user_pass['password'])
 
-    def send(to_mail=user_pass['username'], content=''):
+    def send(to_mail=user_pass['username'], content='', title=''):
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = f'ps: {content[:6]}'
+        msg['Subject'] = title
         msg['From'] = user_pass['username']
         msg['To'] = to_mail
         msg.attach(MIMEText(content, 'plain'))
         s.sendmail(msg['From'], msg['To'], msg.as_string())
 
+    title = content[:6]
     content = time_str + '\r\n' + content
-    send(content=content)
+    send(content=content, title=title)
     s.quit()
 
 

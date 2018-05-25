@@ -9,6 +9,7 @@ from lz import *
 parallel = True
 
 cfgs = [
+
     # edict(
     #     logs_dir='eval3',
     #     dataset='mkt', log_at=[0, 1, 2, 30, 64, 65],
@@ -30,48 +31,41 @@ cfgs = [
     #     # resume='work/final.tri.mkt/model_best.pth'
     # ),
 
+    edict(
+        logs_dir='tri.advtrue',
+        dataset='cu03det',
+        log_at=[0, 30, 64, 65, 66], gpu_fix=True,
+        batch_size=128, num_instances=4, gpu=(0,1), num_classes=128,
+        dropout=0, loss='tcx', mode='',
+        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+        random_ratio=1, lr_cent=0,
+        gpu_range=range(4), lr_mult=1,
+        push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+    )
+
 ]
 
-cfg = edict(
-    logs_dir='tri.margin.5',
-    dataset='cu03det',
-    log_at=[0, 30, 64, 65, 66],
-    batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
-    dropout=0, loss='tcx', mode='',
-    cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    random_ratio=1, lr_cent=0,
-    gpu_range=range(4), lr_mult=1.,
-    push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-)
-
-for (dataset,
-     margin,
-     margin2,
-     margin3
-     ) in grid_iter(
-    ['mkt', ],
-    [.5],
-    [ 1],
-    [ 1]
-):
-    # if margin == 0 and margin2 == 1.1 and margin3 == 1.1: continue
-    cfg_t = copy.deepcopy(cfg)
-    cfg_t.dataset = dataset
-    cfg_t.margin = margin
-    cfg_t.margin2 = margin2
-    cfg_t.margin3 = margin3
-    cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
-    cfgs.append(cfg_t)
-
+# cfg = edict(
+#     logs_dir='tri.margin.6',
+#     dataset='cu03det',
+#     log_at=[0, 30, 64, 65, 66],
+#     batch_size=128, num_instances=4, gpu=range(1), num_classes=128,
+#     dropout=0, loss='tcx', mode='',
+#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+#     random_ratio=1, lr_cent=0,
+#     gpu_range=range(4), lr_mult=1,
+#     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+# )
+#
 # for (dataset,
 #      margin,
 #      margin2,
 #      margin3
 #      ) in grid_iter(
 #     ['cu03det'],
-#     [0., 0.5],
-#     [1.1, 1.],
-#     [1.1, 1.]
+#     [0., ],
+#     [1.1, ],
+#     [1.1, ]
 # ):
 #     cfg_t = copy.deepcopy(cfg)
 #     cfg_t.dataset = dataset
@@ -79,6 +73,45 @@ for (dataset,
 #     cfg_t.margin2 = margin2
 #     cfg_t.margin3 = margin3
 #     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
+#     cfgs.append(cfg_t)
+#
+# for (dataset,
+#      margin,
+#      margin2,
+#      margin3
+#      ) in grid_iter(
+#     ['cu03det'],
+#     [.5, ],
+#     [1., ],
+#     [1., ]
+# ):
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.dataset = dataset
+#     cfg_t.margin = margin
+#     cfg_t.margin2 = margin2
+#     cfg_t.margin3 = margin3
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}'
+#     cfgs.append(cfg_t)
+#
+# for (dataset,
+#      margin,
+#      margin2,
+#      margin3,
+#      lr_mult,
+#      ) in grid_iter(
+#     ['mkt', ],
+#     [.0, .3, .5],
+#     [.9, 1.2, 1.05, 1.1],
+#     [.9, 1.2, 1.05, 1.1],
+#     [1, 2, 4],
+# ):
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.dataset = dataset
+#     cfg_t.margin = margin
+#     cfg_t.margin2 = margin2
+#     cfg_t.margin3 = margin3
+#     cfg_t.lr_mult = lr_mult
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{dataset}.mg{margin}.mg2_{margin2}.mg3_{margin3}.lrm_{lr_mult}'
 #     cfgs.append(cfg_t)
 
 # cfg = edict(
@@ -120,7 +153,6 @@ for (dataset,
 
 base = edict(
     optimizer_cent='adam', topk=5, test_best=True,
-    weight_lda=None,
     push_scale=1., gpu_fix=False, test_batch_size=8,
     lr=3e-4, margin=0.5, area=(0.85, 1),
     margin2=1., margin3=1.,

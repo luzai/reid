@@ -38,6 +38,8 @@ class BaseTrainer(object):
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(loss.data[0], targets.size(0))
+            # todo
+            # self.model.zero_grad()
             precisions.update(prec1, targets.size(0))
 
             optimizer.zero_grad()
@@ -397,8 +399,6 @@ class XentTriTrainer(object):
         })
 
 
-
-
 class TCXTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
         self.model = model
@@ -423,7 +423,7 @@ class TCXTrainer(object):
             'npy'), inputs.get('fname'), inputs.get('pid')
         cids = inputs.get('cid')
         inputs = [imgs, npys]
-        inputs = to_variable(inputs, requires_grad=False)
+        inputs = to_variable(inputs, requires_grad=True)
         targets = to_variable(pids, requires_grad=False)
         cids = to_variable(cids, requires_grad=False)
         return inputs, targets, fnames, cids
@@ -474,14 +474,22 @@ class TCXTrainer(object):
             update_dop_tri(dist, targets, self.dop_info)
 
         self.iter += 1
-        # if self.args.weight_lda is None:
         loss_comb = self.tri_weight * losst + \
                     self.weight_cent * loss_cent + \
                     self.args.weight_dis_cent * loss_dis + \
                     self.args.cls_weight * lossx
-        # else:
-        #     loss_comb = losst + self.args.weight_lda * \
-        #                 loss_cent / (-loss_dis)
+        # gradients = torch.autograd.grad(
+        #     outputs=losst, inputs=inputs[0],
+        #     create_graph=True, retain_graph=True, only_inputs=True
+        # )[0]
+        # loss_comb += (gradients.norm(2, dim=1)**2).mean()
+
+        # noise = 0.3 * gradients.detach()
+        # input2 = inputs[0] + noise
+
+        # out_embed2, out_cls2 = self.model(input2)
+        # losst2, prect2, dist2 = self.crit_tri(out_embed2, targets, dbg=False, cids=cids)
+        # loss_comb = (loss_comb + losst2) / 2.
 
         logging.debug(
             f'tri loss {losst.item()}; '
@@ -527,7 +535,7 @@ class TCXTrainer(object):
             optimizer_cent.zero_grad()
             optimizer.zero_grad()
             loss_comb.backward()
-
+            # todo version2 adv-train
             optimizer.step()
             # for param in self.criterion2.parameters():
             for name, param in self.crit_cent.named_parameters():

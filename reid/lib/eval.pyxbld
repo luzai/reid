@@ -1,0 +1,10 @@
+def make_ext(modname, pyxfilename):
+    from distutils.extension import Extension
+    return Extension("cython_eval",
+                     ["eval.pyx"],
+                     libraries=["m"],
+                     include_dirs=[numpy_include],
+                     extra_compile_args=
+                     ["-ffast-math", "-Wno-cpp", "-Wno-unused-function"]
+                     # {'gcc': ["-Wno-cpp", "-Wno-unused-function", "-ffast-math"]}
+                     )
