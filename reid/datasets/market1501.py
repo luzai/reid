@@ -430,7 +430,8 @@ class Market1501(Dataset):
     query_dir = osp.join(root, 'query')
     gallery_dir = osp.join(root, 'bounding_box_test')
 
-    def __init__(self, root='/data1/xinglu/work/data/market1501/', split_id=0, num_val=100, download=True, check_intergrity=True, **kwargs):
+    def __init__(self, root='/data1/xinglu/work/data/market1501/', split_id=0, num_val=100, download=True,
+                 check_intergrity=True, **kwargs):
         self.name = 'market1501'
         super(Market1501, self).__init__(root, split_id=split_id)
         self.root = root
@@ -543,7 +544,7 @@ class Market1501(Dataset):
 
         num_pids = len(pid_container)
         num_imgs = len(dataset)
-        if relabel :
+        if relabel:
             return dataset, num_pids, num_imgs, pid2label
         else:
             return dataset, num_pids, num_imgs
@@ -625,12 +626,62 @@ class Market1501(Dataset):
         write_json(splits, osp.join(self.root, 'splits.json'))
 
 
+class CUB(Dataset):
+    def __init__(self, **kwargs):
+        self.name = 'cub'
+        self.root = self.images_dir = '/home/xinglu/.torch/data/CUB_200_2011/'
+
+        images = np.loadtxt(self.root + '/images.txt', dtype=object)[:, 1]
+        splits = np.loadtxt(self.root + '/train_test_split.txt', dtype=int)
+        images_cls = np.array(pd.DataFrame(images).iloc[:, 0].str.split('.').str.get(0).tolist(), dtype=int)
+        train_cls = splits[splits[:, 1] == 1, 0]
+        test_cls = splits[splits[:, 1] == 0, 1]
+        self.num_trainval_ids = train_cls.shape[0]
+        self.num_query_ids = test_cls.shape[0]
+        self.num_gallery_ids = test_cls.shape[0]
+
+        df = pd.DataFrame({'path': images, 'cls': images_cls, 'is_train': splits[:, 1]})
+        df['cids'] = np.arange(df.shape[0])
+        df['path'] = self.root + 'images/' + df.path
+        df.head()
+        df_train = df[df.is_train == 1]
+        df_test = df[df.is_train == 0]
+        self.trainval = df_train[['path', 'cls', 'cids']].to_records(index=False).tolist()
+        self.query = self.gallery = df_test[['path', 'cls', 'cids']].to_records(index=False).tolist()
+        self.val = None
+        self.train = self.trainval
+        self.num_val_ids = 0
+        self.num_train_ids = self.num_trainval_ids
+
+
+class Stanford_Prod(Dataset):
+    def __init__(self, **kwargs):
+        self.name = 'stanford_prod'
+        self.root = self.images_dir = '/home/xinglu/.torch/data/Stanford_Online_Products/'
+
+        train_df = pd.DataFrame.from_csv(self.root + 'Ebay_train.txt', sep=' ')
+        test_df = pd.DataFrame.from_csv(self.root + 'Ebay_test.txt', sep=' ')
+        train_df['cids'] = np.arange(train_df.shape[0])
+        train_df['path '] = self.root + train_df.path
+        test_df['cids'] = np.arange(test_df.shape[0])
+        test_df['path'] = self.root + test_df.path
+        # train_df.head()
+        self.num_trainval_ids = np.unique(train_df.class_id).shape[0]
+        self.num_query_ids = self.num_gallery_ids = np.unique(test_df.class_id).shape[0]
+        self.trainval = train_df[['path', 'class_id', 'cids']].to_records(index=False).tolist()
+        self.query = self.gallery = test_df[['path', 'class_id', 'cids']].to_records(index=False).tolist()
+        self.val = None
+        self.train = self.trainval
+        self.num_val_ids = 0
+        self.num_train_ids = self.num_trainval_ids
+
 if __name__ == '__main__':
-
-    # tic = time.time()
+    tic = time.time()
     # Market1501()
-    # print(time.time()-tic)
+    # CUB()
+    Stanford_Prod()
+    print(time.time() - tic)
 
-    Mars()
-    iLIDSVID()
-    PRID()
+    # Mars()
+    # iLIDSVID()
+    # PRID()

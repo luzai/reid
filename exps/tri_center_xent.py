@@ -37,9 +37,9 @@ def run(_):
         #     range(args.epochs - 8, args.epochs, 1)
         # ])
         args.logs_dir = 'work/' + args.logs_dir
-        if osp.exists(args.logs_dir) and osp.exists(args.logs_dir+'/checkpoint.64.pth'):
-            os.listdir(args.logs_dir)
-            continue
+        # if osp.exists(args.logs_dir) and osp.exists(args.logs_dir+'/checkpoint.64.pth'):
+        #     os.listdir(args.logs_dir)
+        #     continue
 
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
@@ -57,17 +57,21 @@ def run(_):
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
             lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
-        if not cfgs.parallel:
+        if cfgs.no_proc:
             main(args)
         else:
             proc = mp.Process(target=main, args=(args,))
             proc.start()
             lz.logging.info('next')
             time.sleep(random.randint(39, 90))
-            procs.append(proc)
+            if not cfgs.parallel:
+                proc.join()
+            else:
+                procs.append(proc)
 
-    for proc in procs:
-        proc.join()
+    if cfgs.parallel:
+        for proc in procs:
+            proc.join()
 
 
 def get_data(args):
@@ -268,8 +272,8 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
     if args.evaluate:
-        res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
-                                 trainval_test_loader.dataset.dataset, metric, final=True, prefix='train')
+        # res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
+        #                          trainval_test_loader.dataset.dataset, metric, final=True, prefix='train')
 
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric,
                                  final=True, prefix='test')
@@ -458,6 +462,9 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
+    print(res)
+    for k,v in res.items():
+        res[k] = float(v)
     json_dump(res, args.logs_dir + '/res.json', 'w')
     return res
 

@@ -102,7 +102,7 @@ cpdef eval_market1501(
         # remove gallery samples that have the same pid and camid with query
         order = indices[q_idx]
         for idx in range(num_g):
-            keep[idx] = ( g_pids[order[idx]] !=q_pid) or (g_camids[order[idx]]!=q_camid )
+            keep[idx] = (g_pids[order[idx]]!=q_pid) or (g_camids[order[idx]]!=q_camid)
         # compute cmc curve
         num_orig_cmc=0
         orig_cmc_flag=0

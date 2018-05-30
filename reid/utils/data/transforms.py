@@ -55,7 +55,7 @@ class RandomSizedRectCrop(object):
 # todo more aug, try random erasing
 
 class RandomCropFlip(object):
-    def __init__(self, height, width, interpolation=Image.BILINEAR, area=(0.85, 1), aspect=(1.5, 3)):  # 0.64, 1; 2,3
+    def __init__(self, height, width, interpolation=Image.BILINEAR, area=(0.85, 1), aspect=(1.5, 3)):  # 0.64, 1; 2,3 # todo
         self.height = height
         self.width = width
         self.interpolation = interpolation

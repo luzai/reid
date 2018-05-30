@@ -20,6 +20,9 @@ __factory = {
     'mars': Mars,
     'ilidsvid': iLIDSVID,
     'prid': PRID,
+    'cub': CUB,
+    'stanford_prod': Stanford_Prod,
+
 }
 
 

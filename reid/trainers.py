@@ -38,8 +38,6 @@ class BaseTrainer(object):
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(loss.data[0], targets.size(0))
-            # todo
-            # self.model.zero_grad()
             precisions.update(prec1, targets.size(0))
 
             optimizer.zero_grad()
@@ -200,7 +198,7 @@ class Trainer(object):
                 targets, _ = targets
             losses.update(loss.data[0], targets.size(0))
             precisions.update(prec1, targets.size(0))
-
+            # self.model.zero_grad()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -482,9 +480,11 @@ class TCXTrainer(object):
         #     outputs=losst, inputs=inputs[0],
         #     create_graph=True, retain_graph=True, only_inputs=True
         # )[0]
+        # ...
         # loss_comb += (gradients.norm(2, dim=1)**2).mean()
 
         # noise = 0.3 * gradients.detach()
+        # ...
         # input2 = inputs[0] + noise
 
         # out_embed2, out_cls2 = self.model(input2)
@@ -566,11 +566,19 @@ class TCXTrainer(object):
         })
 
 
+def l2_normalize(x):
+    shape = x.size()
+    x = x.view(shape[0], -1)
+    x /= x.norm(p=2, dim=1, keepdim=True)
+    return x.view(shape)
+
+
 class TriTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
         self.model = model
         self.criterion = criterion[0]
         # self.criterion2 = criterion[1]
+        self.args = args
         self.dop_info = dop_info
         self.iter = 0
         self.dbg = dbg
@@ -593,9 +601,9 @@ class TriTrainer(object):
 
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
-            input_imgs = inputs.get('img')
+            input_imgs = inputs.get('img').cuda()
             input_imgs.requires_grad = True
-            targets = inputs.get('pid')
+            targets = inputs.get('pid').cuda()
             if schedule is not None:
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
@@ -613,25 +621,54 @@ class TriTrainer(object):
                 targets, _ = targets
             losses.update(to_numpy(losst), targets.size(0))
             precisions.update(to_numpy(prect), targets.size(0))
-
-            input_imgs_grad = torch.autograd.grad(
-                outputs=losst, inputs=input_imgs,
-                create_graph=True, retain_graph=True,
-                only_inputs=True
-            )[0].detach()
-            input_imgs_adv = input_imgs + .3 * torch.sign(input_imgs_grad)
-            features_adv, _ = self.model(input_imgs_adv)
-            losst_adv, _, _ = self.criterion(features_adv, targets)
-
-            # features_grad = torch.autograd.grad(
-            #     outputs=losst, inputs=features,
-            #     create_graph=True, retain_graph=True,
-            #     only_inputs=True
-            # )[0].detach()
-            # features_advtrue = features + .3 * torch.sign(features_grad)
-            # losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
-
-            loss_comb = losst# + losst_adv #+ losst_advtrue
+            loss_comb = losst
+            if not math.isclose(self.args.adv_inp, 0):
+                input_imgs_grad_attached = torch.autograd.grad(
+                    outputs=losst, inputs=input_imgs,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0]
+                input_imgs_grad = input_imgs_grad_attached.detach()
+                input_imgs.requires_grad = False
+                if self.args.aux == 'l2_norm':
+                    # input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
+                else:
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
+                features_adv, _ = self.model(input_imgs_adv)
+                losst_adv, prect_adv, _ = self.criterion(features_adv, targets)
+                loss_comb += self.args.adv_inp * losst_adv
+                self.writer.add_scalar('vis/loss_adv_inp', losst_adv, self.iter)
+                self.writer.add_scalar('vis/prec_adv_inp', prect_adv, self.iter)
+            if not math.isclose(self.args.double, 0):
+                if math.isclose(self.args.adv_inp, 0):
+                    input_imgs_grad_attached = torch.autograd.grad(
+                        outputs=losst, inputs=input_imgs,
+                        create_graph=True, retain_graph=True,
+                        only_inputs=True
+                    )[0]
+                # input_imgs.requires_grad = False
+                input_imgs_grad_attached = input_imgs_grad_attached.view(
+                    input_imgs_grad_attached.size(0), -1
+                )
+                if self.args.aux =='l1':
+                    grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
+                else:
+                    grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
+                loss_comb += self.args.double * grad_reg
+                self.writer.add_scalar('vis/grad_reg', grad_reg, self.iter)
+            if not math.isclose(self.args.adv_fea, 0):
+                features_grad = torch.autograd.grad(
+                    outputs=losst, inputs=features,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0].detach()
+                # input_imgs.requires_grad = False
+                assert features_grad.requires_grad is False
+                features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
+                losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
+                loss_comb += self.args.adv_fea * losst_advtrue
+                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue, self.iter)
 
             optimizer.zero_grad()
             loss_comb.backward(
@@ -646,10 +683,10 @@ class TriTrainer(object):
 
             # features_grad = torch.autograd.grad(
             #     outputs=losst, inputs=features,
-            #     # create_graph=True, retain_graph=True,
+            #     create_graph=True, retain_graph=True,
             #     only_inputs=True
             # )[0].detach()
-            # features_advtrue = features + .3* torch.sign(features_grad)
+            # features_advtrue = features + .3 * torch.sign(features_grad)
             # losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
             # losst_advtrue.backward()
 

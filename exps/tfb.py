@@ -56,10 +56,11 @@ class ScalarLoader(Loader):
 
 dfs = []
 names = []
-for path in ['work/cu03det.search.1e-01.0e+00.run0',
-             'work/cu03det.search.1e-01.1e-03.run0',
-             'work/cu03det.cent.dis.1e-03',
-             'work/cu03det.cent.dis.dop.0.33.run2',]:
+# for path in ['work/cu03det.search.1e-01.0e+00.run0',
+#              'work/cu03det.search.1e-01.1e-03.run0',
+#              'work/cu03det.cent.dis.1e-03',
+#              'work/cu03det.cent.dis.dop.0.33.run2', ]:
+for path in glob.glob('work/tri.dep*'):
     assert osp.exists(path)
     df = ScalarLoader(path=path).load_scalars()
     if df.index.max() != 66: continue
