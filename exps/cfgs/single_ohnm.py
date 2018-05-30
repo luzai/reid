@@ -167,7 +167,7 @@ cfgs = [
         random_ratio=1, lr_cent=0,
         gpu_range=range(4), lr_mult=1,
         push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-        evaluate=True,
+        # evaluate=True,
     ),
 ]
 

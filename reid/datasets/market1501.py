@@ -675,6 +675,9 @@ class Stanford_Prod(Dataset):
         self.num_val_ids = 0
         self.num_train_ids = self.num_trainval_ids
 
+
+
+
 if __name__ == '__main__':
     tic = time.time()
     # Market1501()
