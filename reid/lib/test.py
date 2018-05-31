@@ -19,8 +19,8 @@ from reid.evaluators import eval_market1501
 #     timer.since_start('consume ')
 
 # np.random.seed(16)
-num_q = 15
-num_g = 150
+num_q = 100
+num_g = 65535
 
 distmat = np.random.rand(num_q, num_g).astype(np.float32) * 20
 q_pids = np.random.randint(0, min(num_q, num_g), size=num_q, dtype=np.int64)
@@ -36,14 +36,14 @@ mAP, cmc = eval_market1501_wrap(distmat,
 toc = time.time()
 print('\nconsume time {} \n mAP is {} \n cmc is {}\n'.format(toc - tic, mAP, cmc))
 
-tic = time.time()
-mAP, cmc = eval_market1501(distmat,
-                           q_pids,
-                           g_pids,
-                           q_camids,
-                           g_camids, 10)
-toc = time.time()
-print('\nconsume time {} \n mAP is {} \n cmc is {}\n'.format(toc - tic, mAP, cmc))
+# tic = time.time()
+# mAP, cmc = eval_market1501(distmat,
+#                            q_pids,
+#                            g_pids,
+#                            q_camids,
+#                            g_camids, 10)
+# toc = time.time()
+# print('\nconsume time {} \n mAP is {} \n cmc is {}\n'.format(toc - tic, mAP, cmc))
 
 # from reid.lib.cython_eval import my_cusum, my_sum
 # t = np.ones(5)

@@ -288,14 +288,9 @@ def main(args):
         xent = CrossEntropyLabelSmooth(num_classes=num_classes)
     setattr(xent, 'name', 'xent')
 
-    criterion = [TripletLoss(margin=args.margin, mode='hard', args=args),
-                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
-                            margin2=args.margin2,
-                            margin3=args.margin3, mode=args.mode,
-                            push_scale=args.push_scale,
-                            args=args),
-                 xent
-                 ]
+    criterion = [
+        xent
+    ]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
@@ -309,10 +304,7 @@ def main(args):
         {'params': fast_params, 'lr_mult': args.lr_mult},
         {'params': normal_params, 'lr_mult': 1.},
     ]
-    if args.optimizer_cent == 'sgd':
-        optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
-    else:
-        optimizer_cent = torch.optim.Adam(criterion[1].parameters(), lr=args.lr_cent, )
+
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             # model.parameters(),
@@ -341,7 +333,7 @@ def main(args):
             hist = trainer.train(epoch, train_loader, optimizer)
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
-                'cent': criterion[1].centers,
+                # 'cent': criterion[1].centers,
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
             }, True, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
@@ -349,12 +341,8 @@ def main(args):
                   format(epoch, hist))
 
     # Trainer
-    if args.loss == 'tcx':
-        trainer = TCXTrainer(model, criterion, dbg=True,
-                         logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
-    elif args.loss == 'tri':
-        trainer = TriTrainer(model, criterion, dbg=True,
-                         logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
+    trainer = XentTrainer(model, criterion, dbg=True,
+                          logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -413,7 +401,7 @@ def main(args):
         if epoch % 15 == 0:
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
-                'cent': criterion[1].centers,
+                # 'cent': criterion[1].centers,
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
             }, False, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
@@ -423,7 +411,7 @@ def main(args):
 
         save_checkpoint({
             'state_dict': model.module.state_dict(),
-            'cent': criterion[1].centers,
+            # 'cent': criterion[1].centers,
             'epoch': epoch + 1,
             'best_top1': best_top1,
         }, False, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
@@ -442,7 +430,7 @@ def main(args):
         best_top1 = max(top1, best_top1)
         save_checkpoint({
             'state_dict': model.module.state_dict(),
-            'cent': criterion[1].centers,
+            # 'cent': criterion[1].centers,
             'epoch': epoch + 1,
             'best_top1': best_top1,
         }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
@@ -467,7 +455,7 @@ def main(args):
 
     writer.close()
     print(res)
-    for k,v in res.items():
+    for k, v in res.items():
         res[k] = float(v)
     json_dump(res, args.logs_dir + '/res.json', 'w')
     return res

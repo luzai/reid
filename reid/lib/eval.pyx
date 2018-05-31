@@ -3,7 +3,8 @@
 cimport cython
 cimport numpy as np
 import numpy as np
-
+from libcpp cimport bool as bool_t
+import time
 cpdef bbox_overlaps(
         cython.floating [:,:] boxes,
         cython.floating [:,:] query_boxes):
@@ -60,6 +61,9 @@ cpdef eval_market1501_wrap(distmat,
     g_camids=np.asarray(g_camids, dtype=np.int64)
     return eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank)
 
+ctypedef unsigned short my_int
+my_npint = np.uint16
+
 cpdef eval_market1501(
         float[:,:] distmat,
         long[:] q_pids,
@@ -76,24 +80,31 @@ cpdef eval_market1501(
         max_rank = num_g
         print("Note: number of gallery samples is quite small, got {}".format(num_g))
 
+    tic = time.time()
+    cdef    my_int[:,:] indices = np.argsort(distmat, axis=1).astype(my_npint)
+    print('time indices', time.time()-tic)
+    tic = time.time()
+    cdef    bool_t[:,:] matches = (np.asarray(g_pids)[np.asarray(indices)] == np.asarray(q_pids)[:, np.newaxis]).astype(np.uint8)
+    print('time matches', time.time()-tic)
+    tic = time.time()
+    cdef   float[:,:] all_cmc = np.empty((num_q,max_rank),dtype=np.float32)
+    print('time all_cmc', time.time()-tic)
+    cdef   float[:] all_AP = np.zeros(num_q,dtype=np.float32)
+
     cdef:
-        long[:,:] indices = np.argsort(distmat, axis=1)
-        long[:,:] matches = (np.asarray(g_pids)[np.asarray(indices)] == np.asarray(q_pids)[:, np.newaxis]).astype(np.int64)
-        float[:,:] all_cmc = np.zeros((num_q,max_rank),dtype=np.float32)
-        float[:] all_AP = np.zeros(num_q,dtype=np.float32)
+        my_int q_pid, q_camid
+        my_int[:] order=np.zeros(num_g,dtype=my_npint)
+        bool_t[:] keep=np.zeros(num_g,dtype=np.uint8)
 
-        long q_pid, q_camid
-        long[:] order=np.zeros(num_g,dtype=np.int64), keep =np.zeros(num_g,dtype=np.int64)
-
-        long num_valid_q = 0, q_idx, idx
+        my_int num_valid_q = 0, q_idx, idx
         # long[:] orig_cmc=np.zeros(num_g,dtype=np.int64)
         float[:] orig_cmc=np.zeros(num_g,dtype=np.float32)
         float[:] cmc=np.zeros(num_g,dtype=np.float32), tmp_cmc=np.zeros(num_g,dtype=np.float32)
-        long num_orig_cmc=0
+        my_int num_orig_cmc=0
         float num_rel=0.
         float tmp_cmc_sum =0.
         # num_orig_cmc is the valid size of orig_cmc, cmc and tmp_cmc
-        unsigned int orig_cmc_flag=0
+        bool_t orig_cmc_flag=0
 
     for q_idx in range(num_q):
         # get query pid and camid

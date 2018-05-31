@@ -7,8 +7,8 @@ sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 from lz import *
 
 no_proc = False
-parallel = True
-# parallel = False
+# parallel = True
+parallel = False
 
 cfgs = [
     # edict(
@@ -45,19 +45,20 @@ cfgs = [
     #     gpu_range=range(4), lr_mult=10,
     #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
     # ),
-    # edict(
-    #     logs_dir='tri.dep.mkt.adv_inp.128', double=0, adv_inp=1, adv_fea=0,
-    #     dataset='mkt',
-    #     log_at=[0, 30, 64, 65, 66],
-    #     # gpu_fix=True, gpu=(0, 1),
-    #     gpu=(0, 1,2 ),
-    #     batch_size=128, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tcx', mode='',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=range(4), lr_mult=1,
-    #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-    # ),
+    edict(
+        logs_dir='mkt.xent.smthTrue.adv.double', double=1, adv_inp=1, adv_fea=0,
+        dataset='mkt', xent_smooth=True,
+        log_at=[0, 30, 64, 65, 66], lr_mult=10.,
+        # gpu_fix=True, gpu=(0, 1),
+        gpu=(0, 1, 2),
+        batch_size=128, num_instances=4, num_classes=128,
+        dropout=0, loss='xent', mode='',
+        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+        random_ratio=1, lr_cent=0,
+        gpu_range=range(4),
+        push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+        impr=0.02
+    ),
     # edict(
     #     logs_dir='tri.dep.adv_inp.l2_norm', double=0, adv_inp=1, adv_fea=0, adv_inp_eps=.3,
     #     aux='l2_norm',
@@ -100,18 +101,21 @@ cfgs = [
     #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
     # ),
     # edict(
-    #     logs_dir='tri.dep.mkt.64', double=0, adv_inp=0, adv_fea=0,
+    #     logs_dir='tri.dep.mkt.eval', double=0, adv_inp=0, adv_fea=0,
     #     impr=0.,
     #     dataset='mkt',
     #     log_at=[0, 30, 64, 65, 66],
     #     # gpu_fix=True, gpu=(0, 1),
-    #     gpu=(1, ),
-    #     batch_size=64, num_instances=4, num_classes=128,
+    #     gpu=(1,),
+    #     batch_size=128, num_instances=4, num_classes=128,
     #     dropout=0, loss='tcx', mode='',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=range(4), lr_mult=1,
     #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+    #     evaluate=True,
+    #     # resume='work/tri.dep.mkt.64/model_best.pth',
+    #     resume='work/tri.dep.mkt/model_best.pth',
     # ),
     # edict(
     #     logs_dir='tri.dep.mkt.32', double=0, adv_inp=0, adv_fea=0,
@@ -142,11 +146,11 @@ cfgs = [
     #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
     # ),
     # edict(
-    #     logs_dir='tri.cub.128', double=0, adv_inp=0, adv_fea=0,
+    #     logs_dir='tri.cub.adv_inp.double', double=1, adv_inp=1, adv_fea=0,
     #     dataset='cub',
     #     log_at=[0, 30, 64, 65, 66],
     #     # gpu_fix=True, gpu=(0, ),
-    #     gpu=(0,),
+    #     gpu=(0, 1, 2),
     #     batch_size=128, num_instances=4, num_classes=128,
     #     dropout=0, loss='tcx', mode='',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
@@ -154,21 +158,40 @@ cfgs = [
     #     gpu_range=range(4), lr_mult=1,
     #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
     #     # evaluate = True,
+    #     impr=0.01,
     # ),
-    edict(
-        logs_dir='tri.stan.128', double=0, adv_inp=0, adv_fea=0,
-        dataset='stanford_prod',
-        log_at=[0, 30, 64, 65, 66],
-        # gpu_fix=True, gpu=(0, ),
-        gpu=(0,),
-        batch_size=128, num_instances=4, num_classes=128,
-        dropout=0, loss='tcx', mode='',
-        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-        random_ratio=1, lr_cent=0,
-        gpu_range=range(4), lr_mult=1,
-        push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-        # evaluate=True,
-    ),
+    # edict(
+    #     logs_dir='tri.stan.adv_inp', double=0, adv_inp=1, adv_fea=0,
+    #     dataset='stanford_prod',
+    #     log_at=[0, 30, 64, 65, 66],
+    #     # gpu_fix=True, gpu=(0, ),
+    #     gpu=(0, 1, 2),
+    #     batch_size=128, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tcx', mode='',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=range(4), lr_mult=1,
+    #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+    #     # evaluate=True,
+    #     # resume='work/tri.stan.128/model_best.pth',
+    #     impr=0.01,
+    # ),
+    # edict(
+    #     logs_dir='tri.stan.adv_inp.double', double=1, adv_inp=1, adv_fea=0,
+    #     dataset='stanford_prod',
+    #     log_at=[0, 30, 64, 65, 66],
+    #     # gpu_fix=True, gpu=(0, ),
+    #     gpu=(0, 1, 2),
+    #     batch_size=128, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tcx', mode='',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=range(4), lr_mult=1,
+    #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+    #     # evaluate=True,
+    #     # resume='work/tri.stan.128/model_best.pth',
+    #     impr=0.02,
+    # ),
 ]
 
 # cfg = edict(

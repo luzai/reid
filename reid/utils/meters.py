@@ -17,11 +17,15 @@ class AverageMeter(object):
         self.count = 0
 
     def update(self, val, n=1):
-        if type(val).__module__ == 'numpy':
-            if val.shape == ():
-                val = float(val)
-            else:
-                val = float(val[0])
+        # if type(val).__module__ == 'numpy':
+        #     if val.shape == ():
+        #         val = float(val)
+        #     else:
+        #         val = float(val[0])
+        try:
+            val = float(val)
+        except Exception as inst:
+            print(inst)
         self.val = val
         self.sum += val * n
         self.count += n

@@ -602,6 +602,12 @@ class TriTrainer(object):
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
             input_imgs = inputs.get('img').cuda()
+
+            if self.dbg % 100 == 0:
+                x = vutils.make_grid(
+                    input_imgs, normalize=True, scale_each=True)
+                self.writer.add_image('input', x, self.iter)
+
             input_imgs.requires_grad = True
             targets = inputs.get('pid').cuda()
             if schedule is not None:
@@ -651,7 +657,7 @@ class TriTrainer(object):
                 input_imgs_grad_attached = input_imgs_grad_attached.view(
                     input_imgs_grad_attached.size(0), -1
                 )
-                if self.args.aux =='l1':
+                if self.args.aux == 'l1':
                     grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
                 else:
                     grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
@@ -856,28 +862,7 @@ class XentTrainer(object):
             self.writer = SummaryWriter(logs_at)
         else:
             self.writer = None
-
-    def _parse_data(self, inputs):
-        imgs, npys, fnames, pids = inputs.get('img'), inputs.get('npy'), inputs.get('fname'), inputs.get('pid')
-        cids = inputs.get('cid')
-        inputs = [imgs, npys]
-        inputs = to_variable(inputs, requires_grad=False)
-        targets = to_variable(pids, requires_grad=False)
-        cids = to_variable(cids, requires_grad=False)
-        return inputs, targets, fnames, cids
-
-    def _forward(self, inputs, targets, cids=None):
-        outputs, outputs2 = self.model(*inputs)
-        loss2 = self.criterion(outputs2, targets)
-        prec2, = accuracy(outputs2.data, targets.data)
-        prec2 = prec2[0]
-
-        if self.dbg and self.iter % 10 == 0:
-            self.writer.add_scalar('vis/prec-softmax', prec2, self.iter)
-            self.writer.add_scalar('vis/loss-softmax', loss2, self.iter)
-
-        self.iter += 1
-        return loss2, prec2
+        self.args = args
 
     def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
 
@@ -890,19 +875,83 @@ class XentTrainer(object):
 
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
-            inputs, targets, fnames, cids = self._parse_data(inputs)
+            input_imgs = inputs.get('img').cuda()
+
+            if self.dbg % 100 == 0:
+                x = vutils.make_grid(
+                    input_imgs, normalize=True, scale_each=True)
+                self.writer.add_image('input', x, self.iter)
+            input_imgs.requires_grad = True
+            targets = inputs.get('pid').cuda()
             if schedule is not None:
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
-            loss, prec = self._forward(inputs, targets, cids)
+            features, logits = self.model(input_imgs)
+            loss = self.criterion(logits, targets)
+            prec = accuracy(logits, targets.data)
+            prec = prec[0]
+            if self.dbg and self.iter % 10 == 0:
+                self.writer.add_scalar('vis/prec-softmax', prec, self.iter)
+                self.writer.add_scalar('vis/loss-softmax', loss, self.iter)
+            loss_comb = loss
+
+            if not math.isclose(self.args.adv_inp, 0):
+                input_imgs_grad_attached = torch.autograd.grad(
+                    outputs=loss, inputs=input_imgs,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0]
+                input_imgs_grad = input_imgs_grad_attached.detach()
+                input_imgs.requires_grad = False
+                if self.args.aux == 'l2_norm':
+                    # input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
+                else:
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
+                features_adv, _ = self.model(input_imgs_adv)
+                losst_adv, prect_adv, _ = self.criterion(features_adv, targets)
+                loss_comb += self.args.adv_inp * losst_adv
+                self.writer.add_scalar('vis/loss_adv_inp', losst_adv, self.iter)
+                self.writer.add_scalar('vis/prec_adv_inp', prect_adv, self.iter)
+            if not math.isclose(self.args.double, 0):
+                if math.isclose(self.args.adv_inp, 0):
+                    input_imgs_grad_attached = torch.autograd.grad(
+                        outputs=loss, inputs=input_imgs,
+                        create_graph=True, retain_graph=True,
+                        only_inputs=True
+                    )[0]
+                # input_imgs.requires_grad = False
+                input_imgs_grad_attached = input_imgs_grad_attached.view(
+                    input_imgs_grad_attached.size(0), -1
+                )
+                if self.args.aux == 'l1':
+                    grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
+                else:
+                    grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
+                loss_comb += self.args.double * grad_reg
+                self.writer.add_scalar('vis/grad_reg', grad_reg, self.iter)
+            if not math.isclose(self.args.adv_fea, 0):
+                features_grad = torch.autograd.grad(
+                    outputs=loss, inputs=features,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0].detach()
+                # input_imgs.requires_grad = False
+                assert features_grad.requires_grad is False
+                features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
+                losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
+                loss_comb += self.args.adv_fea * losst_advtrue
+                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue, self.iter)
+
+
             if isinstance(targets, tuple):
                 targets, _ = targets
-            losses.update(to_numpy(loss), targets.size(0))
-            precisions.update(prec, targets.size(0))
+            losses.update(loss.item(), targets.size(0))
+            precisions.update(prec.item(), targets.size(0))
 
             optimizer.zero_grad()
-            loss.backward()
+            loss_comb.backward()
             optimizer.step()
 
             batch_time.update(time.time() - end)

@@ -284,15 +284,20 @@ class Evaluator(object):
             logging.info('start eval')
             timer = lz.Timer()
             if self.conf == 'market1501':
-                # mAP, all_cmc = eval_market1501_wrap(
-                #     distmat, query_ids, gallery_ids, query_cams, gallery_cams,
-                #     max_rank=10)
                 distmat = distmat.astype(np.float16)
-                import  gc
+                del features
+                import gc
                 gc.collect()
-                mAP, all_cmc = eval_market1501(
+
+                print(f'facing {distmat.shape}')
+                # if distmat.shape[0] < 10000:
+                mAP, all_cmc = eval_market1501_wrap(
                     distmat, query_ids, gallery_ids, query_cams, gallery_cams,
                     max_rank=10)
+                # else:
+                #     mAP, all_cmc = eval_market1501(
+                #         distmat, query_ids, gallery_ids, query_cams, gallery_cams,
+                #         max_rank=10)
 
                 res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
             else:
@@ -346,8 +351,12 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     if num_g < max_rank:
         max_rank = num_g
         print("Note: number of gallery samples is quite small, got {}".format(num_g))
-    indices = np.argsort(distmat, axis=1).astype(np.int8)
-    matches = (g_pids[indices] == q_pids[:, np.newaxis]).astype(np.int8)
+    indices = np.argsort(distmat, axis=1)
+    if distmat.shape[0] < 65535:
+        indices = indices.astype(np.uint16)
+    else:
+        indices = indices.astype(np.uint32)
+    matches = (g_pids[indices] == q_pids[:, np.newaxis])
 
     # compute cmc curve for each query
     all_cmc = []

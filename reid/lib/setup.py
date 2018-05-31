@@ -134,16 +134,19 @@ class custom_build_ext(build_ext):
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
+from Cython.Build import cythonize
 
-ext_modules = [Extension("cython_eval",
-                         ["eval.pyx"],
-                         libraries=["m"],
-                         include_dirs=[numpy_include],
-                         extra_compile_args=
-                         ["-ffast-math","-Wno-cpp", "-Wno-unused-function"]
-                         # {'gcc': ["-Wno-cpp", "-Wno-unused-function", "-ffast-math"]}
-                         ),
-               ]
+ext_modules = [
+    Extension("cython_eval",
+              ["eval.pyx"],
+              libraries=["m"],
+              include_dirs=[numpy_include],
+              extra_compile_args=
+              ["-ffast-math", "-Wno-cpp", "-Wno-unused-function"],
+              # {'gcc': ["-Wno-cpp", "-Wno-unused-function", "-ffast-math"]}
+              language='c++',
+              ),
+]
 
 setup(
     name='lib',

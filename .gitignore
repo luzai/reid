@@ -5,7 +5,8 @@
 log*.txt
 work
 eval.c
-
+eval.cpp
+eval.html
 *~
 
 # temporary files which can be created if a process still has a handle open of a deleted file
