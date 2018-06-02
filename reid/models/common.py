@@ -11,7 +11,7 @@ def _make_conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1,
                bias=False, with_relu=True):
     conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
                      stride=stride, padding=padding, bias=bias)
-    init.kaiming_normal(conv.weight, mode='fan_out')
+    init.kaiming_normal_(conv.weight, mode='fan_out')
     if bias:
         init.constant(conv.bias, 0)
 

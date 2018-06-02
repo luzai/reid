@@ -32,9 +32,26 @@ cfgs = [
     #     # resume='work/final.tri.mkt/model_best.pth'
     # ),
 
+    # edict(
+    #     logs_dir='cu03det.mask', double=0, adv_inp=0, adv_fea=0,
+    #     # block_name='SEBottleneck', block_name2='SEBottleneck',
+    #     dataset='cu03det',
+    #     log_at=[0, 30, 64, 65, 66],
+    #     # gpu_fix=True, gpu=(0, 1),
+    #     gpu=(0,),
+    #     batch_size=128, num_instances=4, num_classes=128,
+    #     dropout=0.4, loss='tri', mode='',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=range(4), lr_mult=1,
+    #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1., fusion='maskconcat',
+    #     # evaluate=True,
+    #     # resume='work/cu03det.mask/model_best.pth',
+    # ),
+
     edict(
-        logs_dir='cu03det.se.bak', double=0, adv_inp=0, adv_fea=0,
-        block_name='SEBottleneck', block_name2='SEBottleneck',
+        logs_dir='cu03det.chnl', double=0, adv_inp=0, adv_fea=0,
+        # block_name='SEBottleneck', block_name2='SEBottleneck',
         dataset='cu03det',
         log_at=[0, 30, 64, 65, 66],
         # gpu_fix=True, gpu=(0, 1),
@@ -44,9 +61,9 @@ cfgs = [
         cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
         random_ratio=1, lr_cent=0,
         gpu_range=range(4), lr_mult=1,
-        push_scale=1., embed=None, margin=.5, margin2=1., margin3=1., fusion='concat',
-        evaluate=True,
-        resume='work/cu03det.se/model_best.pth',
+        push_scale=1., embed=None, margin=.5, margin2=1., margin3=1., fusion='channel',
+        # evaluate=True,
+        # resume='work/cu03det.mask/model_best.pth',
     ),
 
     # edict(

@@ -763,11 +763,9 @@ class ResNetMaskCascade(nn.Module):
         )
         self.embed1 = nn.Linear(self.out_planes + 1024 + 512 + 256, self.num_features, bias=False)
         reset_params(self.embed1)
-
         self.embed2 = nn.Linear(self.num_features, self.num_classes, bias=False)
-
         reset_params(self.embed1)
-        reset_params(self.emebd2)
+        reset_params(self.embed2)
 
         if pretrained:
             if 'SE' in block_name or 'SE' in block_name2:
@@ -785,31 +783,142 @@ class ResNetMaskCascade(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        x1 = self.layer1(x)
-        if isinstance(x1, tuple):
-            x1, y1 = x1
-            x2, y2 = self.layer2(x1)
-            x3, y3 = self.layer3(x2)
-            x4, y4 = self.layer4(x3)
+        y1 = self.layer1(x)
+        y2 = self.layer2(y1)
+        y3 = self.layer3(y2)
+        y4 = self.layer4(y3)
 
-            y1 = self.branch1(y1)
-            y2 = self.branch2(y2)
-            y3 = self.branch3(y3)
-            y4 = self.branch4(y4)
+        y1 = self.branch1(y1)
+        y2 = self.branch2(y2)
+        y3 = self.branch3(y3)
+        y4 = self.branch4(y4)
 
-            x4 = torch.cat([y1, y2, y3, y4], dim=1)
-
-        else:
-            x2 = self.layer2(x1)
-            x3 = self.layer3(x2)
-            x4 = self.layer4(x3)
-            x4 = self.post1(x4).view(bs, -1)
+        x4 = torch.cat([y1, y2, y3, y4], dim=1)
 
         x5 = self.post2(x4)
-        x5 = self.embed1(x5)
-        x2 = self.embed2(x5)
+        features = self.embed1(x5)
+        clss = self.embed2(features)
 
-        return x5, x2
+        return features, clss
+
+
+class ResNetChannelCascade(nn.Module):
+    __factory = {
+        '18': [2, 2, 2, 2],
+        '34': [3, 4, 6, 3],
+        '50': [3, 4, 6, 3],
+        '101': [3, 4, 23, 3],
+        '152': [3, 8, 36, 3],
+    }
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        if not isinstance(block, list):
+            block = [block] * blocks
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block[0].expansion:
+            downsample = (self.inplanes, planes * block[0].expansion, stride)
+
+        layers = []
+        layers.append(block[0](self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block[0].expansion
+        for i in range(1, blocks):
+            layers.append(block[i](self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def __init__(self, depth=50, pretrained=True,
+                 num_features=0, dropout=0,
+                 num_classes=0, block_name='Bottleneck',
+                 block_name2='Bottleneck',
+                 num_deform=3,
+                 **kwargs):
+        super(ResNetChannelCascade, self).__init__()
+        depth = str(depth)
+        self.depth = depth
+        self.inplanes = 64
+        self.pretrained = pretrained
+
+        self.dropout = dropout
+        self.num_classes = num_classes
+        self.num_features = num_features
+
+        # Construct base (pretrained) resnet
+        layers = ResNetChannelCascade.__factory[depth]
+        block = eval(block_name)
+        block2 = eval(block_name2)
+        self.out_planes = 512 * block2.expansion
+        logging.info(f'out_planes is {self.out_planes}')
+        self.conv1 = nn.Conv2d(3, 64,
+                               kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        if num_deform > 3:
+            self.layer3 = self._make_layer([block] * 3 + [block2] * (num_deform - 3), 256, layers[2],
+                                           stride=2)
+            self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=2)
+        else:
+            self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
+            self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
+                                           layers[3], stride=2)
+        self.post1 = nn.AdaptiveAvgPool2d(1)
+
+        self.branch1 = SELayer(256)
+        self.branch2 = SELayer(512, )
+        self.branch3 = SELayer(1024, )
+        # self.branch4 = SELayer(2048,)
+
+        self.post2 = nn.Sequential(
+            nn.BatchNorm1d(self.out_planes + 1024 + 512 + 256),
+            nn.ReLU(),
+            nn.Dropout(self.dropout),
+        )
+        self.embed1 = nn.Linear(self.out_planes + 1024 + 512 + 256, self.num_features, bias=False)
+        reset_params(self.embed1)
+        self.embed2 = nn.Linear(self.num_features, self.num_classes, bias=False)
+        reset_params(self.embed1)
+        reset_params(self.embed2)
+
+        if pretrained:
+            if 'SE' in block_name or 'SE' in block_name2:
+                logging.info('load senet')
+                state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
+                    'state_dict']
+                load_state_dict(self, state_dict, own_de_prefix='module.')
+            else:
+                logging.info('load resnet')
+                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+
+    def forward(self, x):
+        bs = x.size(0)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        y1 = self.layer1(x)
+        y2 = self.layer2(y1)
+        y3 = self.layer3(y2)
+        y4 = self.layer4(y3)
+
+        y1, _ = self.branch1(y1, require_y=True)
+        y2, _ = self.branch2(y2, require_y=True)
+        y3, _ = self.branch3(y3, require_y=True)
+        # y4 = self.branch4(y4)
+        y1 = F.adaptive_avg_pool2d(y1, 1).view(bs, -1)
+        y2 = F.adaptive_avg_pool2d(y2, 1).view(bs, -1)
+        y3 = F.adaptive_avg_pool2d(y3, 1).view(bs, -1)
+        y4 = F.adaptive_avg_pool2d(y4, 1).view(bs, -1)
+
+        x4 = torch.cat([y1, y2, y3, y4], dim=1)
+
+        x5 = self.post2(x4)
+        features = self.embed1(x5)
+        clss = self.embed2(features)
+
+        return features, clss
 
 
 class ResNetCascade(nn.Module):
@@ -934,6 +1043,8 @@ def resnet50(**kwargs):
         return ResNetMaskCascade(50, **kwargs)
     elif fusion == 'concat':
         return ResNetCascade(50, **kwargs)
+    elif fusion == 'channel':
+        return ResNetChannelCascade(50, **kwargs)
     elif fusion == 'sum':
         raise ValueError('not implement')
     else:
