@@ -904,16 +904,12 @@ class XentTrainer(object):
                 )[0]
                 input_imgs_grad = input_imgs_grad_attached.detach()
                 input_imgs.requires_grad = False
-                if self.args.aux == 'l2_norm':
-                    # input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
-                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
-                else:
-                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
-                features_adv, _ = self.model(input_imgs_adv)
-                losst_adv, prect_adv, _ = self.criterion(features_adv, targets)
+                input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
+                features_adv, logits_adv = self.model(input_imgs_adv)
+                losst_adv = self.criterion(logits_adv, targets)
                 loss_comb += self.args.adv_inp * losst_adv
                 self.writer.add_scalar('vis/loss_adv_inp', losst_adv, self.iter)
-                self.writer.add_scalar('vis/prec_adv_inp', prect_adv, self.iter)
+                # self.writer.add_scalar('vis/prec_adv_inp', prect_adv, self.iter)
             if not math.isclose(self.args.double, 0):
                 if math.isclose(self.args.adv_inp, 0):
                     input_imgs_grad_attached = torch.autograd.grad(
@@ -943,7 +939,6 @@ class XentTrainer(object):
                 losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
                 loss_comb += self.args.adv_fea * losst_advtrue
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue, self.iter)
-
 
             if isinstance(targets, tuple):
                 targets, _ = targets

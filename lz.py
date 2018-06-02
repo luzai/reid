@@ -456,7 +456,7 @@ def mail(content, ):
         msg.attach(MIMEText(content, 'plain'))
         s.sendmail(msg['From'], msg['To'], msg.as_string())
 
-    title = content[:6]
+    title = 'ps: ' + content.split('\r\n')[0]
     content = time_str + '\r\n' + content
     send(content=content, title=title)
     s.quit()

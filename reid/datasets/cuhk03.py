@@ -1,7 +1,4 @@
-import os.path as osp
-
-import numpy as np
-
+from lz import *
 from reid.utils.data import Dataset
 from reid.utils.serialization import write_json, read_json
 
@@ -138,5 +135,5 @@ class CUHK03(Dataset):
 if __name__ == '__main__':
     CUHK03('/home/xinglu/.torch/data/cuhk03', mode='label')
     CUHK03('/home/xinglu/.torch/data/cuhk03', mode='detect')
-    CUHK03('/home/xinglu/.torch/data/cuhk03', mode='combine')
+    # CUHK03('/home/xinglu/.torch/data/cuhk03', mode='combine')
 

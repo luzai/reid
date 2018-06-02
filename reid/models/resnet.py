@@ -90,7 +90,7 @@ class Bottleneck(nn.Module):
         out += residual
         out = self.relu(out)
 
-        return out, out
+        return out
 
 
 def reset_params(module, zero=False):
@@ -185,11 +185,6 @@ class SELayer(nn.Module):
         )
         self.mult = mult
 
-    #     self.reset_params()
-    #
-    # def reset_params(self):
-    #     pass
-
     def forward(self, x, require_y=False):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
@@ -269,7 +264,7 @@ class SEBottleneck(nn.Module):
             self.downsample = None
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x, require_y=True):
         if isinstance(x, tuple):
             x, last = x
         residual = x
@@ -290,10 +285,13 @@ class SEBottleneck(nn.Module):
             residual = self.downsample(x)
         out += residual
         out = self.relu(out)
+        if require_y:
+            return out, last
+        else:
+            return out
 
-        return out, last
 
-
+'''
 class XSEXFXBottleneck(nn.Module):
     expansion = 4
 
@@ -564,6 +562,7 @@ class SERIRBasicBlock(nn.Module):
                                out[1] + out[3])
         residual, transient = map(self.relu, (residual, transient))
         return torch.cat((residual, transient), dim=1).contiguous()
+'''
 
 
 class ResNetOri(nn.Module):
@@ -637,7 +636,6 @@ class ResNetOri(nn.Module):
             self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
             self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
                                            layers[3], stride=2)
-        self.post1 = nn.AdaptiveAvgPool2d(1)
 
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
@@ -662,33 +660,24 @@ class ResNetOri(nn.Module):
 
     def forward(self, x):
         if len(x.shape) == 3:
-            x.shape
             x = x.view(1, 3, 256, 128)
         bs = x.size(0)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        x1 = self.layer1(x)
-        if isinstance(x1, tuple):
-            x1, y1 = x1
-            x2, y2 = self.layer2(x1)
-            x3, y3 = self.layer3(x2)
-            x4, y4 = self.layer4(x3)
-            x4 = self.post1(x4).view(bs, -1)
 
-        else:
-            x2 = self.layer2(x1)
-            x3 = self.layer3(x2)
-            x4 = self.layer4(x3)
-            x4 = self.post1(x4).view(bs, -1)
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+        x4 = F.adaptive_avg_pool2d(x4, 1).view(bs, -1)
 
         x5 = self.post2(x4)
-        x5 = self.embed1(x5)
-        x2 = self.embed2(x5)
+        features = self.embed1(x5)
+        clss = self.embed2(features)
 
-        return x5  , x2
-        #  todo !
+        return features, clss
 
 
 from reid.models.attention import MaskBranch
@@ -853,19 +842,16 @@ class ResNetCascade(nn.Module):
         return nn.Sequential(*layers)
 
     def __init__(self, depth=50, pretrained=True,
-                 cut_at_pooling=False,
                  num_features=0, dropout=0,
                  num_classes=0, block_name='Bottleneck',
                  block_name2='Bottleneck',
-                 num_deform=3, fusion=None,  # 'sum' , 'concat'
+                 num_deform=3,
                  **kwargs):
         super(ResNetCascade, self).__init__()
         depth = str(depth)
         self.depth = depth
-        self.fusion = fusion
         self.inplanes = 64
         self.pretrained = pretrained
-        self.cut_at_pooling = cut_at_pooling
 
         self.dropout = dropout
         self.num_classes = num_classes
@@ -895,43 +881,17 @@ class ResNetCascade(nn.Module):
             self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
             self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
                                            layers[3], stride=2)
-        self.post1 = nn.Sequential(
-            # nn.BatchNorm2d(self.out_planes),
-            # nn.ReLU(),
-            # nn.Dropout2d(self.dropout),
-            nn.AdaptiveAvgPool2d(1),
+
+        num_in = self.out_planes + self.out_planes // 2 + self.out_planes // 4 + self.out_planes // 8
+        self.post2 = nn.Sequential(
+            nn.BatchNorm1d(num_in),
+            nn.ReLU(),
+            nn.Dropout(self.dropout),
         )
+        self.embed1 = nn.Linear(num_in, self.num_features, bias=False)
+        reset_params(self.embed1)
 
-        if self.fusion == 'concat':
-            num_in = self.out_planes + self.out_planes // 2 + self.out_planes // 4 + self.out_planes // 8
-            self.post2 = nn.Sequential(
-                nn.BatchNorm1d(num_in),
-                nn.ReLU(),
-                nn.Dropout(self.dropout),
-            )
-            self.embed1 = nn.Linear(num_in, self.num_features, bias=False)
-            reset_params(self.embed1)
-
-        elif self.fusion == 'sum':
-            def get_embed(inchannels, out):
-                return nn.Sequential(
-                    nn.BatchNorm1d(inchannels),
-                    nn.ReLU(),
-                    nn.Linear(inchannels, out)
-                )
-
-            self.embed01 = get_embed(self.out_planes // 8, self.num_features)
-            self.embed02 = get_embed(self.out_planes // 4, self.num_features)
-            self.embed03 = get_embed(self.out_planes // 2, self.num_features)
-            self.embed04 = get_embed(self.out_planes, self.num_features)
-            self.embed_weight = nn.Parameter(
-                torch.tensor([0, 0, 0, 1.])
-            )
-            reset_params([self.embed1, self.embed2, self.embed3, self.embed4])
-        else:
-            raise ValueError('fusion unknown')
         self.embed2 = nn.Linear(self.num_features, self.num_classes, bias=False)
-
         reset_params(self.embed2)
 
         if pretrained:
@@ -950,45 +910,32 @@ class ResNetCascade(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        x1 = self.layer1(x)
-        if isinstance(x1, tuple):
-            x1, y1 = x1
-            x2, y2 = self.layer2(x1)
-            x3, y3 = self.layer3(x2)
-            x4, y4 = self.layer4(x3)
-            x4 = self.post1(x4).view(bs, -1)
 
-            y1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
-            y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
-            y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
-        else:
-            x2 = self.layer2(x1)
-            x3 = self.layer3(x2)
-            x4 = self.layer4(x3)
-            x4 = self.post1(x4).view(bs, -1)
+        x1, y1 = self.layer1(x)
+        x2, y2 = self.layer2(x1)
+        x3, y3 = self.layer3(x2)
+        x4, y4 = self.layer4(x3)
+        y1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
+        y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
+        y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
+        x4 = F.adaptive_avg_pool2d(x4, 1).view(bs, -1)
+        x5 = torch.cat((y1, y2, y3, x4), dim=1)
 
-        if self.fusion == 'concat':
-            x5 = torch.cat((y1, y2, y3, x4), dim=1)
-            x5 = self.post2(x5)
-            x5 = self.embed1(x5)
-        elif self.fusion == 'sum':
-            x5 = self.embed_weight[0] * self.embed01(y1) + \
-                 self.embed_weight[1] * self.embed02(y2) + \
-                 self.embed_weight[2] * self.embed03(y3) + \
-                 self.embed_weight[3] * self.embed04(x4)
-        else:
-            raise ValueError('uknown')
-        x2 = self.embed2(x5)
+        x5 = self.post2(x5)
+        features = self.embed1(x5)
+        clss = self.embed2(features)
 
-        return x5, x2
+        return features, clss
 
 
 def resnet50(**kwargs):
     fusion = kwargs.get('fusion')
     if fusion == 'maskconcat':
         return ResNetMaskCascade(50, **kwargs)
-    elif fusion == 'concat' or fusion == 'sum':
+    elif fusion == 'concat':
         return ResNetCascade(50, **kwargs)
+    elif fusion == 'sum':
+        raise ValueError('not implement')
     else:
         return ResNetOri(50, **kwargs)
 
