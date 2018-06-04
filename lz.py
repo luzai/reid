@@ -528,16 +528,14 @@ def to_torch(ndarray):
     return ndarray
 
 
-def to_variable(tn, **kwargs):
+def to_variable(tn, volatile=False, requires_grad=False, cuda=False, **kwargs):
     if tn is None:
         return None
     if isinstance(tn, collections.Sequence):
         return [to_variable(tn_, **kwargs) for tn_ in tn if tn_ is not None]
     tn = to_torch(tn)
-    if torch.cuda.is_available():
+    if cuda and torch.cuda.is_available():
         tn = tn.cuda()
-    volatile = kwargs.get('volatile', False)
-    requires_grad = kwargs.get('requires_grad', False)
     if not volatile or requires_grad:
         tn.requires_grad = True
         return tn

@@ -54,15 +54,18 @@ cpdef eval_market1501_wrap(distmat,
         q_camids,
         g_camids,
         max_rank):
-    distmat = np.asarray(distmat,dtype = np.float32)
-    q_pids = np.asarray(q_pids, dtype = np.int64)
-    g_pids = np.asarray(g_pids , dtype = np.int64)
+    distmat = np.asarray(distmat,dtype=np.float32)
+    q_pids = np.asarray(q_pids, dtype=np.int64)
+    g_pids = np.asarray(g_pids , dtype=np.int64)
     q_camids=np.asarray(q_camids,dtype=np.int64)
     g_camids=np.asarray(g_camids, dtype=np.int64)
     return eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank)
 
 ctypedef unsigned short my_int
 my_npint = np.uint16
+# If the size of gallery exceed 65535, uncomment the following.
+# ctypedef unsigned int my_int
+# my_npint = np.uint32
 
 cpdef eval_market1501(
         float[:,:] distmat,
@@ -81,15 +84,15 @@ cpdef eval_market1501(
         print("Note: number of gallery samples is quite small, got {}".format(num_g))
 
     tic = time.time()
-    cdef    my_int[:,:] indices = np.argsort(distmat, axis=1).astype(my_npint)
+    cdef my_int[:,:] indices = np.argsort(distmat, axis=1).astype(my_npint)
     print('time indices', time.time()-tic)
     tic = time.time()
-    cdef    bool_t[:,:] matches = (np.asarray(g_pids)[np.asarray(indices)] == np.asarray(q_pids)[:, np.newaxis]).astype(np.uint8)
+    cdef bool_t[:,:] matches = (np.asarray(g_pids)[np.asarray(indices)] == np.asarray(q_pids)[:, np.newaxis]).astype(np.uint8)
     print('time matches', time.time()-tic)
     tic = time.time()
-    cdef   float[:,:] all_cmc = np.empty((num_q,max_rank),dtype=np.float32)
+    cdef float[:,:] all_cmc = np.empty((num_q,max_rank),dtype=np.float32)
     print('time all_cmc', time.time()-tic)
-    cdef   float[:] all_AP = np.zeros(num_q,dtype=np.float32)
+    cdef float[:] all_AP = np.zeros(num_q,dtype=np.float32)
 
     cdef:
         my_int q_pid, q_camid
@@ -148,10 +151,7 @@ cpdef eval_market1501(
         # print('tmp_cmc', np.asarray(tmp_cmc).tolist())
 
         tmp_cmc_sum=my_sum(tmp_cmc,num_orig_cmc)
-        if num_rel<1e-31:
-            all_AP[q_idx] =0
-        else:
-            all_AP[q_idx] = tmp_cmc_sum / num_rel
+        all_AP[q_idx] = tmp_cmc_sum / num_rel
         # print('final',tmp_cmc_sum, num_rel, tmp_cmc_sum / num_rel,'\n')
 
     assert num_valid_q > 0, "Error: all query identities do not appear in gallery"

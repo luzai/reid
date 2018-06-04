@@ -891,33 +891,55 @@ class XentTrainer(object):
             loss = self.criterion(logits, targets)
             prec = accuracy(logits, targets.data)
             prec = prec[0]
+            if isinstance(targets, tuple):
+                targets, _ = targets
+            losses.update(loss.item(), targets.size(0))
+            precisions.update(prec.item(), targets.size(0))
             if self.dbg and self.iter % 10 == 0:
-                self.writer.add_scalar('vis/prec-softmax', prec, self.iter)
-                self.writer.add_scalar('vis/loss-softmax', loss, self.iter)
+                self.writer.add_scalar('vis/prec-softmax', prec.item(), self.iter)  # todo all to item()
+                self.writer.add_scalar('vis/loss-softmax', loss.item(), self.iter)
             loss_comb = loss
 
-            if not math.isclose(self.args.adv_inp, 0):
+            if not math.isclose(self.args.adv_inp, 0) and self.args.double == 0:
+                # input_imgs_grad_attached = torch.autograd.grad(
+                #     outputs=loss, inputs=input_imgs,
+                #     create_graph=True, retain_graph=True,
+                #     only_inputs=True
+                # )[0]
+                # input_imgs_grad = input_imgs_grad_attached.detach()
+                # input_imgs.requires_grad = False
+                # input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
+                # features_adv, logits_adv = self.model(input_imgs_adv)
+                # losst_adv = self.criterion(logits_adv, targets)
+                # loss_comb += self.args.adv_inp * losst_adv
+                # self.writer.add_scalar('vis/loss_adv_inp', losst_adv, self.iter)
+                # # self.writer.add_scalar('vis/prec_adv_inp', prect_adv, self.iter)
+
+                # optimizer.zero_grad()
+                # loss_comb.backward()
+                # optimizer.step()
+
+                optimizer.zero_grad()
+                loss.backward()
+                # optimizer.step()
+
+                input_imgs_grad = input_imgs.grad.detach()
+                # input_imgs.requires_grad_(False)
+                input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
+                features_adv, logits_adv = self.model(input_imgs_adv)
+                losst_adv = self.criterion(logits_adv, targets)
+                # optimizer.zero_grad()
+                (self.args.adv_inp * losst_adv).backward()
+                optimizer.step()
+
+            elif not math.isclose(self.args.double, 0) and self.args.adv_inp == 0:
+                optimizer.zero_grad()
+                loss.backward(retain_graph=True)
                 input_imgs_grad_attached = torch.autograd.grad(
                     outputs=loss, inputs=input_imgs,
                     create_graph=True, retain_graph=True,
                     only_inputs=True
                 )[0]
-                input_imgs_grad = input_imgs_grad_attached.detach()
-                input_imgs.requires_grad = False
-                input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
-                features_adv, logits_adv = self.model(input_imgs_adv)
-                losst_adv = self.criterion(logits_adv, targets)
-                loss_comb += self.args.adv_inp * losst_adv
-                self.writer.add_scalar('vis/loss_adv_inp', losst_adv, self.iter)
-                # self.writer.add_scalar('vis/prec_adv_inp', prect_adv, self.iter)
-            if not math.isclose(self.args.double, 0):
-                if math.isclose(self.args.adv_inp, 0):
-                    input_imgs_grad_attached = torch.autograd.grad(
-                        outputs=loss, inputs=input_imgs,
-                        create_graph=True, retain_graph=True,
-                        only_inputs=True
-                    )[0]
-                # input_imgs.requires_grad = False
                 input_imgs_grad_attached = input_imgs_grad_attached.view(
                     input_imgs_grad_attached.size(0), -1
                 )
@@ -925,9 +947,45 @@ class XentTrainer(object):
                     grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
                 else:
                     grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
-                loss_comb += self.args.double * grad_reg
-                self.writer.add_scalar('vis/grad_reg', grad_reg, self.iter)
-            if not math.isclose(self.args.adv_fea, 0):
+                (self.args.double * grad_reg).backward()
+                # loss_comb += self.args.double * grad_reg
+
+                self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
+                # loss_comb.backward()
+                optimizer.step()
+            elif self.args.double != 0 and self.args.adv_inp != 0:
+                optimizer.zero_grad()
+                # loss.backward(retain_graph=True)
+
+                input_imgs_grad_attached = torch.autograd.grad(
+                    outputs=loss, inputs=input_imgs,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0]
+
+                input_imgs_grad = input_imgs_grad_attached.detach()
+                input_imgs_grad_attached = input_imgs_grad_attached.view(
+                    input_imgs_grad_attached.size(0), -1
+                )
+                if self.args.aux == 'l1':
+                    grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
+                else:
+                    grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
+                # (self.args.double * grad_reg).backward()
+                (loss+self.args.double*grad_reg).backward()
+                self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
+
+                # input_imgs.requires_grad_(False)
+                input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
+                features_adv, logits_adv = self.model(input_imgs_adv)
+                losst_adv = self.criterion(logits_adv, targets)
+                (self.args.adv_inp * losst_adv).backward()
+                # (loss + self.args.double * grad_reg + self.args.adv_inp * losst_adv).backward()
+                self.writer.add_scalar('vis/loss_adv_inp', losst_adv.item(), self.iter)
+                optimizer.step()
+
+            elif not math.isclose(self.args.adv_fea, 0):
+                optimizer.zero_grad()
                 features_grad = torch.autograd.grad(
                     outputs=loss, inputs=features,
                     create_graph=True, retain_graph=True,
@@ -938,17 +996,12 @@ class XentTrainer(object):
                 features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
                 losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
                 loss_comb += self.args.adv_fea * losst_advtrue
-                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue, self.iter)
-
-            if isinstance(targets, tuple):
-                targets, _ = targets
-            losses.update(loss.item(), targets.size(0))
-            precisions.update(prec.item(), targets.size(0))
-
-            optimizer.zero_grad()
-            loss_comb.backward()
-            optimizer.step()
-
+                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
+                optimizer.step()
+            else:
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
             batch_time.update(time.time() - end)
             end = time.time()
 

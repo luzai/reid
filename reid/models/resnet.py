@@ -779,26 +779,29 @@ class ResNetMaskCascade(nn.Module):
 
     def forward(self, x):
         bs = x.size(0)
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-        y1 = self.layer1(x)
-        y2 = self.layer2(y1)
-        y3 = self.layer3(y2)
-        y4 = self.layer4(y3)
+        x0 = self.conv1(x)
+        x0 = self.bn1(x0)
+        x0 = self.relu(x0)
+        x0 = self.maxpool(x0)
+        x1 = self.layer1(x0)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
 
-        y1 = self.branch1(y1)
-        y2 = self.branch2(y2)
-        y3 = self.branch3(y3)
-        y4 = self.branch4(y4)
+        y1, z1 = self.branch1(x1)
+        y2, z2 = self.branch2(x2)
+        y3, z3 = self.branch3(x3)
+        y4, z4 = self.branch4(x4)
 
-        x4 = torch.cat([y1, y2, y3, y4], dim=1)
+        x5 = torch.cat([y1, y2, y3, y4], dim=1)
+        x5 = self.post2(x5)
 
-        x5 = self.post2(x4)
         features = self.embed1(x5)
         clss = self.embed2(features)
 
+        # with Database('vis.h5') as db:
+        #     for name in ['x', 'x1', 'x2', 'x3', 'x4', 'z1', 'z2', 'z3', 'z4']:
+        #         db[name] = to_numpy(eval(name))
         return features, clss
 
 
@@ -869,7 +872,7 @@ class ResNetChannelCascade(nn.Module):
         self.branch1 = SELayer(256)
         self.branch2 = SELayer(512, )
         self.branch3 = SELayer(1024, )
-        # self.branch4 = SELayer(2048,)
+        self.branch4 = SELayer(2048, )
 
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes + 1024 + 512 + 256),
@@ -894,30 +897,33 @@ class ResNetChannelCascade(nn.Module):
 
     def forward(self, x):
         bs = x.size(0)
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-        y1 = self.layer1(x)
-        y2 = self.layer2(y1)
-        y3 = self.layer3(y2)
-        y4 = self.layer4(y3)
+        x0 = self.conv1(x)
+        x0 = self.bn1(x0)
+        x0 = self.relu(x0)
+        x0 = self.maxpool(x0)
+        x1 = self.layer1(x0)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
 
-        y1, _ = self.branch1(y1, require_y=True)
-        y2, _ = self.branch2(y2, require_y=True)
-        y3, _ = self.branch3(y3, require_y=True)
-        # y4 = self.branch4(y4)
+        y1, z1 = self.branch1(x1, require_y=True)
+        y2, z2 = self.branch2(x2, require_y=True)
+        y3, z3 = self.branch3(x3, require_y=True)
+        y4, z4 = self.branch4(x4, require_y=True)
         y1 = F.adaptive_avg_pool2d(y1, 1).view(bs, -1)
         y2 = F.adaptive_avg_pool2d(y2, 1).view(bs, -1)
         y3 = F.adaptive_avg_pool2d(y3, 1).view(bs, -1)
         y4 = F.adaptive_avg_pool2d(y4, 1).view(bs, -1)
 
-        x4 = torch.cat([y1, y2, y3, y4], dim=1)
+        x5 = torch.cat([y1, y2, y3, y4], dim=1)
 
-        x5 = self.post2(x4)
+        x5 = self.post2(x5)
         features = self.embed1(x5)
         clss = self.embed2(features)
 
+        # with Database('vis2.h5') as db:
+        #     for name in ['x', 'x1', 'x2', 'x3', 'x4', 'z1', 'z2', 'z3', 'z4']:
+        #         db[name] = to_numpy(eval(name))
         return features, clss
 
 
@@ -1042,11 +1048,12 @@ def resnet50(**kwargs):
     if fusion == 'maskconcat':
         return ResNetMaskCascade(50, **kwargs)
     elif fusion == 'concat':
-        return ResNetCascade(50, **kwargs)
+        # return ResNetCascade(50, **kwargs)
+        raise NotImplementedError()
     elif fusion == 'channel':
         return ResNetChannelCascade(50, **kwargs)
     elif fusion == 'sum':
-        raise ValueError('not implement')
+        raise NotImplementedError('not implement')
     else:
         return ResNetOri(50, **kwargs)
 

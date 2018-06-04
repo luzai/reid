@@ -9,7 +9,7 @@ from reid.models.common import _make_fc, _make_conv
 
 
 class MaskBranch(nn.Module):
-    def __init__(self, in_planes, branch_dim=None, height=64, width=32, dopout=0):
+    def __init__(self, in_planes, branch_dim=None, height=64, width=32, dopout=0.):
         super(MaskBranch, self).__init__()
         self.height = height
         self.width = width
@@ -30,7 +30,7 @@ class MaskBranch(nn.Module):
         x_merge = x_merge.view(x_merge.size(0), -1)
         if self.branch_dim:
             x_merge = self.fc(x_merge)
-        return x_merge
+        return x_merge, x_left
 
 
 class Mask(nn.Module):
