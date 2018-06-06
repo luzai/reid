@@ -42,9 +42,11 @@ class Preprocessor(object):
         res['pid'] = pid
         res['cid'] = cid
 
-        # fpath2 = '/home/xinglu/prj/openpose/cu.out/' + fname.split('.')[0] + '_rendered.png'
-        # fpath3 = '/home/xinglu/.torch/data/cuhk03/label/npy/' + fname.split('.')[0] + '.npy'
         fpath = fname
+        # if np.random.rand()>.5:
+        #     fpath = '/home/xinglu/Nextcloud/1.jpg'
+        # else:
+        #     fpath = '/home/xinglu/Nextcloud/2.jpg'
         if not osp.exists(fpath) and self.root is not None:
             fpath = osp.join(self.root, fpath)
         # if fpath in self.cache:

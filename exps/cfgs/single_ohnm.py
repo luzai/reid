@@ -7,8 +7,8 @@ sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 from lz import *
 
 no_proc = False
-# parallel = True
-parallel = False
+parallel = True
+# parallel = False
 
 cfgs = [
     # edict(
@@ -67,7 +67,8 @@ cfgs = [
     # ),
 
     edict(
-        logs_dir='mkt.xent.smthTrue.adv.bak', double=0, adv_inp=0, adv_fea=0, adv_inp_eps=.03,
+        logs_dir='Cmkt.xent.res101', double=0, adv_inp=0, adv_fea=0, adv_inp_eps=.5,
+        arch='resnet101',
         dataset='mkt', xent_smooth=True,
         log_at=[0, 30, 64, 65, 66], lr_mult=10.,
         # gpu_fix=True, gpu=(0, 1),
@@ -78,8 +79,9 @@ cfgs = [
         random_ratio=1, lr_cent=0,
         gpu_range=range(4),
         push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-        impr=0.02,
+        # impr=0.02,
     ),
+
     # edict(
     #     logs_dir='tri.dep.adv_inp.l2_norm', double=0, adv_inp=1, adv_fea=0, adv_inp_eps=.3,
     #     aux='l2_norm',
@@ -199,6 +201,33 @@ cfgs = [
     # ),
 ]
 # cfg = edict(
+#     logs_dir='Bmkt.xent.smthFalse.adv', double=0, adv_inp=1, adv_fea=0, adv_inp_eps=.5,
+#     dataset='mkt', xent_smooth=False,
+#     log_at=[0, 30, 64, 65, 66], lr_mult=10.,
+#     # gpu_fix=True, gpu=(0, 1),
+#     gpu=(0, ),
+#     batch_size=128, num_instances=4, num_classes=128,
+#     dropout=0, loss='xent', mode='',
+#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+#     random_ratio=1, lr_cent=0,
+#     gpu_range=range(4),
+#     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+#     impr=0.02,
+# )
+# for l, adv_inp_eps in grid_iter(
+#         ['l2_adv',
+#          # 'linf_adv',
+#          'nol'
+#          ],
+#         [.05, .5, ],
+# ):
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.adv_inp_eps = adv_inp_eps
+#     cfg_t.aux = l
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.eps{adv_inp_eps}.{l}'
+#     cfgs.append(cfg_t)
+
+# cfg = edict(
 #     logs_dir='mkt.xent', double=1, adv_inp=1, adv_fea=0,
 #     dataset='mkt', xent_smooth=True,
 #     log_at=[0, 30, 64, 65, 66], lr_mult=10.,
@@ -226,7 +255,8 @@ cfgs = [
 #     cfgs.append(cfg_t)
 
 base = edict(
-    aux='', impr=0.,
+    aux='',  # l1_grad l2_adv linf_adv
+    impr=0.,
     double=0, adv_inp=0, adv_fea=0,
     adv_inp_eps=.3, adv_fea_eps=.3,
     optimizer_cent='adam', topk=5, test_best=True,

@@ -575,8 +575,8 @@ class ResNetOri(nn.Module):
     }
 
     def _make_layer(self, block, planes, blocks, stride=1):
-        if not isinstance(block, list):
-            block = [block] * blocks
+        # if not isinstance(block, list):
+        #     block = [block] * blocks
         downsample = None
         if stride != 1 or self.inplanes != planes * block[0].expansion:
             downsample = (self.inplanes, planes * block[0].expansion, stride)
@@ -628,14 +628,9 @@ class ResNetOri(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        if num_deform > 3:
-            self.layer3 = self._make_layer([block] * 3 + [block2] * (num_deform - 3), 256, layers[2],
-                                           stride=2)
-            self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=2)
-        else:
-            self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
-            self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
-                                           layers[3], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2],
+                                       stride=2)
+        self.layer4 = self._make_layer(block2, 512, layers[3], stride=2)
 
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
@@ -921,9 +916,9 @@ class ResNetChannelCascade(nn.Module):
         features = self.embed1(x5)
         clss = self.embed2(features)
 
-        # with Database('vis2.h5') as db:
-        #     for name in ['x', 'x1', 'x2', 'x3', 'x4', 'z1', 'z2', 'z3', 'z4']:
-        #         db[name] = to_numpy(eval(name))
+        with Database('vis3.h5') as db:
+            for name in ['x', 'x1', 'x2', 'x3', 'x4', 'z1', 'z2', 'z3', 'z4']:
+                db[name] = to_numpy(eval(name))
         return features, clss
 
 
@@ -1056,6 +1051,10 @@ def resnet50(**kwargs):
         raise NotImplementedError('not implement')
     else:
         return ResNetOri(50, **kwargs)
+
+
+def resnet101(**kwargs):
+    return ResNetOri(101, **kwargs)
 
 
 def resnet34(**kwargs):
