@@ -575,8 +575,8 @@ class ResNetOri(nn.Module):
     }
 
     def _make_layer(self, block, planes, blocks, stride=1):
-        # if not isinstance(block, list):
-        #     block = [block] * blocks
+        if not isinstance(block, list):
+            block = [block] * blocks
         downsample = None
         if stride != 1 or self.inplanes != planes * block[0].expansion:
             downsample = (self.inplanes, planes * block[0].expansion, stride)

@@ -279,6 +279,336 @@ def update_dop_center(dist, dop_info):
     dop_info.dop = dop
 
 
+class TriTrainer(object):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
+        self.model = model
+        self.criterion = criterion[0]
+        self.args = args
+        self.dop_info = dop_info  # deprecated
+        self.iter = 0
+        self.dbg = dbg
+        if dbg:
+            mkdir_p(logs_at, delete=True)
+            self.writer = SummaryWriter(logs_at)
+        else:
+            self.writer = None
+
+    def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
+        batch_time = AverageMeter()
+        data_time = AverageMeter()
+        losses = AverageMeter()
+        precisions = AverageMeter()
+
+        end = time.time()
+
+        for i, inputs in enumerate(data_loader):
+            data_time.update(time.time() - end)
+            input_imgs = inputs.get('img').cuda()
+
+            if self.dbg % 100 == 0:
+                x = vutils.make_grid(
+                    input_imgs, normalize=True, scale_each=True)
+                self.writer.add_image('input', x, self.iter)
+
+            input_imgs.requires_grad_(True)
+            targets = inputs.get('pid').cuda()
+            if schedule is not None:
+                schedule.batch_step()
+            self.lr = optimizer.param_groups[0]['lr']
+            self.model.train()
+
+            features, logits = self.model(input_imgs)
+            losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
+            # losst is triplet loss
+
+            self.writer.add_scalar('vis/loss-triplet', losst, self.iter)
+            self.writer.add_scalar('vis/prec-triplet', prect, self.iter)
+            self.writer.add_scalar('vis/lr', self.lr, self.iter)
+            self.iter += 1
+
+            if isinstance(targets, tuple):
+                targets, _ = targets
+            losses.update((losst.item()), targets.size(0))
+            precisions.update((prect.item()), targets.size(0))
+
+            if self.args.adv_inp != 0 and self.args.double == 0:
+                optimizer.zero_grad()
+                losst.backward()
+
+                input_imgs_grad = input_imgs.grad.detach()
+                input_imgs.requires_grad_(False)
+                if self.args.aux == 'l2_adv':
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
+                elif self.args.aux == 'linf_adv':
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
+                else:
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
+                features_adv, logits_adv = self.model(input_imgs_adv)
+                losst_adv = self.criterion(logits_adv, targets)
+                (self.args.adv_inp * losst_adv).backward()
+                optimizer.step()
+            elif self.args.double != 0 and self.args.adv_inp == 0:
+                optimizer.zero_grad()
+                losst.backward(retain_graph=True)
+                input_imgs_grad_attached = torch.autograd.grad(
+                    outputs=losst, inputs=input_imgs,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0]
+                input_imgs_grad_attached = input_imgs_grad_attached.view(
+                    input_imgs_grad_attached.size(0), -1
+                )
+                if self.args.aux == 'l1_grad':
+                    grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
+                else:
+                    grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
+                (self.args.double * grad_reg).backward()
+                self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
+                optimizer.step()
+            elif self.args.double != 0 and self.args.adv_inp != 0:
+                optimizer.zero_grad()
+
+                input_imgs_grad_attached = torch.autograd.grad(
+                    outputs=losst, inputs=input_imgs,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0]
+
+                input_imgs_grad = input_imgs_grad_attached.detach()
+                input_imgs_grad_attached = input_imgs_grad_attached.view(
+                    input_imgs_grad_attached.size(0), -1
+                )
+                if self.args.aux == 'l1_grad':
+                    grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
+                else:
+                    grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
+                (losst + self.args.double * grad_reg).backward()
+                self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
+
+                # input_imgs.requires_grad_(False)
+                if self.args.aux == 'l2_adv':
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
+                elif self.args.aux == 'linf_adv':
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
+                else:
+                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
+                features_adv, logits_adv = self.model(input_imgs_adv)
+                losst_adv = self.criterion(logits_adv, targets)
+                (self.args.adv_inp * losst_adv).backward()
+                self.writer.add_scalar('vis/loss_adv_inp', losst_adv.item(), self.iter)
+                optimizer.step()
+            elif self.args.adv_fea != 0:
+                # method 1
+                optimizer.zero_grad()
+                features_grad = torch.autograd.grad(
+                    outputs=losst, inputs=features,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0].detach()
+                # input_imgs.requires_grad = False
+                assert features_grad.requires_grad is False
+                features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
+                losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
+                (losst + self.args.adv_fea * losst_advtrue).backard()
+                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
+                optimizer.step()
+                # todo method 2
+            else:
+                optimizer.zero_grad()
+                losst.backward()
+                optimizer.step()
+
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if (i + 1) % print_freq == 0:
+                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
+                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
+                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
+                      f'loss {losses.val:.2f}/{losses.avg:.2f}  '
+                      f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
+                      )
+            # break
+        return collections.OrderedDict({
+            'ttl-time': batch_time.avg,
+            'data-time': data_time.avg,
+            'loss_tri': losses.avg,
+            'prec_tri': precisions.avg,
+        })
+
+
+def l2_normalize(x):
+    shape = x.size()
+    x = x.view(shape[0], -1)
+    x /= x.norm(p=2, dim=1, keepdim=True)
+    return x.view(shape)
+
+
+'''
+
+class TCXTrainer(object):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
+        self.model = model
+        self.crit_tri = criterion[0]
+        self.crit_cent = criterion[1]
+        self.crit_xent = criterion[2]
+        self.iter = 0
+        self.dbg = dbg
+        self.cls_weight = args.cls_weight
+        self.tri_weight = args.tri_weight
+        self.weight_cent = args.weight_cent
+        self.args = args
+        self.dop_info = dop_info
+        if dbg:
+            mkdir_p(logs_at, delete=True)
+            self.writer = SummaryWriter(logs_at)
+        else:
+            self.writer = None
+
+    def _forward(self, inputs, targets, cids=None):
+        _zero = torch.zeros(1).cuda()
+
+        out_embed, out_cls = self.model(*inputs)
+        # logging.info('output embedding {} outpus class{}'.format(out_embed.size(), out_cls.size()))
+        if self.dbg and self.iter % 1000 == 0:
+            self.writer.add_histogram('1_input', inputs[0], self.iter)
+            self.writer.add_histogram('2_feature', out_embed, self.iter)
+            x = vutils.make_grid(
+                to_torch(inputs[0]), normalize=True, scale_each=True)
+            self.writer.add_image('input', x, self.iter)
+        # triplet
+        if not math.isclose(self.tri_weight, 0):
+            if self.dbg and self.iter % 100 == 0:
+                losst, prect, dist, dist_ap, dist_an = self.crit_tri(
+                    out_embed, targets, dbg=self.dbg, cids=cids)
+                diff = dist_an - dist_ap
+                self.writer.add_histogram('an-ap', diff, self.iter)
+                self.writer.add_histogram('dist', dist, self.iter)
+                self.writer.add_histogram('ap', dist_ap, self.iter)
+                self.writer.add_histogram('an', dist_an, self.iter)
+            else:
+                losst, prect, dist = self.crit_tri(
+                    out_embed, targets, dbg=False, cids=cids)
+        else:
+            losst, prect, dist = _zero, _zero, _zero
+        # xent
+        if not math.isclose(self.cls_weight, 0):
+            lossx = self.crit_xent(out_cls, targets)
+            precx, = accuracy(out_cls.data, targets.data)
+            precx = precx[0]
+        else:
+            lossx, precx = _zero, _zero
+        # cent
+        if not math.isclose(self.args.weight_cent, 0):
+            loss_cent, loss_dis, distmat_cent, cent_pull = self.crit_cent(
+                out_embed, targets, )
+        else:
+            loss_cent, loss_dis, distmat_cent, cent_pull = _zero, _zero, _zero, _zero
+
+        if not math.isclose(self.weight_cent, 0):
+            update_dop_center(distmat_cent, self.dop_info)
+        elif not math.isclose(self.tri_weight, 0):
+            update_dop_tri(dist, targets, self.dop_info)
+
+        self.iter += 1
+        loss_comb = self.tri_weight * losst + \
+                    self.weight_cent * loss_cent + \
+                    self.args.weight_dis_cent * loss_dis + \
+                    self.args.cls_weight * lossx
+        # gradients = torch.autograd.grad(
+        #     outputs=losst, inputs=inputs[0],
+        #     create_graph=True, retain_graph=True, only_inputs=True
+        # )[0]
+        # ...
+        # loss_comb += (gradients.norm(2, dim=1)**2).mean()
+
+        # noise = 0.3 * gradients.detach()
+        # ...
+        # input2 = inputs[0] + noise
+
+        # out_embed2, out_cls2 = self.model(input2)
+        # losst2, prect2, dist2 = self.crit_tri(out_embed2, targets, dbg=False, cids=cids)
+        # loss_comb = (loss_comb + losst2) / 2.
+
+        logging.debug(
+            f'tri loss {losst.item()}; '
+            f' loss_cent is {loss_cent.item()}; '
+            f' loss_dis is {loss_dis.item()}')
+        if loss_comb > 1e8:
+            raise ValueError('loss too large')
+        elif math.isnan(loss_comb.data.cpu()):
+            raise ValueError(f'loss nan {loss_comb}')
+        if self.dbg and self.iter % 1 == 0:
+            self.writer.add_scalar('vis/prec-triplet', prect.item(), self.iter)
+            self.writer.add_scalar('vis/lr', self.lr, self.iter)
+            self.writer.add_scalar('vis/loss-center', loss_cent.item(), self.iter)
+            self.writer.add_scalar('vis/loss-center-dis', loss_dis.item(), self.iter)
+            self.writer.add_scalar('vis/loss-triplet', losst.item(), self.iter)
+            self.writer.add_scalar('vis/center-pull', cent_pull.item(), self.iter)
+            self.writer.add_scalar('vis/loss-softmax', lossx.item(), self.iter)
+            self.writer.add_scalar('vis/prec-softmax', precx.item(), self.iter)
+        return loss_comb, prect, precx
+
+    def train(self, epoch, data_loader, optimizer, optimizer_cent=None, print_freq=5, schedule=None):
+
+        batch_time = AverageMeter()
+        data_time = AverageMeter()
+        losses = AverageMeter()
+        precisions_tri = AverageMeter()
+        precisionsx = AverageMeter()
+        end = time.time()
+
+        for i, inputs in enumerate(data_loader):
+            data_time.update(time.time() - end)
+            input_imgs = inputs.get('img').cuda()
+            input_imgs.requires_grad = True
+            targets = inputs.get('pid').cuda()
+
+            if schedule is not None:
+                schedule.batch_step()
+            self.lr = optimizer.param_groups[0]['lr']
+            self.model.train()
+            # todo for tcx loss
+            loss_comb, prect, precx = self._forward(inputs, targets, cids)
+            if isinstance(targets, tuple):
+                targets, _ = targets
+            losses.update(to_numpy(loss_comb), targets.size(0))
+            precisions_tri.update(to_numpy(prect), targets.size(0))
+            precisionsx.update(to_numpy(precx), targets.size(0))
+            optimizer_cent.zero_grad()
+            optimizer.zero_grad()
+            loss_comb.backward()
+            # todo version2 adv-train
+            optimizer.step()
+            # for param in self.criterion2.parameters():
+            for name, param in self.crit_cent.named_parameters():
+                if name != 'centers':
+                    continue
+                # print(name)
+                if not math.isclose(self.weight_cent, 0.):
+                    param.grad.data *= (1. / self.weight_cent)
+            optimizer_cent.step()
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if (i + 1) % print_freq == 0:
+                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
+                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
+                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
+                      f'loss {losses.val:.2e}/{losses.avg:.2e}  '
+                      f'prect {precisions_tri.val:.2%}/{precisions_tri.avg:.2%}  '
+                      f'precx {precisionsx.val:.2%}/{precisionsx.avg:.2%}  '
+                      )
+            # break
+        return collections.OrderedDict({
+            'ttl-time': batch_time.avg,
+            'data-time': data_time.avg,
+            'loss_tri': losses.avg,
+            'prec_tri': precisions_tri.avg,
+            'prec_xent': precisionsx.avg
+        })
+
+
 class XentTriTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
         self.model = model
@@ -387,327 +717,6 @@ class XentTriTrainer(object):
                       f'loss_cls {losses2.val:.2f}/{losses2.avg:.2f}  '
                       f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
                       f'prec_cls {precisions2.val:.2%}/{precisions2.avg:.2%}  '
-                      )
-            # break
-        return collections.OrderedDict({
-            'ttl-time': batch_time.avg,
-            'data-time': data_time.avg,
-            'loss_tri': losses.avg,
-            'prec_tri': precisions.avg,
-        })
-
-
-class TCXTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
-        self.model = model
-        self.crit_tri = criterion[0]
-        self.crit_cent = criterion[1]
-        self.crit_xent = criterion[2]
-        self.iter = 0
-        self.dbg = dbg
-        self.cls_weight = args.cls_weight
-        self.tri_weight = args.tri_weight
-        self.weight_cent = args.weight_cent
-        self.args = args
-        self.dop_info = dop_info
-        if dbg:
-            mkdir_p(logs_at, delete=True)
-            self.writer = SummaryWriter(logs_at)
-        else:
-            self.writer = None
-
-    def _parse_data(self, inputs):
-        imgs, npys, fnames, pids = inputs.get('img'), inputs.get(
-            'npy'), inputs.get('fname'), inputs.get('pid')
-        cids = inputs.get('cid')
-        inputs = [imgs, npys]
-        inputs = to_variable(inputs, requires_grad=True)
-        targets = to_variable(pids, requires_grad=False)
-        cids = to_variable(cids, requires_grad=False)
-        return inputs, targets, fnames, cids
-
-    def _forward(self, inputs, targets, cids=None):
-        _zero = torch.zeros(1).cuda()
-
-        out_embed, out_cls = self.model(*inputs)
-        # logging.info('output embedding {} outpus class{}'.format(out_embed.size(), out_cls.size()))
-        if self.dbg and self.iter % 1000 == 0:
-            self.writer.add_histogram('1_input', inputs[0], self.iter)
-            self.writer.add_histogram('2_feature', out_embed, self.iter)
-            x = vutils.make_grid(
-                to_torch(inputs[0]), normalize=True, scale_each=True)
-            self.writer.add_image('input', x, self.iter)
-        # triplet
-        if not math.isclose(self.tri_weight, 0):
-            if self.dbg and self.iter % 100 == 0:
-                losst, prect, dist, dist_ap, dist_an = self.crit_tri(
-                    out_embed, targets, dbg=self.dbg, cids=cids)
-                diff = dist_an - dist_ap
-                self.writer.add_histogram('an-ap', diff, self.iter)
-                self.writer.add_histogram('dist', dist, self.iter)
-                self.writer.add_histogram('ap', dist_ap, self.iter)
-                self.writer.add_histogram('an', dist_an, self.iter)
-            else:
-                losst, prect, dist = self.crit_tri(
-                    out_embed, targets, dbg=False, cids=cids)
-        else:
-            losst, prect, dist = _zero, _zero, _zero
-        # xent
-        if not math.isclose(self.cls_weight, 0):
-            lossx = self.crit_xent(out_cls, targets)
-            precx, = accuracy(out_cls.data, targets.data)
-            precx = precx[0]
-        else:
-            lossx, precx = _zero, _zero
-        # cent
-        if not math.isclose(self.args.weight_cent, 0):
-            loss_cent, loss_dis, distmat_cent, cent_pull = self.crit_cent(
-                out_embed, targets, )
-        else:
-            loss_cent, loss_dis, distmat_cent, cent_pull = _zero, _zero, _zero, _zero
-
-        if not math.isclose(self.weight_cent, 0):
-            update_dop_center(distmat_cent, self.dop_info)
-        elif not math.isclose(self.tri_weight, 0):
-            update_dop_tri(dist, targets, self.dop_info)
-
-        self.iter += 1
-        loss_comb = self.tri_weight * losst + \
-                    self.weight_cent * loss_cent + \
-                    self.args.weight_dis_cent * loss_dis + \
-                    self.args.cls_weight * lossx
-        # gradients = torch.autograd.grad(
-        #     outputs=losst, inputs=inputs[0],
-        #     create_graph=True, retain_graph=True, only_inputs=True
-        # )[0]
-        # ...
-        # loss_comb += (gradients.norm(2, dim=1)**2).mean()
-
-        # noise = 0.3 * gradients.detach()
-        # ...
-        # input2 = inputs[0] + noise
-
-        # out_embed2, out_cls2 = self.model(input2)
-        # losst2, prect2, dist2 = self.crit_tri(out_embed2, targets, dbg=False, cids=cids)
-        # loss_comb = (loss_comb + losst2) / 2.
-
-        logging.debug(
-            f'tri loss {losst.item()}; '
-            f'loss_cent is {loss_cent.item()}; '
-            f'  loss_dis is {loss_dis.item()}')
-        if loss_comb > 1e8:
-            raise ValueError('loss too large')
-        elif math.isnan(loss_comb.data.cpu()):
-            raise ValueError(f'loss nan {loss_comb}')
-        if self.dbg and self.iter % 1 == 0:
-            self.writer.add_scalar('vis/prec-triplet', prect, self.iter)
-            self.writer.add_scalar('vis/lr', self.lr, self.iter)
-            self.writer.add_scalar('vis/loss-center', loss_cent, self.iter)
-            self.writer.add_scalar('vis/loss-center-dis', loss_dis, self.iter)
-            self.writer.add_scalar('vis/loss-triplet', losst, self.iter)
-            self.writer.add_scalar('vis/center-pull', cent_pull, self.iter)
-            self.writer.add_scalar('vis/loss-softmax', lossx, self.iter)
-            self.writer.add_scalar('vis/prec-softmax', precx, self.iter)
-        return loss_comb, prect, precx
-
-    def train(self, epoch, data_loader, optimizer, optimizer_cent=None, print_freq=5, schedule=None):
-
-        batch_time = AverageMeter()
-        data_time = AverageMeter()
-        losses = AverageMeter()
-        precisions_tri = AverageMeter()
-        precisionsx = AverageMeter()
-        end = time.time()
-
-        for i, inputs in enumerate(data_loader):
-            data_time.update(time.time() - end)
-            inputs, targets, fnames, cids = self._parse_data(inputs)
-            if schedule is not None:
-                schedule.batch_step()
-            self.lr = optimizer.param_groups[0]['lr']
-            self.model.train()
-            loss_comb, prect, precx = self._forward(inputs, targets, cids)
-            if isinstance(targets, tuple):
-                targets, _ = targets
-            losses.update(to_numpy(loss_comb), targets.size(0))
-            precisions_tri.update(to_numpy(prect), targets.size(0))
-            precisionsx.update(to_numpy(precx), targets.size(0))
-            optimizer_cent.zero_grad()
-            optimizer.zero_grad()
-            loss_comb.backward()
-            # todo version2 adv-train
-            optimizer.step()
-            # for param in self.criterion2.parameters():
-            for name, param in self.crit_cent.named_parameters():
-                if name != 'centers':
-                    continue
-                # print(name)
-                if not math.isclose(self.weight_cent, 0.):
-                    param.grad.data *= (1. / self.weight_cent)
-            optimizer_cent.step()
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            if (i + 1) % print_freq == 0:
-                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
-                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
-                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
-                      f'loss {losses.val:.2e}/{losses.avg:.2e}  '
-                      f'prect {precisions_tri.val:.2%}/{precisions_tri.avg:.2%}  '
-                      f'precx {precisionsx.val:.2%}/{precisionsx.avg:.2%}  '
-                      )
-            # break
-        return collections.OrderedDict({
-            'ttl-time': batch_time.avg,
-            'data-time': data_time.avg,
-            'loss_tri': losses.avg,
-            'prec_tri': precisions_tri.avg,
-            'prec_xent': precisionsx.avg
-        })
-
-
-def l2_normalize(x):
-    shape = x.size()
-    x = x.view(shape[0], -1)
-    x /= x.norm(p=2, dim=1, keepdim=True)
-    return x.view(shape)
-
-
-class TriTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
-        self.model = model
-        self.criterion = criterion[0]
-        # self.criterion2 = criterion[1]
-        self.args = args
-        self.dop_info = dop_info
-        self.iter = 0
-        self.dbg = dbg
-        self.cls_weight = args.cls_weight
-        self.tri_weight = args.tri_weight
-        if dbg:
-            mkdir_p(logs_at, delete=True)
-            self.writer = SummaryWriter(logs_at)
-        else:
-            self.writer = None
-
-    def train(self, epoch, data_loader, optimizer, print_freq=5, schedule=None):
-
-        batch_time = AverageMeter()
-        data_time = AverageMeter()
-        losses = AverageMeter()
-        precisions = AverageMeter()
-
-        end = time.time()
-
-        for i, inputs in enumerate(data_loader):
-            data_time.update(time.time() - end)
-            input_imgs = inputs.get('img').cuda()
-
-            if self.dbg % 100 == 0:
-                x = vutils.make_grid(
-                    input_imgs, normalize=True, scale_each=True)
-                self.writer.add_image('input', x, self.iter)
-
-            input_imgs.requires_grad = True
-            targets = inputs.get('pid').cuda()
-            if schedule is not None:
-                schedule.batch_step()
-            self.lr = optimizer.param_groups[0]['lr']
-            self.model.train()
-
-            features, logits = self.model(input_imgs)
-            losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
-
-            self.writer.add_scalar('vis/loss-triplet', losst, self.iter)
-            self.writer.add_scalar('vis/prec-triplet', prect, self.iter)
-            self.writer.add_scalar('vis/lr', self.lr, self.iter)
-            self.iter += 1
-
-            if isinstance(targets, tuple):
-                targets, _ = targets
-            losses.update(to_numpy(losst), targets.size(0))
-            precisions.update(to_numpy(prect), targets.size(0))
-            loss_comb = losst
-            if not math.isclose(self.args.adv_inp, 0):
-                input_imgs_grad_attached = torch.autograd.grad(
-                    outputs=losst, inputs=input_imgs,
-                    create_graph=True, retain_graph=True,
-                    only_inputs=True
-                )[0]
-                input_imgs_grad = input_imgs_grad_attached.detach()
-                input_imgs.requires_grad = False
-                if self.args.aux == 'l2_adv':
-                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
-                elif self.args.aux == 'linf_adv':
-                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
-                else:
-                    input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
-                features_adv, _ = self.model(input_imgs_adv)
-                losst_adv, prect_adv, _ = self.criterion(features_adv, targets)
-                loss_comb += self.args.adv_inp * losst_adv
-                self.writer.add_scalar('vis/loss_adv_inp', losst_adv, self.iter)
-                self.writer.add_scalar('vis/prec_adv_inp', prect_adv, self.iter)
-            if not math.isclose(self.args.double, 0):
-                if math.isclose(self.args.adv_inp, 0):
-                    input_imgs_grad_attached = torch.autograd.grad(
-                        outputs=losst, inputs=input_imgs,
-                        create_graph=True, retain_graph=True,
-                        only_inputs=True
-                    )[0]
-                # input_imgs.requires_grad = False
-                input_imgs_grad_attached = input_imgs_grad_attached.view(
-                    input_imgs_grad_attached.size(0), -1
-                )
-                if self.args.aux == 'l1_grad':
-                    grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
-                else:
-                    grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
-                loss_comb += self.args.double * grad_reg
-                self.writer.add_scalar('vis/grad_reg', grad_reg, self.iter)
-            if not math.isclose(self.args.adv_fea, 0):
-                features_grad = torch.autograd.grad(
-                    outputs=losst, inputs=features,
-                    create_graph=True, retain_graph=True,
-                    only_inputs=True
-                )[0].detach()
-                # input_imgs.requires_grad = False
-                assert features_grad.requires_grad is False
-                features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
-                losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
-                loss_comb += self.args.adv_fea * losst_advtrue
-                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue, self.iter)
-
-            optimizer.zero_grad()
-            loss_comb.backward(
-                # create_graph=True, retain_graph=True
-            )
-            # inputs_imgs_grad = input_imgs.grad.detach()
-            # input_imgs.requires_grad = False
-            # input_imgs_adv = input_imgs + .3 * torch.sign(inputs_imgs_grad)
-            # features_adv, _ = self.model(input_imgs_adv)
-            # losst_adv, _, _ = self.criterion(features_adv, targets, dbg=False)
-            # losst_adv.backward()
-
-            # features_grad = torch.autograd.grad(
-            #     outputs=losst, inputs=features,
-            #     create_graph=True, retain_graph=True,
-            #     only_inputs=True
-            # )[0].detach()
-            # features_advtrue = features + .3 * torch.sign(features_grad)
-            # losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
-            # losst_advtrue.backward()
-
-            optimizer.step()
-            batch_time.update(time.time() - end)
-            end = time.time()
-            # del losst, losst_advtrue
-
-            if (i + 1) % print_freq == 0:
-                print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
-                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
-                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
-                      f'loss {losses.val:.2f}/{losses.avg:.2f}  '
-                      f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
                       )
             # break
         return collections.OrderedDict({
@@ -848,6 +857,7 @@ class TriCenterTrainer(object):
             'loss_tri': losses.avg,
             'prec_tri': precisions.avg,
         })
+'''
 
 
 class XentTrainer(object):
@@ -856,8 +866,6 @@ class XentTrainer(object):
         self.criterion = criterion[0]
         self.iter = 0
         self.dbg = dbg
-        self.cls_weight = args.cls_weight
-        self.tri_weight = args.tri_weight
         if dbg:
             mkdir_p(logs_at, delete=True)
             self.writer = SummaryWriter(logs_at)
@@ -890,6 +898,7 @@ class XentTrainer(object):
             self.model.train()
             features, logits = self.model(input_imgs)
             loss = self.criterion(logits, targets)
+            # loss is softmax loss
             prec = accuracy(logits, targets.data)
             prec = prec[0]
             if isinstance(targets, tuple):
@@ -897,16 +906,15 @@ class XentTrainer(object):
             losses.update(loss.item(), targets.size(0))
             precisions.update(prec.item(), targets.size(0))
             if self.dbg and self.iter % 10 == 0:
-                self.writer.add_scalar('vis/prec-softmax', prec.item(), self.iter)  # todo all to item()
+                self.writer.add_scalar('vis/prec-softmax', prec.item(), self.iter)
                 self.writer.add_scalar('vis/loss-softmax', loss.item(), self.iter)
-            loss_comb = loss
 
             if not math.isclose(self.args.adv_inp, 0) and self.args.double == 0:
                 optimizer.zero_grad()
                 loss.backward()
 
                 input_imgs_grad = input_imgs.grad.detach()
-                # input_imgs.requires_grad_(False)
+                input_imgs.requires_grad_(False)
                 if self.args.aux == 'l2_adv':
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
                 elif self.args.aux == 'linf_adv':
@@ -918,7 +926,6 @@ class XentTrainer(object):
                 (self.args.adv_inp * losst_adv).backward()
                 optimizer.step()
             elif self.args.double != 0 and self.args.adv_inp == 0:
-                # print('ok')
                 optimizer.zero_grad()
                 loss.backward(retain_graph=True)
                 input_imgs_grad_attached = torch.autograd.grad(
@@ -929,19 +936,15 @@ class XentTrainer(object):
                 input_imgs_grad_attached = input_imgs_grad_attached.view(
                     input_imgs_grad_attached.size(0), -1
                 )
-                if self.args.aux == 'l1':
+                if self.args.aux == 'l1_grad':
                     grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
                 else:
                     grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
                 (self.args.double * grad_reg).backward()
-                # loss_comb += self.args.double * grad_reg
-
                 self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
-                # loss_comb.backward()
                 optimizer.step()
             elif self.args.double != 0 and self.args.adv_inp != 0:
                 optimizer.zero_grad()
-                # loss.backward(retain_graph=True)
 
                 input_imgs_grad_attached = torch.autograd.grad(
                     outputs=loss, inputs=input_imgs,
@@ -953,11 +956,10 @@ class XentTrainer(object):
                 input_imgs_grad_attached = input_imgs_grad_attached.view(
                     input_imgs_grad_attached.size(0), -1
                 )
-                if self.args.aux == 'l1':
+                if self.args.aux == 'l1_grad':
                     grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
                 else:
                     grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
-                # (self.args.double * grad_reg).backward()
                 (loss + self.args.double * grad_reg).backward()
                 self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
 
@@ -971,10 +973,10 @@ class XentTrainer(object):
                 features_adv, logits_adv = self.model(input_imgs_adv)
                 losst_adv = self.criterion(logits_adv, targets)
                 (self.args.adv_inp * losst_adv).backward()
-                # (loss + self.args.double * grad_reg + self.args.adv_inp * losst_adv).backward()
                 self.writer.add_scalar('vis/loss_adv_inp', losst_adv.item(), self.iter)
                 optimizer.step()
             elif not math.isclose(self.args.adv_fea, 0):
+                # method 1
                 optimizer.zero_grad()
                 features_grad = torch.autograd.grad(
                     outputs=loss, inputs=features,
@@ -985,11 +987,11 @@ class XentTrainer(object):
                 assert features_grad.requires_grad is False
                 features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
                 losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
-                loss_comb += self.args.adv_fea * losst_advtrue
+                (loss + self.args.adv_fea * losst_advtrue).backard()
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
                 optimizer.step()
+                # todo method 2
             else:
-                # print('bare')
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
