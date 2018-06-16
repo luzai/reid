@@ -29,9 +29,9 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        # if args.loss != 'tcx':
-        #     print(f'skip {args.loss} {args.logs_dir}')
-        #     continue
+        if args.loss != 'xent':
+            print(f'skip {args.loss} {args.logs_dir}')
+            continue
 
         # args.log_at = np.concatenate([
         #     args.log_at,

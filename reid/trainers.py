@@ -344,7 +344,7 @@ class TriTrainer(object):
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
                 features_adv, logits_adv = self.model(input_imgs_adv)
-                losst_adv = self.criterion(logits_adv, targets)
+                losst_adv, _, _ = self.criterion(logits_adv, targets)
                 (self.args.adv_inp * losst_adv).backward()
                 optimizer.step()
             elif self.args.double != 0 and self.args.adv_inp == 0:
@@ -393,7 +393,7 @@ class TriTrainer(object):
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
                 features_adv, logits_adv = self.model(input_imgs_adv)
-                losst_adv = self.criterion(logits_adv, targets)
+                losst_adv, _, _ = self.criterion(logits_adv, targets)
                 (self.args.adv_inp * losst_adv).backward()
                 self.writer.add_scalar('vis/loss_adv_inp', losst_adv.item(), self.iter)
                 optimizer.step()

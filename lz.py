@@ -172,55 +172,6 @@ def allow_growth_sess():
     return sess
 
 
-# e.g. now occupy 0.02<0.1, can assign a device.
-def get_dev(n=1, ok=range(8), mem=(0.1, 0.15), sleep=20):
-    import GPUtil
-    import time
-
-    def _limit(devs, ok):
-        devs = [int(dev) for dev in devs if int(dev) in ok]
-        return devs
-
-    def get_dev_one(mem):
-        devs = GPUtil.getAvailable(
-            order='memory', maxLoad=1, maxMemory=mem, limit=n)
-        devs = _limit(devs, ok)
-        if len(devs) >= n:
-            logging.info('available {}'.format(devs))
-            return devs
-        else:
-            return []
-
-    logging.info('Auto select gpu')
-    GPUtil.showUtilization()
-    devs = []
-
-    while len(devs) < n:
-        devs = get_dev_one(mem[0])
-        if devs:
-            return devs
-        devs = get_dev_one(mem[1])
-        if devs:
-            return devs
-
-        print('no enough device available')
-        GPUtil.showUtilization()
-        sleep = int(sleep)
-        time.sleep(random.randint(max(0, sleep - 20), sleep + 20))
-
-
-def wrapped_partial(func, *args, **kwargs):
-    partial_func = functools.partial(func, *args, **kwargs)
-    functools.update_wrapper(partial_func, func)
-    return partial_func
-
-
-def cpu_priority(level=19):
-    import psutil
-    p = psutil.Process(os.getpid())
-    p.nice(level)
-
-
 def get_gpu_memory_map():
     """Get the current gpu usage.
 
@@ -239,6 +190,53 @@ def get_gpu_memory_map():
     gpu_memory = [int(x) for x in result.strip().split('\n')]
     gpu_memory_map = dict(zip(range(len(gpu_memory)), gpu_memory))
     return gpu_memory_map
+
+
+def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
+    import gpustat, time
+    if not isinstance(mem_thresh, tuple):
+        mem_thresh = (mem_thresh,)
+    gpus = gpustat.GPUStatCollection.new_query().gpus
+
+    def get_mem(ind=0):
+        return gpus[ind].entry['memory.used'] / gpus[ind].entry['memory.total'] * 100
+
+    def get_poss_dev():
+        mems = [get_mem(ind) for ind in ok]
+        devs = [ind for ind, mem in enumerate(mems) if mem < mem_thresh[0]*100]
+        return devs
+    def print_devs():
+        for ind in range(4):
+            print(ind, get_mem(ind))
+    devs = get_poss_dev()
+    logging.info('Auto select gpu')
+    # gpustat.print_gpustat()
+    print_devs()
+    while len(devs) < n:
+        devs = get_poss_dev()
+
+        print('no enough device available')
+        # gpustat.print_gpustat()
+        print_devs()
+
+        sleep = int(sleep)
+        time.sleep(random.randint(max(0, sleep - 20), sleep + 20))
+    if n == 1:
+        return devs[0]
+    else:
+        return devs
+
+
+def wrapped_partial(func, *args, **kwargs):
+    partial_func = functools.partial(func, *args, **kwargs)
+    functools.update_wrapper(partial_func, func)
+    return partial_func
+
+
+def cpu_priority(level=19):
+    import psutil
+    p = psutil.Process(os.getpid())
+    p.nice(level)
 
 
 def mkdir_if_missing(dir_path):
@@ -1135,4 +1133,4 @@ def i_vis_graph(graph_def, max_const_size=32):
 
 if __name__ == '__main__':
     print("ok")
-    mail('test')
+    print(get_dev(1, mem_thresh=(.75,)))

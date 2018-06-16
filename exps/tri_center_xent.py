@@ -29,9 +29,9 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        # if args.loss != 'tcx':
-        #     print(f'skip {args.loss} {args.logs_dir}')
-        #     continue
+        if args.loss != 'tcx' and args.loss!='tri':
+            print(f'skip {args.loss} {args.logs_dir}')
+            continue
 
         # args.log_at = np.concatenate([
         #     args.log_at,
@@ -231,7 +231,7 @@ def main(args):
 
     print(model)
     param_mb = sum(p.numel() for p in model.parameters()) / 1000000.0
-    logging.info('    Total params: %.2fM' % (param_mb))
+    print('    Total params: %.2fM' % (param_mb))
 
     # Load from checkpoint
     start_epoch = best_top1 = 0

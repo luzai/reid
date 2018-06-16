@@ -48,92 +48,21 @@ cfgs = [
     #     # impr=0.02,
     # ),
 
-    edict(
-        logs_dir='tri.bak', double=0, adv_inp=1, adv_fea=0, adv_inp_eps=.3,
-        aux='l2_adv',
-        dataset='cu03det',
-        log_at=[0, 30, 64, 65, 66],
-        # gpu_fix=True, gpu=(0, 1),
-        gpu=(0, ),
-        batch_size=128, num_instances=4, num_classes=128,
-        dropout=0, loss='tri', mode='',
-        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-        random_ratio=1, lr_cent=0,
-        gpu_range=range(4), lr_mult=1,
-        push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-    ),
     # edict(
-    #     logs_dir='tri.dep.adv_fea.0.03', double=0, adv_inp=0, adv_fea=1, adv_fea_eps=.03,
+    #     logs_dir='tri.bak', double=1, adv_inp=1, adv_fea=0, adv_inp_eps=.3,
+    #     aux='l2_adv',
     #     dataset='cu03det',
     #     log_at=[0, 30, 64, 65, 66],
     #     # gpu_fix=True, gpu=(0, 1),
-    #     gpu=(0,),
+    #     gpu=(0, 1),
     #     batch_size=128, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tcx', mode='',
+    #     dropout=0, loss='tri', mode='',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=range(4), lr_mult=1,
     #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
     # ),
-    # edict(
-    #     logs_dir='tri.dep.cu03det.double.l1', double=1, adv_inp=0, adv_fea=0, aux='l1',
-    #     impr=0.,
-    #     dataset='cu03det',
-    #     log_at=[0, 30, 64, 65, 66],
-    #     # gpu_fix=True, gpu=(0, 1),
-    #     gpu=(1,),
-    #     batch_size=64, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tcx', mode='',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=range(4), lr_mult=1,
-    #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-    # ),
-    # edict(
-    #     logs_dir='tri.dep.mkt.eval', double=0, adv_inp=0, adv_fea=0,
-    #     impr=0.,
-    #     dataset='mkt',
-    #     log_at=[0, 30, 64, 65, 66],
-    #     # gpu_fix=True, gpu=(0, 1),
-    #     gpu=(1,),
-    #     batch_size=128, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tcx', mode='',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=range(4), lr_mult=1,
-    #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-    #     evaluate=True,
-    #     # resume='work/tri.dep.mkt.64/model_best.pth',
-    #     resume='work/tri.dep.mkt/model_best.pth',
-    # ),
-    # edict(
-    #     logs_dir='tri.dep.mkt.32', double=0, adv_inp=0, adv_fea=0,
-    #     impr=0.,
-    #     dataset='mkt',
-    #     log_at=[0, 30, 64, 65, 66],
-    #     # gpu_fix=True, gpu=(0, 1),
-    #     gpu=(1,),
-    #     batch_size=32, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tcx', mode='',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=range(4), lr_mult=1,
-    #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-    # ),
-    # edict(
-    #     logs_dir='tri.dep.mkt.double.adv.128', double=1, adv_inp=1, adv_fea=0,
-    #     impr=.01,
-    #     dataset='mkt',
-    #     log_at=[0, 30, 64, 65, 66],
-    #     # gpu_fix=True, gpu=(0, 1),
-    #     gpu=(1, 2,0),
-    #     batch_size=128, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tcx', mode='',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=range(4), lr_mult=1,
-    #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-    # ),
+
     # edict(
     #     logs_dir='tri.cub.adv_inp.double', double=1, adv_inp=1, adv_fea=0,
     #     dataset='cub',
@@ -166,32 +95,80 @@ cfgs = [
     #     impr=0.01,
     # ),
 ]
+
 # cfg = edict(
-#     logs_dir='Bmkt.xent.smthFalse.adv', double=0, adv_inp=1, adv_fea=0, adv_inp_eps=.5,
-#     dataset='mkt', xent_smooth=False,
-#     log_at=[0, 30, 64, 65, 66], lr_mult=10.,
-#     # gpu_fix=True, gpu=(0, 1),
-#     gpu=(0, ),
+#     logs_dir='try4.bs', double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+#     dataset='mkt',  # xent_smooth=False,
+#     log_at=[0, 30, 64, 65, 66],  # lr_mult=10.,
+#     gpu=(0,),
 #     batch_size=128, num_instances=4, num_classes=128,
-#     dropout=0, loss='xent', mode='',
+#     dropout=0, loss='tri', mode='',
 #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
 #     random_ratio=1, lr_cent=0,
 #     gpu_range=range(4),
 #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-#     impr=0.02,
 # )
-# for l, adv_inp_eps in grid_iter(
-#         ['l2_adv',
-#          # 'linf_adv',
-#          'nol'
-#          ],
-#         [.05, .5, ],
+#
+# for ds in grid_iter(
+#         ['cu03det', 'cu03lbl', 'mkt']
 # ):
 #     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.adv_inp_eps = adv_inp_eps
-#     cfg_t.aux = l
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.eps{adv_inp_eps}.{l}'
+#     cfg_t.dataset = ds
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{ds}'
 #     cfgs.append(cfg_t)
+
+cfg = edict(
+    logs_dir='try4.adv_inp', double=0, adv_inp=1, adv_fea=0, adv_inp_eps=.5,
+    dataset='mkt',  # xent_smooth=False,
+    log_at=[0, 30, 64, 65, 66],  # lr_mult=10.,
+    # gpu_fix=True, gpu=(0, 1),
+    gpu=(0,),
+    batch_size=128, num_instances=4, num_classes=128,
+    dropout=0, loss='tri', mode='',
+    cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    random_ratio=1, lr_cent=0,
+    gpu_range=range(4),
+    push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+    # impr=0.02,
+)
+
+for l, adv_inp_eps, ds in grid_iter(
+        ['l2_adv', 'nol'],
+        [.05, .5, ],
+        ['cu03det', 'cu03lbl', 'mkt']
+):
+    cfg_t = copy.deepcopy(cfg)
+    cfg_t.dataset = ds
+    cfg_t.adv_inp_eps = adv_inp_eps
+    cfg_t.aux = l
+    cfg_t.logs_dir = f'{cfg.logs_dir}.{ds}.eps{adv_inp_eps}.{l}'
+    cfgs.append(cfg_t)
+
+# cfg = edict(
+#     logs_dir='try4.dbl', double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+#     dataset='mkt',  # xent_smooth=False,
+#     log_at=[0, 30, 64, 65, 66],  # lr_mult=10.,
+#     # gpu_fix=True, gpu=(0, 1),
+#     gpu=(0, 1),
+#     batch_size=128, num_instances=4, num_classes=128,
+#     dropout=0, loss='tri', mode='',
+#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+#     random_ratio=1, lr_cent=0,
+#     gpu_range=range(4),
+#     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+#     # impr=0.02,
+# )
+#
+# for dbl, ds in grid_iter(
+#         [.1, 1, 10],
+#         ['cu03det', 'cu03lbl', 'mkt']
+# ):
+#     cfg_t = copy.deepcopy(cfg)
+#     cfg_t.double = dbl
+#     cfg_t.dataset = ds
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{ds}.dbl{dbl}'
+#     cfgs.append(cfg_t)
+
 
 # cfg = edict(
 #     logs_dir='mkt.xent', double=1, adv_inp=1, adv_fea=0,
@@ -221,7 +198,7 @@ cfgs = [
 #     cfgs.append(cfg_t)
 
 base = edict(
-    aux='',  # l1_grad l2_adv linf_adv
+    aux='',  # l2_adv linf_adv defaul: nol; l1_grad default: l2_grad
     impr=0.,
     double=0, adv_inp=0, adv_fea=0,
     adv_inp_eps=.3, adv_fea_eps=.3,
