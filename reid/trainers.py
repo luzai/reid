@@ -280,7 +280,7 @@ def update_dop_center(dist, dop_info):
 
 
 class TriTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=True, args=None, dop_info=None, **kwargs):
         self.model = model
         self.criterion = criterion[0]
         self.args = args
@@ -321,22 +321,47 @@ class TriTrainer(object):
             losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
             # losst is triplet loss
 
-            self.writer.add_scalar('vis/loss-triplet', losst, self.iter)
-            self.writer.add_scalar('vis/prec-triplet', prect, self.iter)
+            self.writer.add_scalar('vis/loss-triplet', losst.item(), self.iter)
+            self.writer.add_scalar('vis/prec-triplet', prect.item(), self.iter)
             self.writer.add_scalar('vis/lr', self.lr, self.iter)
             self.iter += 1
 
             if isinstance(targets, tuple):
                 targets, _ = targets
-            losses.update((losst.item()), targets.size(0))
-            precisions.update((prect.item()), targets.size(0))
-
+            losses.update(losst.item(), targets.size(0))
+            precisions.update(prect.item(), targets.size(0))
+            if math.isnan(losst.item()):
+                print(f'loss {losst}')
+                raise ValueError('nan')
             if self.args.adv_inp != 0 and self.args.double == 0:
+                # method1
+                # optimizer.zero_grad()
+                # if self.iter % 2 == 0:
+                #     losst.backward()
+                # else:
+                #     input_imgs_grad_detached = torch.autograd.grad(
+                #         outputs=losst, inputs=input_imgs,
+                #         create_graph=True, retain_graph=True,
+                #         only_inputs=True
+                #     )[0].detach()
+                #     if self.args.aux == 'l2_adv':
+                #         input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad_detached)
+                #     elif self.args.aux == 'linf_adv':
+                #         input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad_detached)
+                #     else:
+                #         input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad_detached
+                #     features_adv, logits_adv = self.model(input_imgs_adv)
+                #     losst_adv, prect_adv, _ = self.criterion(logits_adv, targets)
+                #     self.writer.add_scalar('vis/loss-adv', losst_adv.item(), self.iter)
+                #     self.writer.add_scalar('vis/prec-adv', prect_adv.item(), self.iter)
+                #     (self.args.adv_inp * losst_adv).backward()
+                #     # (self.args.adv_inp * losst_adv + losst).backward()
+                # optimizer.step()
+                # method2
                 optimizer.zero_grad()
                 losst.backward()
-
                 input_imgs_grad = input_imgs.grad.detach()
-                input_imgs.requires_grad_(False)
+                # input_imgs.requires_grad_(False)
                 if self.args.aux == 'l2_adv':
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
                 elif self.args.aux == 'linf_adv':
@@ -344,8 +369,13 @@ class TriTrainer(object):
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
                 features_adv, logits_adv = self.model(input_imgs_adv)
-                losst_adv, _, _ = self.criterion(logits_adv, targets)
+                losst_adv, prect_adv, _ = self.criterion(logits_adv, targets)
+                self.writer.add_scalar('vis/loss-adv', losst_adv.item(), self.iter)
+                self.writer.add_scalar('vis/prec-adv', prect_adv.item(), self.iter)
                 (self.args.adv_inp * losst_adv).backward()
+                if math.isnan(losst_adv.item()):
+                    print('fail')
+                    raise ValueError('nan')
                 optimizer.step()
             elif self.args.double != 0 and self.args.adv_inp == 0:
                 optimizer.zero_grad()
@@ -409,10 +439,10 @@ class TriTrainer(object):
                 assert features_grad.requires_grad is False
                 features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
                 losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
-                (losst + self.args.adv_fea * losst_advtrue).backard()
+                (losst + self.args.adv_fea * losst_advtrue).backward()
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
                 optimizer.step()
-                # todo method 2
+                # method 2
             else:
                 optimizer.zero_grad()
                 losst.backward()
@@ -861,7 +891,7 @@ class TriCenterTrainer(object):
 
 
 class XentTrainer(object):
-    def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, **kwargs):
+    def __init__(self, model, criterion, logs_at='work/vis', dbg=True, args=None, **kwargs):
         self.model = model
         self.criterion = criterion[0]
         self.iter = 0

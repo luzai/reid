@@ -436,35 +436,6 @@ class Market1501(Dataset):
         super(Market1501, self).__init__(root, split_id=split_id)
         self.root = root
 
-        # if download:
-        #     self.download(check_intergrity)
-        #
-        # if not self._check_integrity():
-        #     raise RuntimeError("Dataset not found or corrupted. " +
-        #                        "You can use download=True to download it.")
-        #
-        # self.load(num_val)
-        #
-        # return
-
-        # self._check_before_run()
-        # if osp.exists(self.root + '/cache.h5'):
-        #     with Database(self.root + '/cache.h5') as db:
-        #         # print(list((db.keys())))
-        #         num_train_pids, num_query_pids, num_gallery_pids = \
-        #             db['num_train_pids'], db['num_query_pids'], db[
-        #                 'num_gallery_pids']
-        #         num_train_pids, num_query_pids, num_gallery_pids = map(int, (num_train_pids,
-        #                                                                      num_query_pids,
-        #                                                                      num_gallery_pids))
-        #     with pd.HDFStore(self.root + '/cache.h5') as db:
-        #         train, query, gallery = db['train'], db['query'], db['gallery']
-        #         train, query, gallery = map(
-        #             lambda train: pd.DataFrame(train).to_records(index=False).tolist(),
-        #             (train, query, gallery)
-        #         )
-        #
-        # else:
         train, num_train_pids, num_train_imgs, pid2lbl = self._process_dir(self.train_dir, relabel=True)
         # name = getattr(self, 'name', 'fk')
         # lz.pickle_dump(pid2lbl, f'{name}.pid2lbl.pkl')
@@ -486,17 +457,6 @@ class Market1501(Dataset):
         print("  ------------------------------")
         print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_imgs))
         print("  ------------------------------")
-        # with Database(self.root + '/cache.h5') as db:
-        #     db['num_train_pids'], db['num_query_pids'], db[
-        #         'num_gallery_pids'], = num_train_pids, num_query_pids, num_gallery_pids
-        #     db.flush()
-        #
-        # with pd.HDFStore(self.root + '/cache.h5') as db:
-        #     train = pd.DataFrame(train)
-        #     query = pd.DataFrame(query)
-        #     gallery = pd.DataFrame(gallery)
-        #     db['train'], db['query'], db['gallery'] = train, query, gallery
-        #     db.flush()
 
         self.train = train
         self.val = None
@@ -680,7 +640,7 @@ class Stanford_Prod(Dataset):
 
 if __name__ == '__main__':
     tic = time.time()
-    # Market1501()
+    Market1501()
     # CUB()
     Stanford_Prod()
     print(time.time() - tic)

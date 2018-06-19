@@ -33,10 +33,10 @@ def run(_):
             print(f'skip {args.loss} {args.logs_dir}')
             continue
 
-        # args.log_at = np.concatenate([
-        #     args.log_at,
-        #     range(args.epochs - 8, args.epochs, 1)
-        # ])
+        args.log_at = np.concatenate([
+            args.log_at,
+            range(args.epochs - 8, args.epochs, 1)
+        ])
         args.logs_dir = 'work/' + args.logs_dir
         # if osp.exists(args.logs_dir) and osp.exists(args.logs_dir+'/checkpoint.64.pth'):
         #     os.listdir(args.logs_dir)
@@ -45,7 +45,7 @@ def run(_):
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
-                                  mem=[0.12, 0.07], sleep=32.3)
+                                  mem_thresh=[0.12, 0.07], sleep=32.3)
         lz.logging.info(f'use gpu {args.gpu}')
         # args.batch_size = 16
         # args.gpu = (3, )
@@ -120,7 +120,10 @@ def get_data(args):
     print('dop info and its id are', dop_info)
     trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
                                                      ('pid', int),
-                                                     ('cid', int)])
+                                                     ('cid', int) ] )
+    # trainval = np.asarray(dataset.trainval)
+    # trainval_t = np.rec.fromarrays((trainval[:, 0], trainval[:, 1].astype(int), trainval[:, 2].astype(int)),
+    #                   names=['fname', 'pid', 'cid'])
     trainval_t = trainval_t.view(np.recarray)
     trainval_t = trainval_t[:np.where(trainval_t.pid == 10)[0].min()]
 
@@ -262,7 +265,7 @@ def main(args):
                   .format(start_epoch, best_top1))
     if args.gpu is None:
         model = nn.DataParallel(model)
-    elif len(args.gpu) == 1:
+    elif args.gpu == 1:
         model = nn.DataParallel(model).cuda()
     else:
         model = nn.DataParallel(model, device_ids=range(len(args.gpu))).cuda()
@@ -288,10 +291,10 @@ def main(args):
         xent = CrossEntropyLabelSmooth(num_classes=num_classes)
     setattr(xent, 'name', 'xent')
 
-    criterion = [TripletLoss(margin=args.margin, mode='hard', args=args),
+    criterion = [TripletLoss(margin=args.margin, mode=args.tri_mode, args=args),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
                             margin2=args.margin2,
-                            margin3=args.margin3, mode=args.mode,
+                            margin3=args.margin3, mode=args.cent_mode,
                             push_scale=args.push_scale,
                             args=args),
                  xent

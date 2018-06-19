@@ -23,41 +23,43 @@ from easydict import EasyDict as edict
 # from IPython import embed
 from tensorboardX import SummaryWriter
 
-if os.environ.get('pytorch', "1") == "1":
-    print('import pytorch')
-    import torch
-    import torchvision
-    from torch import nn
-    import torch.nn.functional as F
+# if os.environ.get('pytorch', "1") == "1":
+tic = time.time()
+import torch
+import torchvision
+from torch import nn
+import torch.nn.functional as F
 
-    old_repr = torch.Tensor.__repr__
-
-
-    def new_repr(obj):
-        return f'{old_repr(obj)} \n type: {obj.type()} shape: {obj.shape} '
+old_repr = torch.Tensor.__repr__
 
 
-    torch.Tensor.__repr__ = new_repr
+def new_repr(obj):
+    return f'{old_repr(obj)} \n type: {obj.type()} shape: {obj.shape} '
 
-else:
-    print('import tf')
+
+torch.Tensor.__repr__ = new_repr
+print('import pytorch', time.time() - tic)
+
+# else:
+tic = time.time()
+import tensorflow as tf
+
+
+def allow_growth():
     import tensorflow as tf
+    oldinit = tf.Session.__init__
+
+    def myinit(session_object, target='', graph=None, config=None):
+        if config is None:
+            config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        oldinit(session_object, target, graph, config)
+
+    tf.Session.__init__ = myinit
 
 
-    def allow_growth():
-        import tensorflow as tf
-        oldinit = tf.Session.__init__
-
-        def myinit(session_object, target='', graph=None, config=None):
-            if config is None:
-                config = tf.ConfigProto()
-            config.gpu_options.allow_growth = True
-            oldinit(session_object, target, graph, config)
-
-        tf.Session.__init__ = myinit
-
-
-    allow_growth()
+allow_growth()
+print('import tf', time.time() - tic)
 
 root_path = osp.normpath(
     osp.join(osp.abspath(osp.dirname(__file__)))
@@ -115,7 +117,8 @@ np.set_string_function(np_print)
 def init_dev(n=(0,)):
     import os
     import logging
-
+    if not isinstance(n,collections.Sequence):
+        n = (n,)
     logging.info('use gpu {}'.format(n))
     home = os.environ['HOME']
     if isinstance(n, int) or n is None:
@@ -194,7 +197,7 @@ def get_gpu_memory_map():
 
 def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
     import gpustat, time
-    if not isinstance(mem_thresh, tuple):
+    if not isinstance(mem_thresh, collections.Sequence):
         mem_thresh = (mem_thresh,)
     gpus = gpustat.GPUStatCollection.new_query().gpus
 
@@ -203,11 +206,15 @@ def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
 
     def get_poss_dev():
         mems = [get_mem(ind) for ind in ok]
-        devs = [ind for ind, mem in enumerate(mems) if mem < mem_thresh[0]*100]
+        inds, mems = cosort(range(len(mems)), mems, return_val=True)
+        devs = [ind for ind, mem in zip(inds, mems) if mem < mem_thresh[0] * 100]
+
         return devs
+
     def print_devs():
         for ind in range(4):
             print(ind, get_mem(ind))
+
     devs = get_poss_dev()
     logging.info('Auto select gpu')
     # gpustat.print_gpustat()
@@ -221,10 +228,10 @@ def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
 
         sleep = int(sleep)
         time.sleep(random.randint(max(0, sleep - 20), sleep + 20))
-    if n == 1:
-        return devs[0]
-    else:
-        return devs
+    # if n == 1:
+    #     return devs[0]
+    # else:
+    return devs[:n]
 
 
 def wrapped_partial(func, *args, **kwargs):
@@ -642,10 +649,12 @@ def static_vars(**kwargs):
     return decorate
 
 
-def cosort(tensor, y, return_y=False):
-    comb = zip(tensor, y)
+def cosort(ind, val, return_val=False):
+    ind = np.asarray(ind)
+    val = np.asarray(val)
+    comb = zip(ind, val)
     comb_sorted = sorted(comb, key=lambda x: x[1])
-    if not return_y:
+    if not return_val:
         return np.array([comb_[0] for comb_ in comb_sorted])
     else:
         return np.array([comb_[0] for comb_ in comb_sorted]), np.array([comb_[1] for comb_ in
@@ -929,7 +938,7 @@ def rmdir(path):
 def rm(path, block=True):
     path = osp.abspath(path)
     dst = glob.glob('{}.bak*'.format(path))
-    parsr = re.compile(r'{}.bak(\d?)'.format(path))
+    parsr = re.compile(r'{}.bak(\d+?)'.format(path))
     used = [0, ]
     for d in dst:
         m = re.match(parsr, d)
@@ -1133,4 +1142,4 @@ def i_vis_graph(graph_def, max_const_size=32):
 
 if __name__ == '__main__':
     print("ok")
-    print(get_dev(1, mem_thresh=(.75,)))
+    print(get_dev(2, mem_thresh=(.75,)))

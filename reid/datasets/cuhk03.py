@@ -19,121 +19,288 @@ def _pluck(identities, indices, relabel=False):
     return ret
 
 
-class CUHK03(Dataset):
-    url = 'https://docs.google.com/spreadsheet/viewform?usp=drive_web&formkey=dHRkMkFVSUFvbTJIRkRDLWRwZWpONnc6MA#gid=0'
-    md5 = '728939e58ad9f0ff53e521857dd8fb43'
+class CUHK03(object):
+    """
+    CUHK03
 
-    def _check_integrity(self, mode='label'):
-        return osp.isdir(osp.join(self.root, mode, 'images')) and \
-               osp.isfile(osp.join(self.root, mode, 'meta.json')) and \
-               osp.isfile(osp.join(self.root, mode, 'splits.json'))
+    Reference:
+    Li et al. DeepReID: Deep Filter Pairing Neural Network for Person Re-identification. CVPR 2014.
 
-    def __init__(self, root, split_id=0, num_val=100, download=True, mode='combine', check_integrity=True, **kwargs):
-        super(CUHK03, self).__init__(root, split_id=split_id)
-        self.mode = mode
-        self.name = 'cuhk03'
-        print('use mode ', mode)
-        if download:
-            self.download(check_integrity)
+    URL: http://www.ee.cuhk.edu.hk/~xgwang/CUHK_identification.html#!
 
-        if not self._check_integrity():
-            raise RuntimeError("Dataset not found or corrupted. " +
-                               "You can use download=True to download it.")
-        self.root = osp.join(self.root, self.mode)
-        self.images_dir = osp.join(self.root, 'images')
-        self.load(num_val)
+    Dataset statistics:
+    # identities: 1360
+    # images: 13164
+    # cameras: 6
+    # splits: 20 (classic)
 
-    def download(self, check_integrity=True):
-        if check_integrity and self._check_integrity(self.mode):
-            print("Files already downloaded and verified")
+    Args:
+        split_id (int): split index (default: 0)
+        cuhk03_labeled (bool): whether to load labeled images; if false, detected images are loaded (default: False)
+    """
+    dataset_dir = 'raw'
+    images_dir = '/home/xinglu/.torch/data/cuhk03/'
+
+    def __init__(self, root='/home/xinglu/.torch/data/cuhk03/', split_id=0, mode='label',
+                 cuhk03_classic_split=False, **kwargs):
+        if mode == 'label':
+            cuhk03_labeled = True
+        else:
+            cuhk03_labeled = False
+        self.dataset_dir = osp.join(root, self.dataset_dir)
+        self.data_dir = osp.join(self.dataset_dir, 'cuhk03_release')
+        self.raw_mat_path = osp.join(self.data_dir, 'cuhk-03.mat')
+
+        self.imgs_detected_dir = osp.join(self.dataset_dir, 'images_detected')
+        self.imgs_labeled_dir = osp.join(self.dataset_dir, 'images_labeled')
+
+        self.split_classic_det_json_path = osp.join(self.dataset_dir, 'splits_classic_detected.json')
+        self.split_classic_lab_json_path = osp.join(self.dataset_dir, 'splits_classic_labeled.json')
+
+        self.split_new_det_json_path = osp.join(self.dataset_dir, 'splits_new_detected.json')
+        self.split_new_lab_json_path = osp.join(self.dataset_dir, 'splits_new_labeled.json')
+
+        self.split_new_det_mat_path = osp.join(self.dataset_dir, 'cuhk03_new_protocol_config_detected.mat')
+        self.split_new_lab_mat_path = osp.join(self.dataset_dir, 'cuhk03_new_protocol_config_labeled.mat')
+
+        self._check_before_run()
+        self._preprocess()
+
+        if cuhk03_labeled:
+            image_type = 'labeled'
+            split_path = self.split_classic_lab_json_path if cuhk03_classic_split else self.split_new_lab_json_path
+        else:
+            image_type = 'detected'
+            split_path = self.split_classic_det_json_path if cuhk03_classic_split else self.split_new_det_json_path
+
+        splits = read_json(split_path)
+        assert split_id < len(splits), "Condition split_id ({}) < len(splits) ({}) is false".format(split_id,
+                                                                                                    len(splits))
+        split = splits[split_id]
+        print("Split index = {}".format(split_id))
+
+        train = split['train']
+        query = split['query']
+        gallery = split['gallery']
+
+        num_train_pids = split['num_train_pids']
+        num_query_pids = split['num_query_pids']
+        num_gallery_pids = split['num_gallery_pids']
+        num_total_pids = num_train_pids + num_query_pids
+
+        num_train_imgs = split['num_train_imgs']
+        num_query_imgs = split['num_query_imgs']
+        num_gallery_imgs = split['num_gallery_imgs']
+        num_total_imgs = num_train_imgs + num_query_imgs
+
+        print("=> CUHK03 ({}) loaded".format(image_type))
+        print("Dataset statistics:")
+        print("  ------------------------------")
+        print("  subset   | # ids | # images")
+        print("  ------------------------------")
+        print("  train    | {:5d} | {:8d}".format(num_train_pids, num_train_imgs))
+        print("  query    | {:5d} | {:8d}".format(num_query_pids, num_query_imgs))
+        print("  gallery  | {:5d} | {:8d}".format(num_gallery_pids, num_gallery_imgs))
+        print("  ------------------------------")
+        print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_imgs))
+        print("  ------------------------------")
+
+        train = [tuple(l) for l in train]
+        query = [tuple(l) for l in query]
+        gallery = [tuple(l) for l in gallery]
+
+        self.train = train
+        self.query = query
+        self.gallery = gallery
+
+        self.num_train_ids = num_train_pids
+        self.num_query_ids = num_query_pids
+        self.num_gallery_ids = num_gallery_pids
+
+        self.val = None
+        self.trainval = self.train
+        self.num_val_ids = 0
+        self.num_trainval_ids = self.num_train_ids
+
+    def _check_before_run(self):
+        """Check if all files are available before going deeper"""
+        if not osp.exists(self.dataset_dir):
+            raise RuntimeError("'{}' is not available".format(self.dataset_dir))
+        if not osp.exists(self.data_dir):
+            raise RuntimeError("'{}' is not available".format(self.data_dir))
+        if not osp.exists(self.raw_mat_path):
+            raise RuntimeError("'{}' is not available".format(self.raw_mat_path))
+        if not osp.exists(self.split_new_det_mat_path):
+            raise RuntimeError("'{}' is not available".format(self.split_new_det_mat_path))
+        if not osp.exists(self.split_new_lab_mat_path):
+            raise RuntimeError("'{}' is not available".format(self.split_new_lab_mat_path))
+
+    def _preprocess(self):
+        """
+        This function is a bit complex and ugly, what it does is
+        1. Extract data from cuhk-03.mat and save as png images.
+        2. Create 20 classic splits. (Li et al. CVPR'14)
+        3. Create new split. (Zhong et al. CVPR'17)
+        """
+        print(
+            "Note: if root path is changed, the previously generated json files need to be re-generated (delete them first)")
+        if osp.exists(self.imgs_labeled_dir) and \
+                osp.exists(self.imgs_detected_dir) and \
+                osp.exists(self.split_classic_det_json_path) and \
+                osp.exists(self.split_classic_lab_json_path) and \
+                osp.exists(self.split_new_det_json_path) and \
+                osp.exists(self.split_new_lab_json_path):
             return
 
-        import h5py
-        import hashlib
-        from scipy.misc import imsave
-        from zipfile import ZipFile
+        mkdir_if_missing(self.imgs_detected_dir)
+        mkdir_if_missing(self.imgs_labeled_dir)
 
-        raw_dir = osp.join(self.root, 'raw')
-        mkdir_if_missing(raw_dir)
+        print("Extract image data from {} and save as png".format(self.raw_mat_path))
+        mat = h5py.File(self.raw_mat_path, 'r')
 
-        # Download the raw zip file
-        fpath = osp.join(raw_dir, 'cuhk03_release.zip')
+        def _deref(ref):
+            return mat[ref][:].T
 
-        if osp.isfile(fpath) and \
-                hashlib.md5(open(fpath, 'rb').read()).hexdigest() == self.md5:
-            print("Using downloaded file: " + fpath)
-        else:
-            raise RuntimeError("Please download the dataset manually from {} "
-                               "to {}".format(self.url, fpath))
+        def _process_images(img_refs, campid, pid, save_dir):
+            img_paths = []  # Note: some persons only have images for one view
+            for imgid, img_ref in enumerate(img_refs):
+                img = _deref(img_ref)
+                # skip empty cell
+                if img.size == 0 or img.ndim < 3: continue
+                # images are saved with the following format, index-1 (ensure uniqueness)
+                # campid: index of camera pair (1-5)
+                # pid: index of person in 'campid'-th camera pair
+                # viewid: index of view, {1, 2}
+                # imgid: index of image, (1-10)
+                viewid = 1 if imgid < 5 else 2
+                img_name = '{:01d}_{:03d}_{:01d}_{:02d}.png'.format(campid + 1, pid + 1, viewid, imgid + 1)
+                img_path = osp.join(save_dir, img_name)
+                from scipy.misc import imsave
+                imsave(img_path, img)
+                img_paths.append(img_path)
+            return img_paths
 
-        # # Extract the file
-        exdir = osp.join(raw_dir, 'cuhk03_release')
-        if not osp.isdir(exdir):
-            print("Extracting zip file")
-            with ZipFile(fpath) as z:
-                z.extractall(path=raw_dir)
-        # Format
-        print('format')
-        images_dir = osp.join(self.root, self.mode, 'images')
+        def _extract_img(name):
+            print("Processing {} images (extract and save) ...".format(name))
+            meta_data = []
+            imgs_dir = self.imgs_detected_dir if name == 'detected' else self.imgs_labeled_dir
+            for campid, camp_ref in enumerate(mat[name][0]):
+                camp = _deref(camp_ref)
+                num_pids = camp.shape[0]
+                for pid in range(num_pids):
+                    img_paths = _process_images(camp[pid, :], campid, pid, imgs_dir)
+                    assert len(img_paths) > 0, "campid{}-pid{} has no images".format(campid, pid)
+                    meta_data.append((campid + 1, pid + 1, img_paths))
+                print("done camera pair {} with {} identities".format(campid + 1, num_pids))
+            return meta_data
 
-        mkdir_if_missing(images_dir)
-        matdata = h5py.File(osp.join(exdir, 'cuhk-03.mat'), 'r')
+        meta_detected = _extract_img('detected')
+        meta_labeled = _extract_img('labeled')
 
-        def deref(ref):
-            return matdata[ref][:].T
+        def _extract_classic_split(meta_data, test_split):
+            train, test = [], []
+            num_train_pids, num_test_pids = 0, 0
+            num_train_imgs, num_test_imgs = 0, 0
+            for i, (campid, pid, img_paths) in enumerate(meta_data):
 
-        def dump_(refs, pid, cam, fnames):
-            for ref in refs:
-                img = deref(ref)
-                if img.size == 0 or img.ndim < 2: break
-                fname = '{:08d}_{:02d}_{:04d}.jpg'.format(pid, cam, len(fnames))
-                imsave(osp.join(images_dir, fname), img)
-                fnames.append(fname)
+                if [campid, pid] in test_split:
+                    for img_path in img_paths:
+                        camid = int(osp.basename(img_path).split('_')[2])
+                        test.append((img_path, num_test_pids, camid))
+                    num_test_pids += 1
+                    num_test_imgs += len(img_paths)
+                else:
+                    for img_path in img_paths:
+                        camid = int(osp.basename(img_path).split('_')[2])
+                        train.append((img_path, num_train_pids, camid))
+                    num_train_pids += 1
+                    num_train_imgs += len(img_paths)
+            return train, num_train_pids, num_train_imgs, test, num_test_pids, num_test_imgs
 
-        identities = []
-        for labeled, detected in zip(
-                matdata['labeled'][0], matdata['detected'][0]):
-            labeled, detected = deref(labeled), deref(detected)
-            assert labeled.shape == detected.shape
-            for i in range(labeled.shape[0]):
-                pid = len(identities)
-                images = [[], []]
-                if self.mode == 'combine':
-                    dump_(labeled[i, :5], pid, 0, images[0])
-                    dump_(detected[i, :5], pid, 0, images[0])
-                    dump_(labeled[i, 5:], pid, 1, images[1])
-                    dump_(detected[i, 5:], pid, 1, images[1])
-                elif self.mode == 'label' or self.mode == '':
-                    dump_(labeled[i, :5], pid, 0, images[0])
-                    dump_(labeled[i, 5:], pid, 1, images[1])
-                elif self.mode == 'detect':
-                    dump_(detected[i, :5], pid, 0, images[0])
-                    dump_(detected[i, 5:], pid, 1, images[1])
-                identities.append(images)
+        print("Creating classic splits (# = 20) ...")
+        splits_classic_det, splits_classic_lab = [], []
+        for split_ref in mat['testsets'][0]:
+            test_split = _deref(split_ref).tolist()
 
-        # Save meta information into a json file
-        meta = {'name': 'cuhk03', 'shot': 'multiple', 'num_cameras': 2,
-                'identities': identities}
-        write_json(meta, osp.join(self.root, self.mode, 'meta.json'))
+            # create split for detected images
+            train, num_train_pids, num_train_imgs, test, num_test_pids, num_test_imgs = \
+                _extract_classic_split(meta_detected, test_split)
+            splits_classic_det.append({
+                'train': train, 'query': test, 'gallery': test,
+                'num_train_pids': num_train_pids, 'num_train_imgs': num_train_imgs,
+                'num_query_pids': num_test_pids, 'num_query_imgs': num_test_imgs,
+                'num_gallery_pids': num_test_pids, 'num_gallery_imgs': num_test_imgs,
+            })
 
-        # Save training and test splits
-        splits = []
-        view_counts = [deref(ref).shape[0] for ref in matdata['labeled'][0]]
-        vid_offsets = np.r_[0, np.cumsum(view_counts)]
-        for ref in matdata['testsets'][0]:
-            test_info = deref(ref).astype(np.int32)
-            test_pids = sorted(
-                [int(vid_offsets[i - 1] + j - 1) for i, j in test_info])
-            trainval_pids = list(set(range(vid_offsets[-1])) - set(test_pids))
-            split = {'trainval': trainval_pids,
-                     'query': test_pids,
-                     'gallery': test_pids}
-            splits.append(split)
-        write_json(splits, osp.join(self.root, self.mode, 'splits.json'))
+            # create split for labeled images
+            train, num_train_pids, num_train_imgs, test, num_test_pids, num_test_imgs = \
+                _extract_classic_split(meta_labeled, test_split)
+            splits_classic_lab.append({
+                'train': train, 'query': test, 'gallery': test,
+                'num_train_pids': num_train_pids, 'num_train_imgs': num_train_imgs,
+                'num_query_pids': num_test_pids, 'num_query_imgs': num_test_imgs,
+                'num_gallery_pids': num_test_pids, 'num_gallery_imgs': num_test_imgs,
+            })
+
+        write_json(splits_classic_det, self.split_classic_det_json_path)
+        write_json(splits_classic_lab, self.split_classic_lab_json_path)
+
+        def _extract_set(filelist, pids, pid2label, idxs, img_dir, relabel):
+            tmp_set = []
+            unique_pids = set()
+            for idx in idxs:
+                img_name = filelist[idx][0]
+                camid = int(img_name.split('_')[2])
+                pid = pids[idx]
+                if relabel: pid = pid2label[pid]
+                img_path = osp.join(img_dir, img_name)
+                tmp_set.append((img_path, int(pid), camid))
+                unique_pids.add(pid)
+            return tmp_set, len(unique_pids), len(idxs)
+
+        def _extract_new_split(split_dict, img_dir):
+            train_idxs = split_dict['train_idx'].flatten() - 1  # index-0
+            pids = split_dict['labels'].flatten()
+            train_pids = set(pids[train_idxs])
+            pid2label = {pid: label for label, pid in enumerate(train_pids)}
+            query_idxs = split_dict['query_idx'].flatten() - 1
+            gallery_idxs = split_dict['gallery_idx'].flatten() - 1
+            filelist = split_dict['filelist'].flatten()
+            train_info = _extract_set(filelist, pids, pid2label, train_idxs, img_dir, relabel=True)
+            query_info = _extract_set(filelist, pids, pid2label, query_idxs, img_dir, relabel=False)
+            gallery_info = _extract_set(filelist, pids, pid2label, gallery_idxs, img_dir, relabel=False)
+            return train_info, query_info, gallery_info
+
+        print("Creating new splits for detected images (767/700) ...")
+        from scipy.io import loadmat
+
+        train_info, query_info, gallery_info = _extract_new_split(
+            loadmat(self.split_new_det_mat_path),
+            self.imgs_detected_dir,
+        )
+        splits = [{
+            'train': train_info[0], 'query': query_info[0], 'gallery': gallery_info[0],
+            'num_train_pids': train_info[1], 'num_train_imgs': train_info[2],
+            'num_query_pids': query_info[1], 'num_query_imgs': query_info[2],
+            'num_gallery_pids': gallery_info[1], 'num_gallery_imgs': gallery_info[2],
+        }]
+        write_json(splits, self.split_new_det_json_path)
+
+        print("Creating new splits for labeled images (767/700) ...")
+        train_info, query_info, gallery_info = _extract_new_split(
+            loadmat(self.split_new_lab_mat_path),
+            self.imgs_labeled_dir,
+        )
+        splits = [{
+            'train': train_info[0], 'query': query_info[0], 'gallery': gallery_info[0],
+            'num_train_pids': train_info[1], 'num_train_imgs': train_info[2],
+            'num_query_pids': query_info[1], 'num_query_imgs': query_info[2],
+            'num_gallery_pids': gallery_info[1], 'num_gallery_imgs': gallery_info[2],
+        }]
+        write_json(splits, self.split_new_lab_json_path)
 
 
 if __name__ == '__main__':
-    CUHK03('/home/xinglu/.torch/data/cuhk03', mode='label')
-    CUHK03('/home/xinglu/.torch/data/cuhk03', mode='detect')
+    CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='label')
+    CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='detect')
     # CUHK03('/home/xinglu/.torch/data/cuhk03', mode='combine')
-

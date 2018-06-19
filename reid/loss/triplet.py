@@ -321,7 +321,8 @@ class TripletLoss(nn.Module):
     def __init__(self, margin=0, mode='hard', args=None, **kwargs):
         super(TripletLoss, self).__init__()
         self.margin = margin
-        self.ranking_loss = nn.MarginRankingLoss(margin=margin)
+        if self.margin != 'soft':
+            self.ranking_loss = nn.MarginRankingLoss(margin=margin)
         self.mode = mode
         # self.margin2 = torch.tensor(args.margin2).cuda()
         # self.margin3 = torch.tensor(args.margin3).cuda()
@@ -347,6 +348,20 @@ class TripletLoss(nn.Module):
 
                 dist_ap.append(pos)
                 dist_an.append(neg)
+            elif self.mode == 'adap':
+                some_pos = dist[i][mask[i]]
+                some_neg = dist[i][mask[i] == 0]
+
+                pos_ind = np.random.choice(np.arange(some_pos.shape[0]),
+                                           p=F.softmax(some_pos, dim=0).cpu().detach().numpy())
+                neg_ind = np.random.choice(np.arange(some_neg.shape[0]),
+                                           p=F.softmax(-some_neg, dim=0).cpu().detach().numpy())
+
+                neg = some_neg[neg_ind]
+                pos = some_pos[pos_ind]
+
+                dist_ap.append(pos)
+                dist_an.append(neg)
 
             elif self.mode == 'pos.moderate':
                 some_neg = dist[i][mask[i] == 0]
@@ -365,26 +380,14 @@ class TripletLoss(nn.Module):
 
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[np.random.randint(0, negp.size(0))])
-            elif self.mode == 'lift':
-                negp = dist[i][mask[i] == 0]
-                posp = (dist[i][mask[i]].max()).expand(negp.size(0))
-
-                dist_ap.extend(posp)
-                dist_an.extend(negp)
-            elif self.mode == 'all':
-                posp = dist[i][mask[i]]
-                negp = dist[i][mask[i] == 0]
-                np_, nn = posp.size(0), negp.size(0)
-                posp = posp.expand((nn, np_)).t()
-                negp = negp.expand((np_, nn))  # .contiguous().view(-1)
-                for posp_, negp_ in zip(posp, negp):
-                    dist_ap.extend(posp_)
-                    dist_an.extend(negp_)
 
         dist_ap = _concat(dist_ap) * self.margin2
         dist_an = _concat(dist_an) / self.margin3
         y = torch.ones(dist_an.size(), requires_grad=False).cuda()
-        loss = self.ranking_loss(dist_an, dist_ap, y)
+        if self.margin != 'soft':
+            loss = self.ranking_loss(dist_an, dist_ap, y)
+        else:
+            loss = F.softplus(dist_ap - dist_an).mean()
         prec = (dist_an.data > dist_ap.data).sum().type(
             torch.FloatTensor) / y.size(0)
 
