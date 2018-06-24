@@ -41,25 +41,25 @@ torch.Tensor.__repr__ = new_repr
 print('import pytorch', time.time() - tic)
 
 # else:
-tic = time.time()
-import tensorflow as tf
-
-
-def allow_growth():
-    import tensorflow as tf
-    oldinit = tf.Session.__init__
-
-    def myinit(session_object, target='', graph=None, config=None):
-        if config is None:
-            config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        oldinit(session_object, target, graph, config)
-
-    tf.Session.__init__ = myinit
-
-
-allow_growth()
-print('import tf', time.time() - tic)
+# tic = time.time()
+# import tensorflow as tf
+#
+#
+# def allow_growth():
+#     import tensorflow as tf
+#     oldinit = tf.Session.__init__
+#
+#     def myinit(session_object, target='', graph=None, config=None):
+#         if config is None:
+#             config = tf.ConfigProto()
+#         config.gpu_options.allow_growth = True
+#         oldinit(session_object, target, graph, config)
+#
+#     tf.Session.__init__ = myinit
+#
+#
+# allow_growth()
+# print('import tf', time.time() - tic)
 
 root_path = osp.normpath(
     osp.join(osp.abspath(osp.dirname(__file__)))
@@ -117,7 +117,7 @@ np.set_string_function(np_print)
 def init_dev(n=(0,)):
     import os
     import logging
-    if not isinstance(n,collections.Sequence):
+    if not isinstance(n, collections.Sequence):
         n = (n,)
     logging.info('use gpu {}'.format(n))
     home = os.environ['HOME']
@@ -199,9 +199,9 @@ def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
     import gpustat, time
     if not isinstance(mem_thresh, collections.Sequence):
         mem_thresh = (mem_thresh,)
-    gpus = gpustat.GPUStatCollection.new_query().gpus
 
     def get_mem(ind=0):
+        gpus = gpustat.GPUStatCollection.new_query().gpus
         return gpus[ind].entry['memory.used'] / gpus[ind].entry['memory.total'] * 100
 
     def get_poss_dev():
@@ -859,7 +859,7 @@ def mkdir_p(path, delete=True):
         subprocess.call(('mkdir -p ' + path).split())
 
 
-def shell(cmd, block=True):
+def shell(cmd, block=True, return_msg=True):
     import os
     my_env = os.environ.copy()
     home = os.path.expanduser('~')
@@ -875,13 +875,16 @@ def shell(cmd, block=True):
                                 env=my_env,
                                 preexec_fn=os.setsid
                                 )
-        msg = task.communicate()
-        msg = [msg_.decode('utf-8') for msg_ in msg]
-        if msg[0] != '':
-            logging.info('stdout {}'.format(msg[0]))
-        if msg[1] != '':
-            logging.error('stderr {}'.format(msg[1]))
-        return msg
+        if return_msg:
+            msg = task.communicate()
+            msg = [msg_.decode('utf-8') for msg_ in msg]
+            if msg[0] != '':
+                logging.info('stdout {}'.format(msg[0]))
+            if msg[1] != '':
+                logging.error('stderr {}'.format(msg[1]))
+            return msg
+        else:
+            return task
     else:
         print('Non-block!')
         task = subprocess.Popen(cmd,
@@ -1140,6 +1143,27 @@ def i_vis_graph(graph_def, max_const_size=32):
     display(HTML(iframe))
 
 
+def my_wget(fid, fname):
+    shell('rm -rf /tmp/cookies.txt')
+    task = shell(
+        f"wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id={fid}' -O- ",
+        return_msg=False
+    )
+    out, err = task.communicate()
+    out = out.decode('utf-8')
+    print(out)
+    if len(re.findall(r'.*confirm=([0-9a-zA-Z_]+).*', out)) == 0:
+        print('no confirm continue')
+        return 100
+    confirm = re.findall(r'.*confirm=([0-9a-zA-Z_]+).*', out)[0]
+    if task.poll() != 0:
+        print(confirm)
+        raise ValueError('fail')
+    task = shell(
+        f"wget -c --load-cookies /tmp/cookies.txt 'https://docs.google.com/uc?export=download&confirm={confirm}&id={fid}' -O {fname}",
+        block=False)
+    return task
+
+
 if __name__ == '__main__':
-    print("ok")
-    print(get_dev(2, mem_thresh=(.75,)))
+    print(get_dev(n=1))

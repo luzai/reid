@@ -408,7 +408,7 @@ class TriTrainer(object):
                 input_imgs_grad_attached = input_imgs_grad_attached.view(
                     input_imgs_grad_attached.size(0), -1
                 )
-                if self.args.aux == 'l1_grad':
+                if 'l1_grad' in self.args.aux:
                     grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
                 else:
                     grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
@@ -416,9 +416,9 @@ class TriTrainer(object):
                 self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
 
                 # input_imgs.requires_grad_(False)
-                if self.args.aux == 'l2_adv':
+                if 'l2_adv' in self.args.aux:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
-                elif self.args.aux == 'linf_adv':
+                elif 'linf_adv' in self.args.aux:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
@@ -437,7 +437,12 @@ class TriTrainer(object):
                 )[0].detach()
                 # input_imgs.requires_grad = False
                 assert features_grad.requires_grad is False
-                features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
+                if 'l2_adv' in self.args.aux:
+                    features_advtrue = features + self.args.adv_inp_eps * l2_normalize(features_grad)
+                elif 'linf_adv' in self.args.aux:
+                    features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
+                else:
+                    features_advtrue = features + self.args.adv_inp_eps * features_grad
                 losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
                 (losst + self.args.adv_fea * losst_advtrue).backward()
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
@@ -929,8 +934,7 @@ class XentTrainer(object):
             features, logits = self.model(input_imgs)
             loss = self.criterion(logits, targets)
             # loss is softmax loss
-            prec = accuracy(logits, targets.data)
-            prec = prec[0]
+            prec = accuracy(logits, targets.data)[0]
             if isinstance(targets, tuple):
                 targets, _ = targets
             losses.update(loss.item(), targets.size(0))
@@ -939,12 +943,11 @@ class XentTrainer(object):
                 self.writer.add_scalar('vis/prec-softmax', prec.item(), self.iter)
                 self.writer.add_scalar('vis/loss-softmax', loss.item(), self.iter)
 
-            if not math.isclose(self.args.adv_inp, 0) and self.args.double == 0:
+            if self.args.adv_inp != 0 and self.args.double == 0:
                 optimizer.zero_grad()
                 loss.backward()
-
                 input_imgs_grad = input_imgs.grad.detach()
-                input_imgs.requires_grad_(False)
+                # input_imgs.requires_grad_(False)
                 if self.args.aux == 'l2_adv':
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
                 elif self.args.aux == 'linf_adv':
@@ -953,6 +956,7 @@ class XentTrainer(object):
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
                 features_adv, logits_adv = self.model(input_imgs_adv)
                 losst_adv = self.criterion(logits_adv, targets)
+                self.writer.add_scalar('vis/loss-adv')
                 (self.args.adv_inp * losst_adv).backward()
                 optimizer.step()
             elif self.args.double != 0 and self.args.adv_inp == 0:
@@ -986,7 +990,7 @@ class XentTrainer(object):
                 input_imgs_grad_attached = input_imgs_grad_attached.view(
                     input_imgs_grad_attached.size(0), -1
                 )
-                if self.args.aux == 'l1_grad':
+                if 'l1_grad' in self.args.aux:
                     grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
                 else:
                     grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
@@ -994,9 +998,9 @@ class XentTrainer(object):
                 self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
 
                 # input_imgs.requires_grad_(False)
-                if self.args.aux == 'l2_adv':
+                if 'l2_adv' in self.args.aux:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad)
-                elif self.args.aux == 'linf_adv':
+                elif 'linf_adv' in self.args.aux:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
@@ -1005,7 +1009,7 @@ class XentTrainer(object):
                 (self.args.adv_inp * losst_adv).backward()
                 self.writer.add_scalar('vis/loss_adv_inp', losst_adv.item(), self.iter)
                 optimizer.step()
-            elif not math.isclose(self.args.adv_fea, 0):
+            elif self.args.adv_fea != 0:
                 # method 1
                 optimizer.zero_grad()
                 features_grad = torch.autograd.grad(
@@ -1020,7 +1024,7 @@ class XentTrainer(object):
                 (loss + self.args.adv_fea * losst_advtrue).backard()
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
                 optimizer.step()
-                # todo method 2
+                # method 2
             else:
                 optimizer.zero_grad()
                 loss.backward()

@@ -29,7 +29,7 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        if args.loss != 'tcx' and args.loss!='tri':
+        if args.loss != 'tcx' and args.loss != 'tri':
             print(f'skip {args.loss} {args.logs_dir}')
             continue
 
@@ -39,9 +39,10 @@ def run(_):
         ])
         args.logs_dir = 'work/' + args.logs_dir
         # if osp.exists(args.logs_dir) and osp.exists(args.logs_dir+'/checkpoint.64.pth'):
-        #     os.listdir(args.logs_dir)
+        #     print(os.listdir(args.logs_dir))
         #     continue
-
+        # else:
+        #     return
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
@@ -120,7 +121,7 @@ def get_data(args):
     print('dop info and its id are', dop_info)
     trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
                                                      ('pid', int),
-                                                     ('cid', int) ] )
+                                                     ('cid', int)])
     # trainval = np.asarray(dataset.trainval)
     # trainval_t = np.rec.fromarrays((trainval[:, 0], trainval[:, 1].astype(int), trainval[:, 2].astype(int)),
     #                   names=['fname', 'pid', 'cid'])
@@ -354,10 +355,10 @@ def main(args):
     # Trainer
     if args.loss == 'tcx':
         trainer = TCXTrainer(model, criterion, dbg=True,
-                         logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
+                             logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
     elif args.loss == 'tri':
         trainer = TriTrainer(model, criterion, dbg=True,
-                         logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
+                             logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):
@@ -470,7 +471,7 @@ def main(args):
 
     writer.close()
     print(res)
-    for k,v in res.items():
+    for k, v in res.items():
         res[k] = float(v)
     json_dump(res, args.logs_dir + '/res.json', 'w')
     return res

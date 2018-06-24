@@ -45,7 +45,7 @@ def run(_):
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
-                                  mem=[0.12, 0.07], sleep=32.3)
+                                  mem_thresh=[0.12, 0.07], sleep=32.3)
         lz.logging.info(f'use gpu {args.gpu}')
         # args.batch_size = 16
         # args.gpu = (3, )

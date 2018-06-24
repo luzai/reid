@@ -210,8 +210,8 @@ def main(args):
     for name, param in model.named_parameters():
         if name == 'module.embed1.weight' or name == 'module.embed2.weight':
             fast_params.append(param)
-    fast_params_ids = set(map(id, fast_params))
-    normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
+    fast_params_ids = set(map(fid, fast_params))
+    normal_params = [p for p in model.parameters() if fid(p) not in fast_params_ids]
     param_groups = [
         {'params': fast_params, 'lr_mult': args.lr_mult},
         {'params': normal_params, 'lr_mult': 1.},
