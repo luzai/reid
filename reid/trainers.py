@@ -317,7 +317,8 @@ class TriTrainer(object):
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
 
-            features, logits = self.model(input_imgs)
+            features, logits, mid_feas = self.model(input_imgs)
+            mid_feas.append(features)
             losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
             # losst is triplet loss
 
@@ -455,21 +456,20 @@ class TriTrainer(object):
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
                 optimizer.step()
                 # method 2
+            elif np.count_nonzero(self.args.reg_mid_fea) != 0:
+                optimizer.zero_grad()
+                losst.backward(retain_graph=True)
+                ind_max = np.nonzero(self.args.reg_mid_fea)[0].max()
+                for ind, weight in enumerate(self.args.reg_mid_fea):
+                    fea = mid_feas[ind]
+                    if weight != 0:
+                        reg = reg_mid_fea(fea, input_imgs, weight,
+                                          retain_graph=(ind == ind_max))
+                        self.writer.add_scalar(f'vis/contract_fea_{ind+1}', reg, self.iter)
+                        if ind == ind_max: break
+                optimizer.step()
             else:
                 optimizer.zero_grad()
-                # losst.backward(retain_graph=True)
-                # unit_vec = torch.randn(128, ).cuda()
-                # # unit_vec = unit_vec / unit_vec.norm(p=2, dim=0)
-                # prj_features = features * unit_vec
-                # features_grad_attrached = torch.autograd.grad(
-                #     outputs=prj_features.mean(), inputs=input_imgs,
-                #     create_graph=True,
-                #     retain_graph=True,
-                #     only_inputs=True
-                # )[0].view(batch_size, -1)
-                # features_grad_reg = (features_grad_attrached.norm(2, dim=1) ** 2).mean()
-                # # (features_grad_reg+losst).backward()
-                # (features_grad_reg).backward()
                 losst.backward()
                 optimizer.step()
 
@@ -500,8 +500,23 @@ def l2_normalize(x):
     return x2.view(shape)
 
 
-'''
+def reg_mid_fea(fea, input_imgs, weight, retain_graph=True):
+    bs, fea_len = fea.size()
+    unit_vec = torch.randn(fea_len).cuda()
+    prj_fea = fea * unit_vec
+    fea_grad = torch.autograd.grad(
+        outputs=prj_fea.mean(), inputs=input_imgs,
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True
+    )[0].view(bs, -1)
+    features_grad_reg = (fea_grad.norm(2, dim=1) ** 2).mean()
+    loss = features_grad_reg * weight
+    loss.backward(retain_graph=retain_graph)
+    return features_grad_reg.item()
 
+
+'''
 class TCXTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=False, args=None, dop_info=None, **kwargs):
         self.model = model

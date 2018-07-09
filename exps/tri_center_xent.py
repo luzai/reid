@@ -396,13 +396,11 @@ def main(args):
     schedule = None
     # Start training
     for epoch in range(start_epoch, args.epochs):
-        # warm up
-        # mAP, acc,rank5 = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
 
-        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule,
+        hist = trainer.train(epoch, train_loader, optimizer,
+                             print_freq=args.print_freq, schedule=schedule,
                              # optimizer_cent=optimizer_cent
                              )
         for k, v in hist.items():
@@ -454,11 +452,12 @@ def main(args):
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
+        # break
 
     # Final test
-    res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
-    for n, v in res.items():
-        writer.add_scalar('test/' + n, v, args.epochs)
+    # res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    # for n, v in res.items():
+    #     writer.add_scalar('test/' + n, v, args.epochs-1)
 
     if osp.exists(osp.join(args.logs_dir, 'model_best.pth')) and args.test_best:
         print('Test with best model:')

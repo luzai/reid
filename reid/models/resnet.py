@@ -48,7 +48,7 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, dilation=1):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
@@ -600,6 +600,7 @@ class ResNetOri(nn.Module):
                  num_classes=0, block_name='Bottleneck',
                  block_name2='Bottleneck',
                  num_deform=3, fusion=None,
+                 last_conv_stride=2,
                  **kwargs):
         super(ResNetOri, self).__init__()
         depth = str(depth)
@@ -628,9 +629,8 @@ class ResNetOri(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2],
-                                       stride=2)
-        self.layer4 = self._make_layer(block2, 512, layers[3], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block2, 512, layers[3], stride=last_conv_stride)
 
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
@@ -668,11 +668,16 @@ class ResNetOri(nn.Module):
         x4 = self.layer4(x3)
         x4 = F.adaptive_avg_pool2d(x4, 1).view(bs, -1)
 
+        x1_res = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
+        x2_res = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
+        x3_res = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
+        x4_res = x4
+
         x5 = self.post2(x4)
         features = self.embed1(x5)
         clss = self.embed2(features)
 
-        return features, clss
+        return features, clss, [x1_res, x2_res, x3_res, x4_res,]
 
 
 from reid.models.attention import MaskBranch
