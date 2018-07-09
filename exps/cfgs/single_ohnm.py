@@ -63,68 +63,72 @@ cfgs = [
     #     push_scale=1., embed=None, margin='soft', margin2=1., margin3=1.,
     # ),
     # edict(
-    #     logs_dir='tri3.comb.5.0', double=1, adv_inp=1, adv_fea=0, adv_inp_eps=5.,
-    #     aux='nol_adv_l2_grad',
+    #     logs_dir='tri4.bs',
+    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
+    #     # evaluate=True,
+    #     # aux='l2_grad',
     #     dataset='cu03lbl',
-    #     gpu=(0, 1),
+    #     gpu=(0,),
+    #     # gpu_fix=True,
     #     batch_size=128, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri', tri_mode='hard',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=range(4), lr_mult=1,
-    #     push_scale=1., embed=None, margin='soft', margin2=1., margin3=1.,
-    # )
-
+    #     push_scale=1., embed=None,
+    #     margin='soft', margin2=1., margin3=1.,
+    #     last_conv_stride=1,
+    #     height=256, width=128, cu03_classic=False,
+    # ),
+    edict(
+        logs_dir='tri4.multi',
+        double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
+        # evaluate=True,
+        # aux='l2_grad',
+        dataset='cu03lbl',
+        gpu=(0,),
+        # gpu_fix=True,
+        batch_size=64, num_instances=4, num_classes=128,
+        dropout=0, loss='tri', tri_mode='hard',
+        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+        random_ratio=1, lr_cent=0,
+        gpu_range=range(4), lr_mult=1,
+        push_scale=1., embed=None,
+        margin='soft', margin2=1., margin3=1.,
+        last_conv_stride=1,
+        height=256, width=128, cu03_classic=False,
+    )
 ]
 
-cfg = edict(
-    logs_dir='tri3.fea', double=0, adv_inp=0, adv_fea=1, adv_inp_eps=0.05,
-    aux='l2_adv',
-    dataset='cu03lbl',
-    gpu=(0,),
-    batch_size=128, num_instances=4, num_classes=128,
-    dropout=0, loss='tri', tri_mode='hard',
-    cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    random_ratio=1, lr_cent=0,
-    gpu_range=range(4), lr_mult=1,
-    push_scale=1., embed=None, margin='soft', margin2=1., margin3=1.,
-)
-
-for ds, aux, adv_inp, eps, run, in grid_iter(
-        ['cu03lbl'],
-        ['l2_adv', 'linf_adv', 'nol_adv'],
-        [1., ],
-        [5., .5, .05],
-        [4, ],
-):
-    cfg_t = copy.deepcopy(cfg)
-    cfg_t.dataset = ds
-    cfg_t.run = run
-    cfg_t.aux = aux
-    cfg_t.adv_inp = adv_inp
-    cfg_t.adv_inp_eps = eps
-    cfg_t.logs_dir = f'{cfg.logs_dir}.{ds}.{aux}.{adv_inp}.{eps}'
-    cfgs.append(cfg_t)
-
 # cfg = edict(
-#     logs_dir='try4.bs', double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-#     dataset='mkt',  # xent_smooth=False,
-#     log_at=[0, 30, 64, 65, 66],  # lr_mult=10.,
+#     logs_dir='tri4.bs',
+#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
+#     # evaluate=True,
+#     # aux='l2_grad',
+#     dataset='cu03lbl',
 #     gpu=(0,),
+#     # gpu_fix=True,
 #     batch_size=128, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', mode='',
+#     dropout=0, loss='tri', tri_mode='hard',
 #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
 #     random_ratio=1, lr_cent=0,
-#     gpu_range=range(4),
-#     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
+#     gpu_range=range(1), lr_mult=1,
+#     push_scale=1., embed=None,
+#     margin='soft', margin2=1., margin3=1.,
+#     last_conv_stride=1,
+#     height=256, width=128, cu03_classic=False,
 # )
 #
-# for ds in grid_iter(
-#         ['cu03det', 'cu03lbl', 'mkt']
+# for ds, bs, run in grid_iter(
+#         ['cu03lbl'],
+#         [16, 32, 64, 128],
+#         [1, 2, 3]
 # ):
 #     cfg_t = copy.deepcopy(cfg)
 #     cfg_t.dataset = ds
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{ds}'
+#     cfg_t.batch_size = bs
+#     cfg_t.run = run
+#     cfg_t.logs_dir = f'{cfg.logs_dir}.{bs}.{run}'
 #     cfgs.append(cfg_t)
 
 # cfg = edict(
@@ -156,7 +160,8 @@ for ds, aux, adv_inp, eps, run, in grid_iter(
 
 base = edict(
     aux='',  # l2_adv linf_adv defaul: nol_adv; l1_grad default: l2_grad
-    impr=0.,
+    impr=0., cu03_classic=False,
+    last_conv_stride=2,
     double=0, adv_inp=0, adv_fea=0,
     adv_inp_eps=.3, adv_fea_eps=.3,
     optimizer_cent='adam', topk=5, test_best=True,
@@ -172,7 +177,8 @@ base = edict(
     cls_weight=0., random_ratio=1, tri_weight=1, num_deform=3, cls_pretrain=False,
     bs_steps=[], batch_size_l=[], num_instances_l=[],
     scale=(1,), translation=(0,), theta=(0,),
-    hard_examples=False, has_npy=False, loss_div_weight=0,  # double=0,  double conv is deprecated
+    hard_examples=False, has_npy=False, loss_div_weight=0,
+    # double=0,  double conv is deprecated
     pretrained=True, dbg=False, data_dir='/home/xinglu/.torch/data',
     restart=True, workers=8, split=0, height=256, width=128,
     combine_trainval=True, num_instances=4,
@@ -186,7 +192,7 @@ base = edict(
     branchs=0, branch_dim=64, global_dim=1024, num_classes=128,
     loss='tri',
     tri_mode='hard', cent_mode='ccent.all.all',
-    # mode='ccent.all.all',
+    # mode='ccent.all.all', deprecated
     gpu=(0,), pin_mem=True, log_start=False, log_middle=True, gpu_range=range(4),
     # tuning
     dataset='market1501', dataset_mode=None, dataset_val=None,

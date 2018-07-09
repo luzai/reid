@@ -304,7 +304,7 @@ class TriTrainer(object):
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
             input_imgs = inputs.get('img').cuda()
-
+            batch_size = input_imgs.size(0)
             if self.dbg % 100 == 0:
                 x = vutils.make_grid(
                     input_imgs, normalize=True, scale_each=True)
@@ -330,9 +330,9 @@ class TriTrainer(object):
                 targets, _ = targets
             losses.update(losst.item(), targets.size(0))
             precisions.update(prect.item(), targets.size(0))
+
             if math.isnan(losst.item()):
-                print(f'loss {losst}')
-                raise ValueError('nan')
+                raise ValueError(f'nan {losst}')
             if self.args.adv_inp != 0 and self.args.double == 0:
                 # method1
                 # optimizer.zero_grad()
@@ -382,12 +382,19 @@ class TriTrainer(object):
                 losst.backward(retain_graph=True)
                 input_imgs_grad_attached = torch.autograd.grad(
                     outputs=losst, inputs=input_imgs,
-                    create_graph=True, retain_graph=True,
+                    create_graph=True,
+                    retain_graph=True,
                     only_inputs=True
-                )[0]
-                input_imgs_grad_attached = input_imgs_grad_attached.view(
-                    input_imgs_grad_attached.size(0), -1
+                )[0].view(
+                    batch_size, -1
                 )
+                # grad_fea = [torch.autograd.grad(
+                #     outputs=features[0][i],
+                #     inputs=input_imgs,
+                #     # create_graph=True,
+                #     retain_graph=True,
+                #     only_inputs=True,
+                # )[0] for i in range(128)]
                 if self.args.aux == 'l1_grad':
                     grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
                 else:
@@ -450,6 +457,19 @@ class TriTrainer(object):
                 # method 2
             else:
                 optimizer.zero_grad()
+                # losst.backward(retain_graph=True)
+                # unit_vec = torch.randn(128, ).cuda()
+                # # unit_vec = unit_vec / unit_vec.norm(p=2, dim=0)
+                # prj_features = features * unit_vec
+                # features_grad_attrached = torch.autograd.grad(
+                #     outputs=prj_features.mean(), inputs=input_imgs,
+                #     create_graph=True,
+                #     retain_graph=True,
+                #     only_inputs=True
+                # )[0].view(batch_size, -1)
+                # features_grad_reg = (features_grad_attrached.norm(2, dim=1) ** 2).mean()
+                # # (features_grad_reg+losst).backward()
+                # (features_grad_reg).backward()
                 losst.backward()
                 optimizer.step()
 
@@ -473,10 +493,11 @@ class TriTrainer(object):
 
 
 def l2_normalize(x):
+    # can only handle (128,2048) or (128,2048,8,4)
     shape = x.size()
-    x = x.view(shape[0], -1)
-    x /= x.norm(p=2, dim=1, keepdim=True)
-    return x.view(shape)
+    x1 = x.view(shape[0], -1)
+    x2 = x1 / x1.norm(p=2, dim=1, keepdim=True)
+    return x2.view(shape)
 
 
 '''

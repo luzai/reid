@@ -62,18 +62,25 @@ def my_wget(fid, fname):
 
 
 if __name__ == '__main__':
-    os.chdir('/data1/share/')
-    fid = '0ByQS_kT8kViSZnZPY1dmaHJzMHc'
-    fname = 'train_split.1.tar.gz.downloading'
+    # os.chdir('/data1/share/')
+    os.chdir('/home/baiyunc/')
+    # fid = '0ByQS_kT8kViSZnZPY1dmaHJzMHc'
+    # fname = 'train_split.1.tar.gz.downloading'
     # fid = '1PvIM_FjDRVSKh_kRDiWBpKkNNp3fUH3o'
     # fname = 'kinetics_skeleton.zip'
+    fid = '0ByQS_kT8kViSQ1ozYmlITXlUaDQ'
+    fname = 'train_split.4.tar.gz'
+
     while True:
         try:
             time.sleep(random.randint(0, 3))
             task = my_wget(fid, fname)
             if task == 100:
                 continue
-            time.sleep(random.randint(19, 45))
+            time.sleep(
+                3,
+                # random.randint(19, 45)
+            )
             if task.poll() == 0:
                 out, err = task.communicate(timeout=10)
                 err = err.decode('utf-8')
@@ -83,9 +90,9 @@ if __name__ == '__main__':
                 else:
                     print(err, '!! task poll is ', task.poll())
                     continue
-            os.killpg(os.getpgid(task.pid), signal.SIGTERM)
             out, err = task.communicate(timeout=10)
             err = err.decode('utf-8')
             print(err, 'task poll is ', task.poll())
+            os.killpg(os.getpgid(task.pid), signal.SIGTERM)
         except Exception as e:
             print('exception: ', e, 'continue')

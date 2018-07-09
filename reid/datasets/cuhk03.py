@@ -41,7 +41,8 @@ class CUHK03(object):
     dataset_dir = 'raw'
     images_dir = '/home/xinglu/.torch/data/cuhk03/'
 
-    def __init__(self, root='/home/xinglu/.torch/data/cuhk03/', split_id=0, mode='label',
+    def __init__(self, root='/home/xinglu/.torch/data/cuhk03/',
+                 split_id=0, mode='label',
                  cuhk03_classic_split=False, **kwargs):
         if mode == 'label':
             cuhk03_labeled = True

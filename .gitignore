@@ -2,7 +2,7 @@
 *.png
 *.jpg
 *.ipynb
-log*.txt
+log*
 work*/
 eval.c
 eval.cpp

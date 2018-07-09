@@ -13,13 +13,13 @@ def read_json(fpath):
 
 
 def write_json(obj, fpath):
-    mkdir_if_missing(osp.dirname(fpath))
+    mkdir_p(osp.dirname(fpath), delete=False)
     with open(fpath, 'w') as f:
         json.dump(obj, f, indent=4, separators=(',', ': '))
 
 
 def save_checkpoint(state, is_best, fpath='checkpoint.pth'):
-    mkdir_if_missing(osp.dirname(fpath))
+    mkdir_p(osp.dirname(fpath),delete=False)
     torch.save(state, fpath)
     dest = osp.join(osp.dirname(fpath), 'model_best.pth')
     if is_best or not osp.exists(dest):

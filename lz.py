@@ -1,3 +1,5 @@
+# -*- coding: future_fstrings -*-
+from __future__ import print_function, absolute_import, division
 import matplotlib
 
 # matplotlib.use('TkAgg')
@@ -23,43 +25,42 @@ from easydict import EasyDict as edict
 # from IPython import embed
 from tensorboardX import SummaryWriter
 
-# if os.environ.get('pytorch', "1") == "1":
-tic = time.time()
-import torch
-import torchvision
-from torch import nn
-import torch.nn.functional as F
+if os.environ.get('pytorch', "1") == "1":
+    tic = time.time()
+    import torch
+    import torchvision
+    from torch import nn
+    import torch.nn.functional as F
 
-old_repr = torch.Tensor.__repr__
-
-
-def new_repr(obj):
-    return f'{old_repr(obj)} \n type: {obj.type()} shape: {obj.shape} '
+    old_repr = torch.Tensor.__repr__
 
 
-torch.Tensor.__repr__ = new_repr
-print('import pytorch', time.time() - tic)
+    def new_repr(obj):
+        return f'{old_repr(obj)} \n type: {obj.type()} shape: {obj.shape} '
 
-# else:
-# tic = time.time()
-# import tensorflow as tf
-#
-#
-# def allow_growth():
-#     import tensorflow as tf
-#     oldinit = tf.Session.__init__
-#
-#     def myinit(session_object, target='', graph=None, config=None):
-#         if config is None:
-#             config = tf.ConfigProto()
-#         config.gpu_options.allow_growth = True
-#         oldinit(session_object, target, graph, config)
-#
-#     tf.Session.__init__ = myinit
-#
-#
-# allow_growth()
-# print('import tf', time.time() - tic)
+
+    torch.Tensor.__repr__ = new_repr
+    print('import pytorch', time.time() - tic)
+else:
+    tic = time.time()
+    import tensorflow as tf
+
+
+    def allow_growth():
+        import tensorflow as tf
+        oldinit = tf.Session.__init__
+
+        def myinit(session_object, target='', graph=None, config=None):
+            if config is None:
+                config = tf.ConfigProto()
+            config.gpu_options.allow_growth = True
+            oldinit(session_object, target, graph, config)
+
+        tf.Session.__init__ = myinit
+
+
+    allow_growth()
+    print('import tf', time.time() - tic)
 
 root_path = osp.normpath(
     osp.join(osp.abspath(osp.dirname(__file__)))
@@ -94,7 +95,7 @@ def set_stream_logger(log_level=logging.DEBUG):
 
 def set_file_logger(work_dir=None, log_level=logging.DEBUG):
     work_dir = work_dir or os.getcwd()
-    fh = logging.FileHandler(os.path.join(work_dir, 'log_err.txt'))
+    fh = logging.FileHandler(os.path.join(work_dir, 'log-ing'))
     fh.setLevel(log_level)
     fh.setFormatter(
         logging.Formatter('%(asctime)s %(filename)s [line:%(lineno)d] %(levelname)s %(message)s'))
@@ -104,7 +105,7 @@ def set_file_logger(work_dir=None, log_level=logging.DEBUG):
 logging.root.setLevel(logging.DEBUG)
 # set_stream_logger(logging.DEBUG)
 set_stream_logger(logging.INFO)
-set_file_logger(log_level=logging.ERROR)
+set_file_logger(log_level=logging.DEBUG)
 
 
 def np_print(arr):
@@ -141,9 +142,6 @@ def set_env(key, value):
 
 # if something like Runtime Error : an illegal memory access was encountered occur
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
-
-
-# init_dev((3,))
 
 
 '''
@@ -195,14 +193,20 @@ def get_gpu_memory_map():
     return gpu_memory_map
 
 
+def get_mem(ind=0):
+    import gpustat
+    gpus = gpustat.GPUStatCollection.new_query().gpus
+    return gpus[ind].entry['memory.used'] / gpus[ind].entry['memory.total'] * 100
+
+
+def show_dev():
+    for ind in range(4):
+        print(ind, get_mem(ind))
+
+
 def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
-    import gpustat, time
     if not isinstance(mem_thresh, collections.Sequence):
         mem_thresh = (mem_thresh,)
-
-    def get_mem(ind=0):
-        gpus = gpustat.GPUStatCollection.new_query().gpus
-        return gpus[ind].entry['memory.used'] / gpus[ind].entry['memory.total'] * 100
 
     def get_poss_dev():
         mems = [get_mem(ind) for ind in ok]
@@ -211,20 +215,16 @@ def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
 
         return devs
 
-    def print_devs():
-        for ind in range(4):
-            print(ind, get_mem(ind))
-
     devs = get_poss_dev()
     logging.info('Auto select gpu')
     # gpustat.print_gpustat()
-    print_devs()
+    show_dev()
     while len(devs) < n:
         devs = get_poss_dev()
 
         print('no enough device available')
         # gpustat.print_gpustat()
-        print_devs()
+        show_dev()
 
         sleep = int(sleep)
         time.sleep(random.randint(max(0, sleep - 20), sleep + 20))
@@ -246,22 +246,23 @@ def cpu_priority(level=19):
     p.nice(level)
 
 
-def mkdir_if_missing(dir_path):
-    import errno
-    try:
-        os.makedirs(dir_path)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
+def mkdir_p(path, delete=True):
+    if path == '':
+        return
+    if delete and osp.exists(path):
+        rm(path)
+    if not osp.exists(path):
+        shell('mkdir -p ' + path)
 
 
 class Logger(object):
-    def __init__(self, fpath=None):
-        self.console = sys.stdout
+    def __init__(self, fpath=None, console=sys.stdout):
+        self.console = console
         self.file = None
         if fpath is not None:
-            mkdir_if_missing(os.path.dirname(fpath))
-            self.file = open(fpath, 'w')
+            mkdir_p(os.path.dirname(fpath), delete=False)
+            # rm(fpath)
+            self.file = open(fpath, 'a')
 
     def __del__(self):
         self.close()
@@ -287,6 +288,10 @@ class Logger(object):
         self.console.close()
         if self.file is not None:
             self.file.close()
+
+
+sys.stdout = Logger('log-prt')
+sys.stderr = Logger('log-prt-err')
 
 
 class Timer(object):
@@ -849,23 +854,13 @@ class AsyncDumper(mp.Process):
         self.queue.put((obj, filename))
 
 
-def mkdir_p(path, delete=True):
-    if path == '':
-        return
-    if delete:
-        rm(path)
-    if not osp.exists(path):
-        print('mkdir -p  ' + path)
-        subprocess.call(('mkdir -p ' + path).split())
-
-
-def shell(cmd, block=True, return_msg=True):
+def shell(cmd, block=True, return_msg=True, verbose=True):
     import os
     my_env = os.environ.copy()
     home = os.path.expanduser('~')
     my_env['PATH'] = home + "/anaconda3/bin/:" + my_env['PATH']
-    # print(my_env)
-    logging.info('cmd is ' + cmd)
+    if verbose:
+        logging.info('cmd is ' + cmd)
     if block:
         # subprocess.call(cmd.split())
         task = subprocess.Popen(cmd,
@@ -878,9 +873,9 @@ def shell(cmd, block=True, return_msg=True):
         if return_msg:
             msg = task.communicate()
             msg = [msg_.decode('utf-8') for msg_ in msg]
-            if msg[0] != '':
+            if msg[0] != '' and verbose:
                 logging.info('stdout {}'.format(msg[0]))
-            if msg[1] != '':
+            if msg[1] != '' and verbose:
                 logging.error('stderr {}'.format(msg[1]))
             return msg
         else:
@@ -895,12 +890,6 @@ def shell(cmd, block=True, return_msg=True):
                                 preexec_fn=os.setsid
                                 )
         return task
-
-
-def check_path(path):
-    path = osp.dirname(path)
-    if not osp.exists(path):
-        mkdir_p(path)
 
 
 def ln(path, to_path):
@@ -933,37 +922,34 @@ def tar(path, to_path=None):
         rm(path)
 
 
-def rmdir(path):
-    cmd = "rmdir " + path
-    shell(cmd)
-
-
 def rm(path, block=True):
     path = osp.abspath(path)
-    dst = glob.glob('{}.bak*'.format(path))
-    parsr = re.compile(r'{}.bak(\d+?)'.format(path))
-    used = [0, ]
-    for d in dst:
-        m = re.match(parsr, d)
-        if not m:
-            used.append(0)
-        elif m.groups()[0] == '':
-            used.append(0)
-        else:
-            used.append(int(m.groups()[0]))
-    dst_path = '{}.bak{}'.format(path, max(used) + 1)
-    if osp.exists(path):
+    if not osp.exists(path):
+        logging.info(f'no need rm {path}')
+    stdout, _ = shell('which trash', verbose=False)
+    if 'trash' not in stdout:
+        dst = glob.glob('{}.bak*'.format(path))
+        parsr = re.compile(r'{}.bak(\d+?)'.format(path))
+        used = [0, ]
+        for d in dst:
+            m = re.match(parsr, d)
+            if not m:
+                used.append(0)
+            elif m.groups()[0] == '':
+                used.append(0)
+            else:
+                used.append(int(m.groups()[0]))
+        dst_path = '{}.bak{}'.format(path, max(used) + 1)
         cmd = 'mv {} {} '.format(path, dst_path)
-        print(cmd)
         return shell(cmd, block=block)
     else:
-        print(path, 'no need to move')
+        return shell(f'trash -r {path}', block=block)
 
 
 def show_img(path):
     from IPython.display import Image
 
-    fig = Image(filename=(path))
+    fig = Image(filename=path)
     return fig
 
 
@@ -1014,7 +1000,10 @@ def read_list(file, delimi=" "):
 
 
 def cp(from_path, to):
-    subprocess.call(('cp -r ' + from_path + ' ' + to).split())
+    dst_dir = osp.dirname(to)
+    if not osp.exists(dst_dir):
+        mkdir_p(dst_dir)
+    shell('cp -r ' + from_path + ' ' + to)
 
 
 def mv(from_path, to):
@@ -1025,7 +1014,7 @@ def mv(from_path, to):
         for to_ in to:
             mv(from_path, to_)
     else:
-        subprocess.call(('mv ' + from_path + ' ' + to).split())
+        shell('mv ' + from_path + ' ' + to)
 
 
 def dict_concat(d_l):
