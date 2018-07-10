@@ -279,6 +279,13 @@ def update_dop_center(dist, dop_info):
     dop_info.dop = dop
 
 
+def set_bn_to_eval(m):
+    # 1. no update for running mean and var
+    # 2. scale and shift parameters are still trainable
+    classname = m.__class__.__name__
+    if classname.find('BatchNorm') != -1:
+        m.eval()
+
 class TriTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=True, args=None, dop_info=None, **kwargs):
         self.model = model
@@ -300,6 +307,11 @@ class TriTrainer(object):
         precisions = AverageMeter()
 
         end = time.time()
+        if self.args.freeze_bn:
+            self.model.train()
+            self.model.apply(set_bn_to_eval)
+        else:
+            self.model.train()
 
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
@@ -315,7 +327,7 @@ class TriTrainer(object):
             if schedule is not None:
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
-            self.model.train()
+
 
             features, logits, mid_feas = self.model(input_imgs)
             mid_feas.append(features)

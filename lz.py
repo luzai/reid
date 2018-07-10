@@ -57,9 +57,10 @@ else:
             oldinit(session_object, target, graph, config)
 
         tf.Session.__init__ = myinit
+        return oldinit
 
 
-    allow_growth()
+    oldinit = allow_growth()
     print('import tf', time.time() - tic)
 
 root_path = osp.normpath(
@@ -138,6 +139,20 @@ def set_env(key, value):
         os.environ[key] = value + ':' + os.environ[key]
     else:
         os.environ[key] = value
+
+
+def occupy(dev=range(8)):
+    import tensorflow as tf
+    init_dev(dev)
+    newinit = tf.Session.__init__
+    if 'oldinit' in locals():
+        tf.Session.__init__ = oldinit
+    var = tf.constant(1)
+    with tf.Session() as sess:
+        sess.run([var])
+    while True:
+        time.sleep(10)
+    # tf.Session.__init__ = newinit
 
 
 # if something like Runtime Error : an illegal memory access was encountered occur

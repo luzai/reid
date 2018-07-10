@@ -38,11 +38,10 @@ def run(_):
             range(args.epochs - 8, args.epochs, 1)
         ])
         args.logs_dir = 'work/' + args.logs_dir
-        # if osp.exists(args.logs_dir) and osp.exists(args.logs_dir+'/checkpoint.64.pth'):
-        #     print(os.listdir(args.logs_dir))
-        #     continue
-        # else:
-        #     return
+        if osp.exists(args.logs_dir) and osp.exists(args.logs_dir+'/checkpoint.64.pth'):
+            print(os.listdir(args.logs_dir))
+            continue
+
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
@@ -325,14 +324,17 @@ def main(args):
             lr=args.lr,
             betas=args.adam_betas,
             eps=args.adam_eps,  # adam hyperparameter
-            weight_decay=args.weight_decay)
+            weight_decay=args.weight_decay,
+            amsgrad=args.amsgrad,
+        )
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(
             # filter(lambda p: p.requires_grad, model.parameters()),
             param_groups,
             lr=args.lr,
             weight_decay=args.weight_decay, momentum=0.9,
-            nesterov=True)
+            nesterov=False,
+        )
     else:
         raise NotImplementedError
 
