@@ -638,6 +638,14 @@ class ResNetOri(nn.Module):
         self.layer4 = self._make_layer(block2, 512, layers[3],
                                        stride=last_conv_stride,
                                        dilation=last_conv_dilation)
+        channel = 128
+        reduction = 4
+        self.fcc = nn.Sequential(
+            nn.Linear(channel, channel // reduction),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel),
+            nn.ReLU(inplace=True),  # nn.Sigmoid()
+        )
 
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
@@ -684,7 +692,11 @@ class ResNetOri(nn.Module):
         features = self.embed1(x5)
         clss = self.embed2(features)
 
-        return features, clss, [x1_res, x2_res, x3_res, x4_res, ]
+        x5_weight = self.fcc(features)#.mean(dim=0)
+        x5_grad_reg = (features * x5_weight).mean()
+
+        return features, clss, [x1_res, x2_res, x3_res, x4_res, ], \
+               x5_grad_reg.unsqueeze(dim=0)
 
 
 from reid.models.attention import MaskBranch

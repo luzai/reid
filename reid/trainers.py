@@ -286,6 +286,7 @@ def set_bn_to_eval(m):
     if classname.find('BatchNorm') != -1:
         m.eval()
 
+
 class TriTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=True, args=None, dop_info=None, **kwargs):
         self.model = model
@@ -328,8 +329,8 @@ class TriTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
 
-
-            features, logits, mid_feas = self.model(input_imgs)
+            features, logits, mid_feas, x5_grad_reg = self.model(input_imgs)
+            x5_grad_reg.squeeze_(dim=0)
             mid_feas.append(features)
             losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
             # losst is triplet loss
@@ -412,7 +413,19 @@ class TriTrainer(object):
                     grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
                 else:
                     grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
-                (self.args.double * grad_reg).backward()
+                if np.count_nonzero(self.args.reg_mid_fea) == 0:
+                    (self.args.double * grad_reg).backward()
+                else:
+                    (self.args.double * grad_reg).backward(retain_graph=True)
+                ind_max = np.nonzero(self.args.reg_mid_fea)[0].max()
+                for ind, weight in enumerate(self.args.reg_mid_fea):
+                    fea = mid_feas[ind]
+                    if weight != 0:
+                        reg = reg_mid_fea(fea, input_imgs, weight,
+                                          retain_graph=(ind != ind_max))
+                        self.writer.add_scalar(f'vis/contract_fea_{ind+1}',
+                                               reg, self.iter)
+                        if ind == ind_max: break
                 self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
                 optimizer.step()
             elif self.args.double != 0 and self.args.adv_inp != 0:
@@ -476,13 +489,29 @@ class TriTrainer(object):
                     fea = mid_feas[ind]
                     if weight != 0:
                         reg = reg_mid_fea(fea, input_imgs, weight,
-                                          retain_graph=(ind != ind_max))
+                                          retain_graph=(ind != ind_max),
+                                          # projed=x5_grad_reg,
+                                          projed=None,
+                                          )
                         self.writer.add_scalar(f'vis/contract_fea_{ind+1}', reg, self.iter)
                         if ind == ind_max: break
                 optimizer.step()
             else:
                 optimizer.zero_grad()
                 losst.backward()
+
+                # losst.backward(retain_graph=True)
+                # input_imgs_grad_attached = torch.autograd.grad(
+                #     outputs=losst, inputs=input_imgs,
+                #     # create_graph=True,
+                #     # retain_graph=False,
+                #     only_inputs=True
+                # )[0].view(
+                #     batch_size, -1
+                # )
+                # grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
+                # self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
+
                 optimizer.step()
 
             batch_time.update(time.time() - end)
@@ -512,12 +541,15 @@ def l2_normalize(x):
     return x2.view(shape)
 
 
-def reg_mid_fea(fea, input_imgs, weight, retain_graph=True):
+def reg_mid_fea(fea, input_imgs, weight, retain_graph=True, projed=None):
     bs, fea_len = fea.size()
-    unit_vec = torch.randn(fea_len).cuda()
-    prj_fea = fea * unit_vec
+    if projed is None:
+        unit_vec = torch.randn(fea_len).cuda()
+        prj_fea = (fea * unit_vec).mean()
+    else:
+        prj_fea = projed
     fea_grad = torch.autograd.grad(
-        outputs=prj_fea.mean(), inputs=input_imgs,
+        outputs=prj_fea, inputs=input_imgs,
         create_graph=True,
         retain_graph=True,
         only_inputs=True

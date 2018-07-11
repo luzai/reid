@@ -63,36 +63,72 @@ cfgs = [
     #     push_scale=1., embed=None, margin='soft', margin2=1., margin3=1.,
     # ),
 
-    edict(
-        logs_dir='tri4.obs.gradient_norm',
-        double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
-        # reg_mid_fea=[0., 0., 1e7, 0., 1e2],  # x1, x2, x3, x4, x5
-        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-        # evaluate=True,
-        # aux='l2_grad',
-        dataset='cu03lbl',
-        gpu=(0,),
-        # gpu_fix=True,
-        batch_size=64, num_instances=4, num_classes=128,
-        dropout=0, loss='tri', tri_mode='hard',
-        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-        random_ratio=1, lr_cent=0,
-        gpu_range=range(4), lr_mult=1,
-        push_scale=1., embed=None,
-        margin='soft', margin2=1., margin3=1.,
-        height=256, width=128, cu03_classic=False,
-    ),
+    # edict(
+    #     logs_dir='tri4.obs.gradient_norm',
+    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
+    #     # reg_mid_fea=[0., 0., 1e7, 0., 1e2],  # x1, x2, x3, x4, x5
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     # evaluate=True,
+    #     # aux='l2_grad',
+    #     dataset='cu03lbl',
+    #     gpu=(0,),
+    #     # gpu_fix=True,
+    #     batch_size=64, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri', tri_mode='hard',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=range(4), lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft', margin2=1., margin3=1.,
+    #     height=256, width=128, cu03_classic=False,
+    # ),
 
+    # edict(
+    #     logs_dir='tri4.x5.se',
+    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
+    #     reg_mid_fea=[0., 0., 0., 0., 1e2],  # x1, x2, x3, x4, x5
+    #     # evaluate=True,
+    #     # aux='l2_grad',
+    #     dataset='cu03lbl',
+    #     gpu=(0, ),
+    #     gpu_fix=False, gpu_range=range(4),
+    #     batch_size=64, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri', tri_mode='hard',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0, lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft', margin2=1., margin3=1.,
+    #     height=256, width=128, cu03_classic=False,
+    # ),
+
+    # edict(
+    #     logs_dir='tri4.dbl.x3',
+    #     double=1, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
+    #     reg_mid_fea=[0., 0., 1e7, 0., 0.],  # x1, x2, x3, x4, x5
+    #     # evaluate=True,
+    #     # aux='l2_grad',
+    #     dataset='cu03lbl',
+    #     gpu=(0, 1),
+    #     # gpu_fix=True,
+    #     batch_size=64, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri', tri_mode='hard',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=range(4), lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft', margin2=1., margin3=1.,
+    #     height=256, width=128, cu03_classic=False,
+    # ),
 ]
 
 # cfg = edict(
-#     logs_dir='tri4.x5',
+#     logs_dir='tri4.dbl',
 #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
 #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
 #     # evaluate=True,
 #     # aux='l2_grad',
 #     dataset='cu03lbl',
-#     gpu=(0, 1),
+#     gpu=(0, ),
 #     # gpu_fix=True,
 #     batch_size=64, num_instances=4, num_classes=128,
 #     dropout=0, loss='tri', tri_mode='hard',
@@ -105,105 +141,10 @@ cfgs = [
 #     height=256, width=128, cu03_classic=False,
 # )
 #
-# for wei in [1e2, 1e5]:
+# for wei in [10, 1e3]:
 #     cfg_t = copy.deepcopy(cfg)
-#     reg_mid_fea = [0, 0, 0, 0, wei]
-#     cfg_t.reg_mid_fea = reg_mid_fea
+#     cfg_t.double = wei
 #     cfg_t.logs_dir = f'{cfg.logs_dir}.{wei:.1e}'
-#     cfgs.append(cfg_t)
-
-# cfg = edict(
-#     logs_dir='tri4.x3',
-#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
-#     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-#     # evaluate=True,
-#     # aux='l2_grad',
-#     dataset='cu03lbl',
-#     gpu=(0,),
-#     # gpu_fix=True,
-#     batch_size=64, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', tri_mode='hard',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     gpu_range=range(4), lr_mult=1,
-#     push_scale=1., embed=None,
-#     margin='soft', margin2=1., margin3=1.,
-#     last_conv_stride=1,
-#     height=256, width=128, cu03_classic=False,
-# )
-#
-# for wei in [1e7, 1e10]:
-#     cfg_t = copy.deepcopy(cfg)
-#     reg_mid_fea = [0, 0, wei, 0, 0]
-#     cfg_t.reg_mid_fea = reg_mid_fea
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{wei:.1e}'
-#     cfgs.append(cfg_t)
-
-# cfg = edict(
-#     logs_dir='tri4.multi.obs',
-#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
-#     reg_mid_fea=[1., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-#     # evaluate=True,
-#     # aux='l2_grad',
-#     dataset='cu03lbl',
-#     gpu=(0, 1), gpu_range=(0, 1,), epochs=1,
-#     # gpu_fix=True,
-#     batch_size=64, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', tri_mode='hard',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     lr_mult=1,
-#     push_scale=1., embed=None,
-#     margin='soft', margin2=1., margin3=1.,
-#     last_conv_stride=1,
-#     height=256, width=128, cu03_classic=False, test_best=False,
-# )
-# for bs, reg_mid_fea in grid_iter(
-#         [32, 64],
-#         [
-#             [1., 0., 0., 0., 0.],
-#             [0., 1., 0., 0., 0.],
-#             [0., 0., 1., 0., 0.],
-#             [0., 0., 0., 1., 0.],
-#             [0., 0., 0., 0., 1.],
-#         ]
-# ):
-#     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.batch_size = bs
-#     cfg_t.reg_mid_fea = reg_mid_fea
-#     ind = np.argmax(reg_mid_fea)
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.bs{bs}.x{int(ind)}'
-#     cfgs.append(cfg_t)
-
-# cfg = edict(
-#     logs_dir='tri4.bs',
-#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
-#     # evaluate=True,
-#     # aux='l2_grad',
-#     dataset='cu03lbl',
-#     gpu=(0,),
-#     # gpu_fix=True,
-#     batch_size=128, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', tri_mode='hard',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     gpu_range=range(4), lr_mult=1,
-#     push_scale=1., embed=None,
-#     margin='soft', margin2=1., margin3=1.,
-#     last_conv_stride=1,
-#     height=256, width=128, cu03_classic=False,
-# )
-#
-# for ds, bs, run in grid_iter(
-#         ['cu03lbl'],
-#         [16, 32, 64, 128],
-#         [1, 2, 3]
-# ):
-#     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.dataset = ds
-#     cfg_t.batch_size = bs
-#     cfg_t.run = run
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{bs}.{run}'
 #     cfgs.append(cfg_t)
 
 # cfg = edict(
