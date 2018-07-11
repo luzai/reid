@@ -64,9 +64,9 @@ cfgs = [
     # ),
 
     edict(
-        # logs_dir='tri4.freezebn.64',
-        logs_dir='bak',
+        logs_dir='tri4.obs.gradient_norm',
         double=0, adv_inp=0, adv_fea=0, adv_inp_eps=5.,
+        # reg_mid_fea=[0., 0., 1e7, 0., 1e2],  # x1, x2, x3, x4, x5
         reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
         # evaluate=True,
         # aux='l2_grad',
@@ -80,11 +80,7 @@ cfgs = [
         gpu_range=range(4), lr_mult=1,
         push_scale=1., embed=None,
         margin='soft', margin2=1., margin3=1.,
-        last_conv_stride=1,
         height=256, width=128, cu03_classic=False,
-        freeze_bn=False,
-        # optimizer='sgd', lr=1e-3,
-        # amsgrad=True,
     ),
 
 ]
@@ -244,6 +240,7 @@ base = edict(
     freeze_bn=False,
     impr=0., cu03_classic=False,
     last_conv_stride=2,
+    last_conv_dilation=1,
     double=0, adv_inp=0, adv_fea=0,
     adv_inp_eps=.3, adv_fea_eps=.3,
     optimizer_cent='adam', topk=5, test_best=True,

@@ -48,12 +48,13 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, dilation=1):
+    def __init__(self, inplanes, planes, stride=1, dilation=1, downsample=None, ):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
+                               padding=1 if dilation == 1 else 2,
+                               bias=False, dilation=dilation)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
@@ -61,7 +62,10 @@ class Bottleneck(nn.Module):
         if downsample is not None:
             self.downsample = nn.Sequential(
                 nn.Conv2d(downsample[0], downsample[1],
-                          kernel_size=1, stride=downsample[2], bias=False),
+                          kernel_size=1,
+                          padding=0,
+                          stride=downsample[2], dilation=downsample[3],
+                          bias=False),
                 nn.BatchNorm2d(downsample[1]),
             )
         else:
@@ -574,12 +578,12 @@ class ResNetOri(nn.Module):
         '152': [3, 8, 36, 3],
     }
 
-    def _make_layer(self, block, planes, blocks, stride=1):
+    def _make_layer(self, block, planes, blocks, stride=1, dilation=1):
         if not isinstance(block, list):
             block = [block] * blocks
         downsample = None
         if stride != 1 or self.inplanes != planes * block[0].expansion:
-            downsample = (self.inplanes, planes * block[0].expansion, stride)
+            downsample = (self.inplanes, planes * block[0].expansion, stride, dilation)
             # downsample = nn.Sequential(
             #     nn.Conv2d(self.inplanes, planes * block[0].expansion,
             #               kernel_size=1, stride=stride, bias=False),
@@ -587,7 +591,7 @@ class ResNetOri(nn.Module):
             # )
 
         layers = []
-        layers.append(block[0](self.inplanes, planes, stride, downsample))
+        layers.append(block[0](self.inplanes, planes, stride, dilation, downsample, ))
         self.inplanes = planes * block[0].expansion
         for i in range(1, blocks):
             layers.append(block[i](self.inplanes, planes))
@@ -601,6 +605,7 @@ class ResNetOri(nn.Module):
                  block_name2='Bottleneck',
                  num_deform=3, fusion=None,
                  last_conv_stride=2,
+                 last_conv_dilation=1,
                  **kwargs):
         super(ResNetOri, self).__init__()
         depth = str(depth)
@@ -630,7 +635,9 @@ class ResNetOri(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block2, 512, layers[3], stride=last_conv_stride)
+        self.layer4 = self._make_layer(block2, 512, layers[3],
+                                       stride=last_conv_stride,
+                                       dilation=last_conv_dilation)
 
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
@@ -677,7 +684,7 @@ class ResNetOri(nn.Module):
         features = self.embed1(x5)
         clss = self.embed2(features)
 
-        return features, clss, [x1_res, x2_res, x3_res, x4_res,]
+        return features, clss, [x1_res, x2_res, x3_res, x4_res, ]
 
 
 from reid.models.attention import MaskBranch

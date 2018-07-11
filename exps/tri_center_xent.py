@@ -231,6 +231,7 @@ def main(args):
                           num_deform=args.num_deform,
                           fusion=args.fusion,
                           last_conv_stride=args.last_conv_stride,
+                          last_conv_dilation=args.last_conv_dilation,
                           )
 
     print(model)

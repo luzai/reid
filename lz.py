@@ -214,9 +214,19 @@ def get_mem(ind=0):
     return gpus[ind].entry['memory.used'] / gpus[ind].entry['memory.total'] * 100
 
 
-def show_dev():
-    for ind in range(4):
-        print(ind, get_mem(ind))
+def get_utility(ind=0):
+    import gpustat
+    gpus = gpustat.GPUStatCollection.new_query().gpus
+    return gpus[ind].entry['utilization.gpu']
+
+
+def show_dev(devs=range(4)):
+    res = []
+    for ind in devs:
+        mem = get_mem(ind)
+        print(ind, mem)
+        res.append(mem)
+    return res
 
 
 def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
@@ -448,22 +458,23 @@ class Uninterrupt(object):
             self.orig_handlers = None
 
 
-def mail(content, ):
+def mail(content, to_mail='907682447@qq.com'):
     import datetime
-    user_pass = {'username': 'wxlms@outlook.com',
-                 'password': 'yana3140102282',
-                 'host': 'smtp.outlook.com',
-                 'port': 587}
     user_pass = {'username': '907682447@qq.com',
                  'password': 'luzai123',
                  'host': 'smtp.qq.com',
                  'port': 587}
+
+    # user_pass = {'username': 'wxlms@outlook.com',
+    #              'password': 'yana3140102282',
+    #              'host': 'smtp.outlook.com',
+    #              'port': 587}
     # user_pass = {'username': '3140102282@zju.edu.cn',
     #              'password': 'eePh9zie',
     #              'host': 'smtp.zju.edu.cn',
     #              'port': 25}
 
-    time_str = datetime.datetime.now().strftime('%M-%d %H:%M')
+    time_str = datetime.datetime.now().strftime('%m-%d %H:%M')
 
     import smtplib
     from email.mime.multipart import MIMEMultipart
@@ -473,7 +484,7 @@ def mail(content, ):
     s.starttls()
     s.login(user_pass['username'], user_pass['password'])
 
-    def send(to_mail=user_pass['username'], content='', title=''):
+    def send(to_mail=to_mail, content='', title=''):
         msg = MIMEMultipart('alternative')
         msg['Subject'] = title
         msg['From'] = user_pass['username']

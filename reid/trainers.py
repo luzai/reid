@@ -476,7 +476,7 @@ class TriTrainer(object):
                     fea = mid_feas[ind]
                     if weight != 0:
                         reg = reg_mid_fea(fea, input_imgs, weight,
-                                          retain_graph=(ind == ind_max))
+                                          retain_graph=(ind != ind_max))
                         self.writer.add_scalar(f'vis/contract_fea_{ind+1}', reg, self.iter)
                         if ind == ind_max: break
                 optimizer.step()
