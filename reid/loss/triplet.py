@@ -51,7 +51,7 @@ class CenterLoss(nn.Module):
         self.margin3 = margin3
         self.mode = mode
         self.args = args
-
+        user_gpu = torch.cuda.is_available()
         if self.use_gpu:
             self.centers = nn.Parameter(torch.randn(
                 self.num_classes, self.feat_dim).cuda())

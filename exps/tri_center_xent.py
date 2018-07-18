@@ -38,7 +38,7 @@ def run(_):
             range(args.epochs - 8, args.epochs, 1)
         ])
         args.logs_dir = 'work/' + args.logs_dir
-        if osp.exists(args.logs_dir) and osp.exists(args.logs_dir+'/checkpoint.64.pth'):
+        if osp.exists(args.logs_dir) and osp.exists(args.logs_dir + '/checkpoint.64.pth'):
             print(os.listdir(args.logs_dir))
             continue
 
@@ -90,13 +90,15 @@ def get_data(args):
     rand_ratio = args.random_ratio
 
     root = osp.join(data_dir, name)
-    dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode, cuhk03_classic_split= args.cu03_classic)
+    dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode,
+                              cuhk03_classic_split=args.cu03_classic)
     # pid2lbl = dataset.pid2lbl
     # np.unique(list(pid2lbl.keys())).shape
     # np.unique(list(pid2lbl.values())).shape
     # pid2lbl[7]
     root = osp.join(data_dir, name_val)
-    dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode, cuhk03_classic_split = args.cu03_classic)
+    dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode,
+                                  cuhk03_classic_split=args.cu03_classic)
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -249,12 +251,12 @@ def main(args):
         else:
             checkpoint = load_checkpoint(args.resume, map_location='cpu')
         # model.load_state_dict(checkpoint['state_dict'])
-        db_name = args.logs_dir + '/' + args.logs_dir.split('/')[-1] + '.h5'
-        load_state_dict(model, checkpoint['state_dict'])
-        with lz.Database(db_name) as db:
-            if 'cent' in checkpoint:
-                db['cent'] = to_numpy(checkpoint['cent'])
-            db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
+        # db_name = args.logs_dir + '/' + args.logs_dir.split('/')[-1] + '.h5'
+        # load_state_dict(model, checkpoint['state_dict'])
+        # with lz.Database(db_name) as db:
+        #     if 'cent' in checkpoint:
+        #         db['cent'] = to_numpy(checkpoint['cent'])
+        #     db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
             best_top1_ = checkpoint['best_top1']
@@ -265,9 +267,9 @@ def main(args):
             best_top1 = checkpoint['best_top1']
             print("=> Start epoch {}  best top1 {:.1%}"
                   .format(start_epoch, best_top1))
-    if args.gpu is None:
+    if args.gpu is None or len(args.gpu) == 0:
         model = nn.DataParallel(model)
-    elif args.gpu == 1:
+    elif len(args.gpu) == 1:
         model = nn.DataParallel(model).cuda()
     else:
         model = nn.DataParallel(model, device_ids=range(len(args.gpu))).cuda()
@@ -352,7 +354,10 @@ def main(args):
                 'cent': criterion[1].centers,
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
-            }, True, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))
+            }, True, fpath=osp.join(args.logs_dir,
+                                    # 'checkpoint.{}.pth'.format(epoch))
+                                    'model_latest.pth', )
+            )
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
 

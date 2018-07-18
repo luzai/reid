@@ -9,6 +9,7 @@ from reid.lib.cython_eval import eval_market1501_wrap
 
 
 def extract_features(model, data_loader, print_freq=1):
+
     model.eval()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -39,14 +40,14 @@ def extract_features(model, data_loader, print_freq=1):
                   'Data {:.3f} ({:.3f})\t'
                   .format(i + 1, len(data_loader),
                           batch_time.val, batch_time.avg,
-                          data_time.val, data_time.avg))
+                          data_time.val, data_time.avg), imgs.shape)
 
     print('Extract Features: [{}/{}]\t'
           'Time {:.3f} ({:.3f})\t'
           'Data {:.3f} ({:.3f})\t'
           .format(i + 1, len(data_loader),
                   batch_time.val, batch_time.avg,
-                  data_time.val, data_time.avg))
+                  data_time.val, data_time.avg), imgs.shape)
     print(f'{len(features)} features, each of len {features.values().__iter__().__next__().shape[0]}')
     return features, labels
 

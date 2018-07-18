@@ -19,7 +19,7 @@ def write_json(obj, fpath):
 
 
 def save_checkpoint(state, is_best, fpath='checkpoint.pth'):
-    mkdir_p(osp.dirname(fpath),delete=False)
+    mkdir_p(osp.dirname(fpath), delete=False)
     torch.save(state, fpath)
     dest = osp.join(osp.dirname(fpath), 'model_best.pth')
     if is_best or not osp.exists(dest):

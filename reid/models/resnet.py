@@ -692,7 +692,7 @@ class ResNetOri(nn.Module):
         features = self.embed1(x5)
         clss = self.embed2(features)
 
-        x5_weight = self.fcc(features)#.mean(dim=0)
+        x5_weight = self.fcc(features).mean(dim=0)
         x5_grad_reg = (features * x5_weight).mean()
 
         return features, clss, [x1_res, x2_res, x3_res, x4_res, ], \
