@@ -33,10 +33,11 @@ def _make_fc(in_, out_, dp_=0., with_relu=True, init_method='kaiming'):
     else:
         init.kaiming_normal(fc.weight, mode='fan_out')
     init.constant(fc.bias, 0)
-    dp = nn.Dropout(dp_)
     relu = nn.ReLU(inplace=True)
     res = [fc, ]
+    # todo bn
     if dp_ != 0:
+        dp = nn.Dropout(dp_)
         res.append(dp)
     if with_relu:
         res.append(relu)

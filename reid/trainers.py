@@ -318,7 +318,7 @@ class TriTrainer(object):
             data_time.update(time.time() - end)
             input_imgs = inputs.get('img').cuda()
             batch_size = input_imgs.size(0)
-            if self.dbg % 100 == 0:
+            if self.iter % 100 == 0:
                 x = vutils.make_grid(
                     input_imgs, normalize=True, scale_each=True)
                 self.writer.add_image('input', x, self.iter)
@@ -329,15 +329,17 @@ class TriTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
 
-            features, logits, mid_feas, x5_grad_reg = self.model(input_imgs)
-            x5_grad_reg.squeeze_(dim=0)
+            (features, logits, mid_feas,
+             # x5_grad_reg
+             ) = self.model(input_imgs)
+            # x5_grad_reg.squeeze_(dim=0)
             mid_feas.append(features)
             losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
             # losst is triplet loss
-
-            self.writer.add_scalar('vis/loss-triplet', losst.item(), self.iter)
-            self.writer.add_scalar('vis/prec-triplet', prect.item(), self.iter)
-            self.writer.add_scalar('vis/lr', self.lr, self.iter)
+            if self.iter % 10 == 0:
+                self.writer.add_scalar('vis/loss-triplet', losst.item(), self.iter)
+                self.writer.add_scalar('vis/prec-triplet', prect.item(), self.iter)
+                self.writer.add_scalar('vis/lr', self.lr, self.iter)
             self.iter += 1
 
             if isinstance(targets, tuple):
@@ -417,7 +419,10 @@ class TriTrainer(object):
                     (self.args.double * grad_reg).backward()
                 else:
                     (self.args.double * grad_reg).backward(retain_graph=True)
-                ind_max = np.nonzero(self.args.reg_mid_fea)[0].max()
+                if not np.nonzero(self.args.reg_mid_fea)[0]:
+                    ind_max = -1
+                else:
+                    ind_max = np.nonzero(self.args.reg_mid_fea)[0].max()
                 for ind, weight in enumerate(self.args.reg_mid_fea):
                     fea = mid_feas[ind]
                     if weight != 0:
@@ -490,8 +495,8 @@ class TriTrainer(object):
                     if weight != 0:
                         reg = reg_mid_fea(fea, input_imgs, weight,
                                           retain_graph=(ind != ind_max),
-                                          projed=x5_grad_reg,
-                                          # projed=None,
+                                          # projed=x5_grad_reg,
+                                          projed=None,
                                           )
                         self.writer.add_scalar(f'vis/contract_fea_{ind+1}', reg, self.iter)
                         if ind == ind_max: break

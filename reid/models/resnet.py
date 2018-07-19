@@ -3,7 +3,7 @@ from lz import *
 from torch.nn import init
 from torchvision.models.resnet import conv3x3, model_urls, model_zoo
 from reid.utils.serialization import load_state_dict
-from .common import _make_conv
+from .common import _make_conv, _make_fc
 
 
 class BasicBlock(nn.Module):
@@ -60,11 +60,15 @@ class Bottleneck(nn.Module):
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
         if downsample is not None:
+            if len(downsample) <= 3:
+                dilation_ = 1
+            else:
+                dilation_ = downsample[3]
             self.downsample = nn.Sequential(
                 nn.Conv2d(downsample[0], downsample[1],
                           kernel_size=1,
                           padding=0,
-                          stride=downsample[2], dilation=downsample[3],
+                          stride=downsample[2], dilation=dilation_,
                           bias=False),
                 nn.BatchNorm2d(downsample[1]),
             )
@@ -638,14 +642,14 @@ class ResNetOri(nn.Module):
         self.layer4 = self._make_layer(block2, 512, layers[3],
                                        stride=last_conv_stride,
                                        dilation=last_conv_dilation)
-        channel = 128
-        reduction = 4
-        self.fcc = nn.Sequential(
-            nn.Linear(channel, channel // reduction),
-            nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel),
-            nn.ReLU(inplace=True),  # nn.Sigmoid()
-        )
+        # channel = 128
+        # reduction = 4
+        # self.fcc = nn.Sequential(
+        #     nn.Linear(channel, channel // reduction),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(channel // reduction, channel),
+        #     nn.ReLU(inplace=True),  # nn.Sigmoid()
+        # )
 
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
@@ -692,11 +696,13 @@ class ResNetOri(nn.Module):
         features = self.embed1(x5)
         clss = self.embed2(features)
 
-        x5_weight = self.fcc(features).mean(dim=0)
-        x5_grad_reg = (features * x5_weight).mean()
+        # x5_weight = self.fcc(features).mean(dim=0)
+        # x5_grad_reg = (features * x5_weight).mean()
 
-        return features, clss, [x1_res, x2_res, x3_res, x4_res, ], \
-               x5_grad_reg.unsqueeze(dim=0)
+        return (features, clss,
+                [x1_res, x2_res, x3_res, x4_res, ],
+                # x5_grad_reg.unsqueeze(dim=0)
+                )
 
 
 from reid.models.attention import MaskBranch
@@ -955,12 +961,13 @@ class ResNetCascade(nn.Module):
         '152': [3, 8, 36, 3],
     }
 
-    def _make_layer(self, block, planes, blocks, stride=1):
+    def _make_layer(self, block, planes, blocks, stride=1, dilation=1):
+        # we only use dilation = 1 here
         if not isinstance(block, list):
             block = [block] * blocks
         downsample = None
         if stride != 1 or self.inplanes != planes * block[0].expansion:
-            downsample = (self.inplanes, planes * block[0].expansion, stride)
+            downsample = (self.inplanes, planes * block[0].expansion, stride,)
             # downsample = nn.Sequential(
             #     nn.Conv2d(self.inplanes, planes * block[0].expansion,
             #               kernel_size=1, stride=stride, bias=False),
@@ -968,7 +975,7 @@ class ResNetCascade(nn.Module):
             # )
 
         layers = []
-        layers.append(block[0](self.inplanes, planes, stride, downsample))
+        layers.append(block[0](self.inplanes, planes, stride=stride, downsample=downsample))
         self.inplanes = planes * block[0].expansion
         for i in range(1, blocks):
             layers.append(block[i](self.inplanes, planes))
@@ -979,7 +986,9 @@ class ResNetCascade(nn.Module):
                  num_features=0, dropout=0,
                  num_classes=0, block_name='Bottleneck',
                  block_name2='Bottleneck',
-                 num_deform=3,
+                 num_deform=3, fusion=None,
+                 last_conv_stride=2,
+                 last_conv_dilation=1,
                  **kwargs):
         super(ResNetCascade, self).__init__()
         depth = str(depth)
@@ -1010,11 +1019,13 @@ class ResNetCascade(nn.Module):
         if num_deform > 3:
             self.layer3 = self._make_layer([block] * 3 + [block2] * (num_deform - 3), 256, layers[2],
                                            stride=2)
-            self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=2)
+            self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=last_conv_stride,
+                                           dilation=last_conv_dilation)
         else:
             self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
             self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
-                                           layers[3], stride=2)
+                                           layers[3], stride=last_conv_stride,
+                                           dilation=last_conv_dilation)
 
         num_in = self.out_planes + self.out_planes // 2 + self.out_planes // 4 + self.out_planes // 8
         self.post2 = nn.Sequential(
@@ -1062,17 +1073,136 @@ class ResNetCascade(nn.Module):
         return features, clss
 
 
+class ResNetCascadeSum(nn.Module):
+    __factory = {
+        '18': [2, 2, 2, 2],
+        '34': [3, 4, 6, 3],
+        '50': [3, 4, 6, 3],
+        '101': [3, 4, 23, 3],
+        '152': [3, 8, 36, 3],
+    }
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        if not isinstance(block, list):
+            block = [block] * blocks
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block[0].expansion:
+            downsample = (self.inplanes, planes * block[0].expansion, stride)
+
+        layers = []
+        layers.append(block[0](self.inplanes, planes, stride=stride, downsample=downsample))
+        self.inplanes = planes * block[0].expansion
+        for i in range(1, blocks):
+            layers.append(block[i](self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def __init__(self, depth=50, pretrained=True,
+                 num_features=0, dropout=0,
+                 num_classes=0, block_name='Bottleneck',
+                 block_name2='Bottleneck',
+                 num_deform=3, last_conv_stride=2,
+                 **kwargs):
+        super(ResNetCascadeSum, self).__init__()
+        depth = str(depth)
+        self.depth = depth
+        self.inplanes = 64
+        self.pretrained = pretrained
+
+        self.dropout = dropout
+        self.num_classes = num_classes
+        self.num_features = num_features
+
+        # Construct base (pretrained) resnet
+        if depth not in ResNetCascadeSum.__factory:
+            raise KeyError("Unsupported depth:", depth)
+        layers = ResNetCascadeSum.__factory[depth]
+        block = eval(block_name)
+        block2 = eval(block_name2)
+        self.out_planes = 512 * block2.expansion
+        logging.info(f'out_planes is {self.out_planes}')
+        self.conv1 = nn.Conv2d(3, 64,
+                               kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        if num_deform > 3:
+            self.layer3 = self._make_layer([block] * 3 + [block2] * (num_deform - 3), 256, layers[2],
+                                           stride=last_conv_stride)
+            self.layer4 = self._make_layer([block2] * 3, 512, layers[3], stride=2)
+        else:
+            self.layer3 = self._make_layer([block] * 6, 256, layers[2], stride=2)
+            self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
+                                           layers[3], stride=last_conv_stride)
+
+        self.fc1 = nn.Linear(self.out_planes //8 , self.num_features, bias=False)
+        self.fc2 = nn.Linear(self.out_planes // 4, self.num_features, bias=False)
+        self.fc3 = nn.Linear(self.out_planes // 2, self.num_features, bias=False)
+        self.fc4 = nn.Linear(self.out_planes // 1, self.num_features, bias=False)
+
+        self.post2 = nn.Sequential(
+            nn.BatchNorm1d(self.num_features),
+            nn.ReLU(),
+            nn.Dropout(self.dropout),
+        )
+
+        self.embed2 = nn.Linear(self.num_features, self.num_classes, bias=False)
+        reset_params(self.embed2)
+
+        if pretrained:
+            if 'SE' in block_name or 'SE' in block_name2:
+                logging.info('load senet')
+                state_dict = torch.load('/data1/xinglu/prj/pytorch-classification/work/se_res/model_best.pth.tar')[
+                    'state_dict']
+                load_state_dict(self, state_dict, own_de_prefix='module.')
+            else:
+                logging.info('load resnet')
+                load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
+
+    def forward(self, x):
+        bs = x.size(0)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+
+        x1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
+        x2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
+        x3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
+        x4 = F.adaptive_avg_pool2d(x4, 1).view(bs, -1)
+
+        x1 = self.fc1(x1)
+        x2 = self.fc2(x2)
+        x3 = self.fc3(x3)
+        x4 = self.fc4(x4)
+
+        x5 = x1 + x2 + x3 + x4
+        features = self.post2(x5)
+        clss = self.embed2(features)
+
+        return (features, clss,
+                [x1, x2, x3, x4, ],
+                )
+
+
 def resnet50(**kwargs):
     fusion = kwargs.get('fusion')
     if fusion == 'maskconcat':
         return ResNetMaskCascade(50, **kwargs)
     elif fusion == 'concat':
-        # return ResNetCascade(50, **kwargs)
-        raise NotImplementedError()
+        return ResNetCascade(50, **kwargs)
     elif fusion == 'channel':
         return ResNetChannelCascade(50, **kwargs)
     elif fusion == 'sum':
-        raise NotImplementedError('not implement')
+        return ResNetCascadeSum(50, **kwargs)
     else:
         return ResNetOri(50, **kwargs)
 

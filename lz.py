@@ -1,5 +1,5 @@
 # -*- coding: future_fstrings -*-
-from __future__ import print_function, absolute_import, division
+from __future__ import print_function, absolute_import, division, unicode_literals
 import matplotlib
 
 # matplotlib.use('TkAgg')

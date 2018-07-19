@@ -176,7 +176,8 @@ def get_data(args):
                      root=dataset_val.images_dir,
                      transform=test_transformer,
                      has_npy=npy),
-        batch_size=batch_size, num_workers=workers,
+        batch_size=batch_size,  # * 2
+        num_workers=workers,
         shuffle=False, pin_memory=False)  # todo for market and dukemtmc
     dataset.val = dataset_val.val
     dataset.query = dataset_val.query
@@ -251,12 +252,12 @@ def main(args):
         else:
             checkpoint = load_checkpoint(args.resume, map_location='cpu')
         # model.load_state_dict(checkpoint['state_dict'])
-        # db_name = args.logs_dir + '/' + args.logs_dir.split('/')[-1] + '.h5'
-        # load_state_dict(model, checkpoint['state_dict'])
-        # with lz.Database(db_name) as db:
-        #     if 'cent' in checkpoint:
-        #         db['cent'] = to_numpy(checkpoint['cent'])
-        #     db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
+        db_name = args.logs_dir + '/' + args.logs_dir.split('/')[-1] + '.h5'
+        load_state_dict(model, checkpoint['state_dict'])
+        with lz.Database(db_name) as db:
+            if 'cent' in checkpoint:
+                db['cent'] = to_numpy(checkpoint['cent'])
+            db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
         if args.restart:
             start_epoch_ = checkpoint['epoch']
             best_top1_ = checkpoint['best_top1']
