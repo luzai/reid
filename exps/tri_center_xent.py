@@ -88,8 +88,10 @@ def get_data(args):
     name_val = args.dataset_val or args.dataset
     npy = args.has_npy
     rand_ratio = args.random_ratio
-
-    dataset = datasets.create(name, split_id=split_id, )
+    if isinstance(name, list):
+        dataset=datasets.creates(name ,split_id = split_id)
+    else:
+        dataset = datasets.create(name, split_id=split_id, )
     dataset_val = datasets.create(name_val, split_id=split_id, )
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
@@ -112,20 +114,20 @@ def get_data(args):
     ])
     dop_info = DopInfo(num_classes)
     print('dop info and its id are', dop_info)
-    trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
-                                                     ('pid', int),
-                                                     ('cid', int)])
-    trainval_t = trainval_t.view(np.recarray)
-    trainval_t = trainval_t[:np.where(trainval_t.pid == 10)[0].min()]
+    # trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
+    #                                                  ('pid', int),
+    #                                                  ('cid', int)])
+    # trainval_t = trainval_t.view(np.recarray)
+    # trainval_t = trainval_t[:np.where(trainval_t.pid == 10)[0].min()]
 
-    trainval_test_loader = DataLoader(Preprocessor(
-
-        trainval_t.tolist(),
-        root=dataset.images_dir,
-        transform=test_transformer,
-        has_npy=npy),
-        batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=pin_memory)
+    # trainval_test_loader = DataLoader(Preprocessor(
+    #     trainval_t.tolist(),
+    #     root=dataset.images_dir,
+    #     transform=test_transformer,
+    #     has_npy=npy),
+    #     batch_size=batch_size, num_workers=workers,
+    #     shuffle=False, pin_memory=pin_memory)
+    trainval_test_loader =None
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer,
@@ -139,7 +141,6 @@ def get_data(args):
         ),
         # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
-
     val_loader = DataLoader(
         Preprocessor(dataset_val.val, root=dataset_val.images_dir,
                      transform=test_transformer,
@@ -266,7 +267,7 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu,  args=args)
+    evaluator = Evaluator(model, gpu=args.gpu, args=args)
     if args.evaluate:
         # res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
         #                          trainval_test_loader.dataset.dataset, metric, final=True, prefix='train')

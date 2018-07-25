@@ -44,6 +44,7 @@ class CUHK03(object):
     def __init__(self, root='/home/xinglu/.torch/data/cuhk03/',
                  split_id=0, mode='label',
                  cuhk03_classic_split=False, **kwargs):
+        self.root = root
         if mode == 'label':
             cuhk03_labeled = True
         else:

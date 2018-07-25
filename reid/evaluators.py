@@ -193,7 +193,7 @@ class Evaluator(object):
         self.args = args
         self.vid = vid
         self.timer = lz.Timer()
-        self.conf = parse_name(args.dataset).get('eval_conf', 'market1501')
+        self.conf = parse_name(args.dataset_val).get('eval_conf', 'market1501')
 
     def evaluate_vid(self, queryloader, galleryloader, metric=None, **kwargs):
         self.model.eval()

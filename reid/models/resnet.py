@@ -990,6 +990,7 @@ class ResNetCascade(nn.Module):
                  last_conv_stride=2,
                  last_conv_dilation=1,
                  **kwargs):
+        # todo last_conv_stride not use
         super(ResNetCascade, self).__init__()
         depth = str(depth)
         self.depth = depth

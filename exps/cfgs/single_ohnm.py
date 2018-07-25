@@ -36,10 +36,11 @@ cfgs = [
         reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
         # evaluate=True,
         # aux='l2_grad',
-        dataset='cu03lbl',
+        dataset=['cu03lbl', 'cu03det', 'mkt'],
+        dataset_val='cu03lbl',
         gpu=(0,), last_conv_stride=1,
         gpu_fix=True,
-        batch_size=64, num_instances=4, num_classes=128,
+        batch_size=8, num_instances=4, num_classes=128,
         dropout=0, loss='tri', tri_mode='hard',
         cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
         random_ratio=1, lr_cent=0,
