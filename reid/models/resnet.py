@@ -1056,10 +1056,11 @@ class ResNetCascade(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        x1, y1 = self.layer1(x)
-        x2, y2 = self.layer2(x1)
-        x3, y3 = self.layer3(x2)
-        x4, y4 = self.layer4(x3)
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+
         y1 = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
         y2 = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
         y3 = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
@@ -1070,7 +1071,8 @@ class ResNetCascade(nn.Module):
         features = self.embed1(x5)
         clss = self.embed2(features)
 
-        return features, clss
+        return (features, clss,
+                [y1, y2, y3, x4, ],)
 
 
 class ResNetCascadeSum(nn.Module):
@@ -1138,7 +1140,7 @@ class ResNetCascadeSum(nn.Module):
             self.layer4 = self._make_layer([block] * (3 - num_deform) + [block2] * num_deform, 512,
                                            layers[3], stride=last_conv_stride)
 
-        self.fc1 = nn.Linear(self.out_planes //8 , self.num_features, bias=False)
+        self.fc1 = nn.Linear(self.out_planes // 8, self.num_features, bias=False)
         self.fc2 = nn.Linear(self.out_planes // 4, self.num_features, bias=False)
         self.fc3 = nn.Linear(self.out_planes // 2, self.num_features, bias=False)
         self.fc4 = nn.Linear(self.out_planes // 1, self.num_features, bias=False)

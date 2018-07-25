@@ -85,20 +85,12 @@ def get_data(args):
         args.batch_size, args.num_instances,
         args.workers, args.combine_trainval,)
     pin_memory = args.pin_mem
-    name_val = args.dataset_val
+    name_val = args.dataset_val or args.dataset
     npy = args.has_npy
     rand_ratio = args.random_ratio
 
-    root = osp.join(data_dir, name)
-    dataset = datasets.create(name, root, split_id=split_id, mode=args.dataset_mode,
-                              cuhk03_classic_split=args.cu03_classic)
-    # pid2lbl = dataset.pid2lbl
-    # np.unique(list(pid2lbl.keys())).shape
-    # np.unique(list(pid2lbl.values())).shape
-    # pid2lbl[7]
-    root = osp.join(data_dir, name_val)
-    dataset_val = datasets.create(name_val, root, split_id=split_id, mode=args.dataset_mode,
-                                  cuhk03_classic_split=args.cu03_classic)
+    dataset = datasets.create(name, split_id=split_id, )
+    dataset_val = datasets.create(name_val, split_id=split_id, )
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -123,16 +115,11 @@ def get_data(args):
     trainval_t = np.asarray(dataset.trainval, dtype=[('fname', object),
                                                      ('pid', int),
                                                      ('cid', int)])
-    # trainval = np.asarray(dataset.trainval)
-    # trainval_t = np.rec.fromarrays((trainval[:, 0], trainval[:, 1].astype(int), trainval[:, 2].astype(int)),
-    #                   names=['fname', 'pid', 'cid'])
     trainval_t = trainval_t.view(np.recarray)
     trainval_t = trainval_t[:np.where(trainval_t.pid == 10)[0].min()]
 
     trainval_test_loader = DataLoader(Preprocessor(
-        # dataset.val,
-        # dataset.query,
-        # random.choices(trainval_t, k=1367 * 3),
+
         trainval_t.tolist(),
         root=dataset.images_dir,
         transform=test_transformer,
@@ -279,7 +266,7 @@ def main(args):
     metric = DistanceMetric(algorithm=args.dist_metric)
 
     # Evaluator
-    evaluator = Evaluator(model, gpu=args.gpu, conf=args.eval_conf, args=args)
+    evaluator = Evaluator(model, gpu=args.gpu,  args=args)
     if args.evaluate:
         # res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
         #                          trainval_test_loader.dataset.dataset, metric, final=True, prefix='train')

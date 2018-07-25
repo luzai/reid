@@ -135,16 +135,65 @@ def query_to_df(query):
     return pd.DataFrame(query, columns=['fns', 'pids', 'cids'])
 
 
+def parse_name(ds):
+    args_ds = edict()
+    if ds == 'cu03det':
+        args_ds.dataset = 'cuhk03'
+        args_ds.dataset_val = 'cuhk03'
+        args_ds.dataset_mode = 'detect'
+        args_ds.eval_conf = 'cuhk03'
+    elif ds == 'cu03lbl':
+        args_ds.dataset = 'cuhk03'
+        args_ds.dataset_val = 'cuhk03'
+        args_ds.dataset_mode = 'label'
+        args_ds.eval_conf = 'cuhk03'
+    elif ds == 'mkt' or ds == 'market' or ds == 'market1501':
+        args_ds.dataset = 'market1501'
+        args_ds.dataset_val = 'market1501'
+        args_ds.eval_conf = 'market1501'
+    elif ds == 'msmt':
+        args_ds.dataset = 'msmt17'
+        args_ds.dataset_val = 'market1501'
+        args_ds.eval_conf = 'market1501'
+    elif ds == 'cdm':
+        args_ds.dataset = 'cdm'
+        args_ds.dataset_val = 'market1501'
+        args_ds.eval_conf = 'market1501'
+    elif ds == 'viper':
+        args_ds.dataset = 'viper'
+        args_ds.dataset_val = 'viper'
+        args_ds.eval_conf = 'market1501'
+    elif ds == 'cu01hard':
+        args_ds.dataset = 'cuhk01'
+        args_ds.dataset_val = 'cuhk01'
+        args_ds.eval_conf = 'cuhk03'
+        args_ds.dataset_mode = 'hard'
+    elif ds == 'cu01easy':
+        args_ds.dataset = 'cuhk01'
+        args_ds.dataset_val = 'cuhk01'
+        args_ds.eval_conf = 'cuhk03'
+        args_ds.dataset_mode = 'easy'
+    elif ds == 'dukemtmc':
+        args_ds.dataset = 'dukemtmc'
+        args_ds.dataset_val = 'dukemtmc'
+        args_ds.eval_conf = 'market1501'
+    else:
+        # raise ValueError(f'dataset ... {ds}')
+        args_ds.dataset_val = args_ds.dataset
+        args_ds.eval_conf = 'market1501'
+    return args_ds
+
+
 class Evaluator(object):
-    def __init__(self, model, gpu=(0,), conf='cuhk03', args=None, vid=False):
+    def __init__(self, model, gpu=(0,), args=None, vid=False):
         super(Evaluator, self).__init__()
         self.model = model
         self.gpu = gpu
         self.distmat = None
-        self.conf = conf
         self.args = args
         self.vid = vid
         self.timer = lz.Timer()
+        self.conf = parse_name(args.dataset).get('eval_conf', 'market1501')
 
     def evaluate_vid(self, queryloader, galleryloader, metric=None, **kwargs):
         self.model.eval()

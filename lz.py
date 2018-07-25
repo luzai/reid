@@ -6,15 +6,12 @@ import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-import os
-import sys
-import time
-import \
+import os, sys, time, \
     random, \
     subprocess, glob, re, \
     numpy as np, pandas as pd, \
-    h5py, copy, multiprocessing as mp, \
-    logging, \
+    copy, multiprocessing as mp, \
+    logging, pathlib, \
     shutil, collections, itertools, math, \
     functools, signal
 from os import path as osp
@@ -23,27 +20,26 @@ from easydict import EasyDict as edict
 # import redis, networkx as nx, \
 #  yaml, subprocess, pprint, json, csv, argparse, string, colorlog
 # from IPython import embed
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 
 if os.environ.get('pytorch', "1") == "1":
     tic = time.time()
     import torch
     import torchvision
+    import torch.utils.data
     from torch import nn
     import torch.nn.functional as F
 
     old_repr = torch.Tensor.__repr__
-
-
-    def new_repr(obj):
-        return f'{old_repr(obj)} \n type: {obj.type()} shape: {obj.shape} '
-
-
-    torch.Tensor.__repr__ = new_repr
+    torch.Tensor.__repr__ = lambda obj: (f'{tuple(obj.shape)} {obj.type()} \n'
+                                         f'{old_repr(obj)} \n'
+                                         f'type: {obj.type()} shape: {obj.shape}')
     print('import pytorch', time.time() - tic)
 else:
     tic = time.time()
     import tensorflow as tf
+    import tensorflow.contrib
+    import tensorflow.contrib.keras
 
 
     def allow_growth():
@@ -65,10 +61,11 @@ else:
 
 root_path = osp.normpath(
     osp.join(osp.abspath(osp.dirname(__file__)))
-)
+) + '/'
 
-home_path = os.environ['HOME']
-work_path = home_path + '/work'
+home_path = os.environ['HOME'] + '/'
+work_path = home_path + '/work/'
+share_path = '/data1/share/'
 
 '''
 %load_ext autoreload
@@ -108,13 +105,20 @@ logging.root.setLevel(logging.DEBUG)
 set_stream_logger(logging.INFO)
 set_file_logger(log_level=logging.DEBUG)
 
+# np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
+#                                    f'{arr.__str__()} \n'
+#                                    f'dtype:{arr.dtype} shape:{arr.shape}'
+#                        , repr=True)
 
-def np_print(arr):
-    return '{} \n dtype:{} shape:{}'.format(arr, arr.dtype, arr.shape)
+np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
+                                   f'{arr.__repr__()} \n'
+                                   f'dtype:{arr.dtype} shape:{arr.shape}', repr=False)
 
 
-np.set_string_function(np_print)
-
+# old_np_repr = np.ndarray.__repr__
+# np.ndarray.__repr__ = lambda arr: (f'{arr.shape} {arr.dtype} \n'
+#                                    f'{old_np_repr(arr)} \n'
+#                                    f'dtype:{arr.dtype} shape:{arr.shape}')
 
 def init_dev(n=(0,)):
     import os
@@ -235,7 +239,7 @@ def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
 
     def get_poss_dev():
         mems = [get_mem(ind) for ind in ok]
-        inds, mems = cosort(range(len(mems)), mems, return_val=True)
+        inds, mems = cosort(ok, mems, return_val=True)
         devs = [ind for ind, mem in zip(inds, mems) if mem < mem_thresh[0] * 100]
 
         return devs
@@ -458,8 +462,8 @@ class Uninterrupt(object):
             self.orig_handlers = None
 
 
-def mail(content, to_mail='907682447@qq.com'):
-    import datetime
+def mail(content, to_mail=('907682447@qq.com',)):
+    import datetime, collections
     user_pass = {'username': '907682447@qq.com',
                  'password': 'luzai123',
                  'host': 'smtp.qq.com',
@@ -484,17 +488,18 @@ def mail(content, to_mail='907682447@qq.com'):
     s.starttls()
     s.login(user_pass['username'], user_pass['password'])
 
-    def send(to_mail=to_mail, content='', title=''):
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = title
-        msg['From'] = user_pass['username']
-        msg['To'] = to_mail
-        msg.attach(MIMEText(content, 'plain'))
-        s.sendmail(msg['From'], msg['To'], msg.as_string())
-
     title = 'ps: ' + content.split('\r\n')[0]
+    title = title[:20]
     content = time_str + '\r\n' + content
-    send(content=content, title=title)
+    if isinstance(to_mail, collections.Sequence):
+        to_mail = ', '.join(to_mail)
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = title
+    msg['From'] = user_pass['username']
+    msg['To'] = to_mail
+    # msg['Cc'] = to_mail
+    msg.attach(MIMEText(content, 'plain'))
+    s.sendmail(msg['From'], msg['To'], msg.as_string())
     s.quit()
 
 
@@ -706,6 +711,7 @@ def timeit(fn, info=''):
 
 class Database(object):
     def __init__(self, file, mode='a'):
+        import h5py
         try:
             self.fid = h5py.File(file, mode)
         except OSError as inst:
@@ -768,7 +774,7 @@ def pickle_dump(data, file, **kwargs):
     import pickle
     # python2 can read 2
     kwargs.setdefault('protocol', pickle.HIGHEST_PROTOCOL)
-    if isinstance(file, str):
+    if isinstance(file, str) or isinstance(file, pathlib.Path):
         mkdir_p(osp.dirname(file), delete=False)
         print('pickle into', file)
         with open(file, 'wb') as f:
@@ -777,6 +783,13 @@ def pickle_dump(data, file, **kwargs):
         pickle.dump(data, file, **kwargs)
     else:
         raise TypeError("file must be str of file-object")
+
+
+def get_img_size(img='/data1/xinglu/prj/test.jpg', verbose=True):
+    out, err = shell(f'convert "{img}" -print "(%w, %h)" ', verbose=verbose)
+    out = eval(out)
+    out = (out[1], out[0])
+    return out
 
 
 def pickle_load(file, **kwargs):
@@ -880,7 +893,7 @@ class AsyncDumper(mp.Process):
         self.queue.put((obj, filename))
 
 
-def shell(cmd, block=True, return_msg=True, verbose=True):
+def shell(cmd, block=True, return_msg=True, verbose=True, timeout=None):
     import os
     my_env = os.environ.copy()
     home = os.path.expanduser('~')
@@ -897,7 +910,7 @@ def shell(cmd, block=True, return_msg=True, verbose=True):
                                 preexec_fn=os.setsid
                                 )
         if return_msg:
-            msg = task.communicate()
+            msg = task.communicate(timeout)
             msg = [msg_.decode('utf-8') for msg_ in msg]
             if msg[0] != '' and verbose:
                 logging.info('stdout {}'.format(msg[0]))
@@ -1040,7 +1053,7 @@ def mv(from_path, to):
         for to_ in to:
             mv(from_path, to_)
     else:
-        shell('mv ' + from_path + ' ' + to)
+        shell(f'''mv  "{from_path}" "{to}"''')
 
 
 def dict_concat(d_l):
@@ -1050,20 +1063,35 @@ def dict_concat(d_l):
     return d1
 
 
-def dict_update(to, from_):
+def dict_update(to, from_dict, must_exist=True):
     to = to.copy()
-    from_ = from_.copy()
-    for k, v in from_.items():
+    from_dict = from_dict.copy()
+    for k, v in from_dict.items():
         if k not in to:
-            # logging.warning('ori dict do not have key {}'.format(k))
-            raise ValueError('ori dict do not have key {}'.format(k))
+            if not must_exist:
+                logging.debug('ori dict do not have key {}'.format(k))
+            else:
+                raise ValueError('ori dict do not have key {}'.format(k))
         try:
             assert to[k] == v
         except Exception as inst:
             logging.debug(
-                'update ori key {} from {} to {}'.format(k, to[k], v))
+                'update ori key {} from {} to {}'.format(k, to.get(k,None), v))
             to[k] = v
     return to
+
+
+def face_detect(path='/data1/xinglu/prj/test.jpg'):
+    cmd = f'''
+curl -X POST "https://api-cn.faceplusplus.com/facepp/v3/detect" \
+-F "api_key=cmWxHgmGAIglR3iWeJSZLioxkQop4EqW" \
+-F "api_secret=nluB3GvYghHG4f5qb106uKwZbpGzxq94" \
+-F "image_file=@{path}" \
+-F "return_landmark=1" \
+-F "return_attributes=gender,age,headpose,facequality"
+    '''
+    out, err = shell(cmd)
+    return out
 
 
 def clean_name(name):
@@ -1181,4 +1209,4 @@ def my_wget(fid, fname):
 
 
 if __name__ == '__main__':
-    print(get_dev(n=1))
+    print(get_dev(n=1, ok = (0,2,3)), )
