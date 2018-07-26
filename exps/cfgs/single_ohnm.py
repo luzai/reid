@@ -9,24 +9,7 @@ parallel = True
 # parallel = False
 gpu_range = (0, 1, 2, 3,)
 cfgs = [
-    # edict(
-    #     logs_dir='xent3.mkt', double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-    #     # aux='l2_adv',
-    #     dataset='mkt',
-    #     # log_at=[0, 30, 64, 65, 66],
-    #     # gpu_fix=True, gpu=(1, 3),
-    #     gpu=(0,),
-    #     batch_size=128, num_instances=4, num_classes=128,
-    #     dropout=0, loss='xent',
-    #     tri_mode='hard',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=range(4), lr_mult=10, xent_smooth=True,
-    #     push_scale=1., embed=None,
-    #     # margin=.5,
-    #     margin='soft',
-    #     margin2=1., margin3=1.,
-    # ),
+
     # edict(
     #     logs_dir='tri6.combine.2',
     #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
@@ -46,81 +29,100 @@ cfgs = [
     #     margin='soft', margin2=1., margin3=1.,
     #     height=256, width=128, cu03_classic=False, epochs=65 * 4, steps=[40 * 4, 60 * 4],
     # ),
+
+    edict(
+        logs_dir='bak',
+        double=1, adv_inp=0, adv_fea=1, adv_inp_eps=0.3, adv_fea_eps=0.3,
+        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+        reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+        # evaluate=True,
+        aux='l2_adv',
+        dataset='cu03lbl',
+        gpu=(1,), last_conv_stride=2,
+        gpu_fix=True,
+        batch_size=16, num_instances=4, num_classes=128,
+        dropout=0, loss='tri', tri_mode='hard',
+        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+        random_ratio=1, lr_cent=0,
+        gpu_range=gpu_range, lr_mult=1,
+        push_scale=1., embed=None,
+        margin='soft', margin2=1.1, margin3=1.1,
+    ),
+
     # edict(
-    #     logs_dir='bak',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    #     logs_dir='tri7.margin',
+    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0.3,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-    #     reg_loss_wrt=[0, 1, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
-    #     aux='l2_grad',
+    #     aux='l2_adv',
     #     dataset='cu03lbl',
     #     gpu=(1,), last_conv_stride=2,
-    #     # gpu_fix=True,
-    #     batch_size=64, num_instances=4, num_classes=128,
+    #     gpu_fix=True,
+    #     batch_size=16, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri', tri_mode='hard',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=gpu_range, lr_mult=1,
     #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1., margin3=1.,
+    #     margin='soft', margin2=1.1, margin3=1.0,
     # ),
-
     # edict(
-    #     logs_dir='tri6.s1.bs',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    #     logs_dir='tri7.margin.dbl',
+    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0.3,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
-    #     # aux='l2_grad',
+    #     aux='l2_adv',
     #     dataset='cu03lbl',
-    #     gpu=(0,), last_conv_stride=1,
-    #     # gpu_fix=True,
-    #     batch_size=64, num_instances=4, num_classes=128,
+    #     gpu=(1,), last_conv_stride=2,
+    #     gpu_fix=True,
+    #     batch_size=16, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri', tri_mode='hard',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=gpu_range, lr_mult=1,
     #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1., margin3=1.,
-    #     height=256, width=128, cu03_classic=False,
+    #     margin='soft', margin2=1.1, margin3=1.0,
     # ),
     # edict(
-    #     logs_dir='tri6.s1.dbl',
-    #     double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    #     logs_dir='tri7.feaadv',
+    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0.3,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
-    #     # aux='l2_grad',
+    #     aux='l2_adv',
     #     dataset='cu03lbl',
-    #     gpu=(0,), last_conv_stride=1,
-    #     # gpu_fix=True,
-    #     batch_size=64, num_instances=4, num_classes=128,
+    #     gpu=(1,), last_conv_stride=2,
+    #     gpu_fix=True,
+    #     batch_size=16, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri', tri_mode='hard',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=gpu_range, lr_mult=1,
     #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1., margin3=1.,
-    #     height=256, width=128, cu03_classic=False,
+    #     margin='soft', margin2=1.1, margin3=1.1,
     # ),
     # edict(
-    #     logs_dir='tri6.s1.x5',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-    #     reg_mid_fea=[0., 0., 0., 0., 1e2],  # x1, x2, x3, x4, x5
+    #     logs_dir='tri7.feaadv.dbl',
+    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0.3,
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
-    #     # aux='l2_grad',
+    #     aux='l2_adv',
     #     dataset='cu03lbl',
-    #     gpu=(0,), last_conv_stride=1,
-    #     # gpu_fix=True,
-    #     batch_size=64, num_instances=4, num_classes=128,
+    #     gpu=(1,), last_conv_stride=2,
+    #     gpu_fix=True,
+    #     batch_size=16, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri', tri_mode='hard',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=gpu_range, lr_mult=1,
     #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1., margin3=1.,
-    #     height=256, width=128, cu03_classic=False,
+    #     margin='soft', margin2=1.1, margin3=1.1,
     # ),
-
 ]
+
 # cfg = edict(
 #     logs_dir='tri6.reglosswrt',
 #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,

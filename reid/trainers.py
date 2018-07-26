@@ -353,7 +353,8 @@ class TriTrainer(object):
 
             if math.isnan(losst.item()):
                 raise ValueError(f'nan {losst}')
-            if self.args.adv_inp != 0 and self.args.double == 0:
+            # 1. adv inp only
+            if self.args.adv_inp != 0 and self.args.double == 0 and self.args.adv_fea == 0:
                 # method1
                 # optimizer.zero_grad()
                 # if self.iter % 2 == 0:
@@ -397,10 +398,11 @@ class TriTrainer(object):
                     print('fail')
                     raise ValueError('nan')
                 optimizer.step()
-            elif self.args.double != 0 and self.args.adv_inp == 0:
+            # 2. double only
+            elif self.args.double != 0 and self.args.adv_inp == 0 and self.args.adv_fea == 0:
                 optimizer.zero_grad()
                 losst.backward(retain_graph=True)
-                input_imgs_grad_attached = torch.autograd.grad(
+                features_grad = torch.autograd.grad(
                     outputs=losst, inputs=input_imgs,
                     create_graph=True,
                     retain_graph=True,
@@ -408,17 +410,11 @@ class TriTrainer(object):
                 )[0].view(
                     batch_size, -1
                 )
-                # grad_fea = [torch.autograd.grad(
-                #     outputs=features[0][i],
-                #     inputs=input_imgs,
-                #     # create_graph=True,
-                #     retain_graph=True,
-                #     only_inputs=True,
-                # )[0] for i in range(128)]
+
                 if self.args.aux == 'l1_grad':
-                    grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
+                    grad_reg = (features_grad.norm(1, dim=1)).mean()
                 else:
-                    grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
+                    grad_reg = (features_grad.norm(2, dim=1) ** 2).mean()
                 if np.count_nonzero(self.args.reg_mid_fea) == 0:
                     (self.args.double * grad_reg).backward()
                 else:
@@ -437,23 +433,24 @@ class TriTrainer(object):
                         if ind == ind_max: break
                 self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
                 optimizer.step()
-            elif self.args.double != 0 and self.args.adv_inp != 0:
+            # 3. double and adv inp
+            elif self.args.double != 0 and self.args.adv_inp != 0 and self.args.adv_fea == 0:
                 optimizer.zero_grad()
 
-                input_imgs_grad_attached = torch.autograd.grad(
+                features_grad = torch.autograd.grad(
                     outputs=losst, inputs=input_imgs,
                     create_graph=True, retain_graph=True,
                     only_inputs=True
                 )[0]
 
-                input_imgs_grad = input_imgs_grad_attached.detach()
-                input_imgs_grad_attached = input_imgs_grad_attached.view(
-                    input_imgs_grad_attached.size(0), -1
+                input_imgs_grad = features_grad.detach()
+                features_grad = features_grad.view(
+                    features_grad.size(0), -1
                 )
                 if 'l1_grad' in self.args.aux:
-                    grad_reg = (input_imgs_grad_attached.norm(1, dim=1)).mean()
+                    grad_reg = (features_grad.norm(1, dim=1)).mean()
                 else:
-                    grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
+                    grad_reg = (features_grad.norm(2, dim=1) ** 2).mean()
                 (losst + self.args.double * grad_reg).backward()
                 self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
 
@@ -469,7 +466,8 @@ class TriTrainer(object):
                 (self.args.adv_inp * losst_adv).backward()
                 self.writer.add_scalar('vis/loss_adv_inp', losst_adv.item(), self.iter)
                 optimizer.step()
-            elif self.args.adv_fea != 0:
+            # 4. adv fea only
+            elif self.args.adv_fea != 0 and self.args.double == 0 and self.args.adv_inp == 0:
                 # method 1
                 optimizer.zero_grad()
                 features_grad = torch.autograd.grad(
@@ -477,19 +475,53 @@ class TriTrainer(object):
                     create_graph=True, retain_graph=True,
                     only_inputs=True
                 )[0].detach()
-                # input_imgs.requires_grad = False
-                assert features_grad.requires_grad is False
                 if 'l2_adv' in self.args.aux:
-                    features_advtrue = features + self.args.adv_inp_eps * l2_normalize(features_grad)
+                    features_advtrue = features + self.args.adv_fea_eps * l2_normalize(features_grad)
                 elif 'linf_adv' in self.args.aux:
                     features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
                 else:
-                    features_advtrue = features + self.args.adv_inp_eps * features_grad
+                    features_advtrue = features + self.args.adv_fea_eps * features_grad
                 losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
                 (losst + self.args.adv_fea * losst_advtrue).backward()
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
                 optimizer.step()
                 # method 2
+            # 5. adv fea and double
+            elif self.args.adv_fea != 0 and self.args.double != 0 and self.args.adv_inp == 0:
+                optimizer.zero_grad()
+                losst.backward(retain_graph=True)
+
+                features_grad = torch.autograd.grad(
+                    outputs=losst, inputs=features,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0].detach()
+                if 'l2_adv' in self.args.aux:
+                    features_advtrue = features + self.args.adv_fea_eps * l2_normalize(features_grad)
+                elif 'linf_adv' in self.args.aux:
+                    features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
+                else:
+                    features_advtrue = features + self.args.adv_fea_eps * features_grad
+                losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
+                (self.args.adv_fea * losst_advtrue).backward(retain_graph=True)
+                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
+
+                features_grad = torch.autograd.grad(
+                    outputs=losst, inputs=input_imgs,
+                    create_graph=True,
+                    retain_graph=True,
+                    only_inputs=True
+                )[0].view(
+                    batch_size, -1
+                )
+                if self.args.aux == 'l1_grad':
+                    grad_reg = (features_grad.norm(1, dim=1)).mean()
+                else:
+                    grad_reg = (features_grad.norm(2, dim=1) ** 2).mean()
+                self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
+                (self.args.double * grad_reg).backward()
+
+                optimizer.step()
             elif np.count_nonzero(self.args.reg_mid_fea) != 0:
                 optimizer.zero_grad()
                 losst.backward(retain_graph=True)
@@ -512,11 +544,10 @@ class TriTrainer(object):
                     xx = torch.autograd.grad(losst, xx,
                                              retain_graph=True,
                                              create_graph=True, only_inputs=True)[0]
-                    xx = xx.view(bs, -1)
+                    xx = xx.view(batch_size, -1)
                     grad_reg = (xx.norm(2, dim=1) ** 2).mean()
                     return grad_reg
 
-                bs = input_imgs.shape[0]
                 losst.backward(retain_graph=True)
                 x1, x2, x3, x4, x5 = mid_feas
                 grad_reg = 0
