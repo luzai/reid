@@ -505,25 +505,36 @@ class TriTrainer(object):
                         self.writer.add_scalar(f'vis/contract_fea_{ind+1}', reg, self.iter)
                         if ind == ind_max: break
                 optimizer.step()
-            else:
+            elif np.count_nonzero(self.args.reg_loss_wrt) != 0:
                 optimizer.zero_grad()
 
-                # losst.backward()
                 def get_reg(xx):
+                    xx = torch.autograd.grad(losst, xx,
+                                             retain_graph=True,
+                                             create_graph=True, only_inputs=True)[0]
                     xx = xx.view(bs, -1)
                     grad_reg = (xx.norm(2, dim=1) ** 2).mean()
                     return grad_reg
 
                 bs = input_imgs.shape[0]
-                losst.backward(retain_graph=True, create_graph=True)
+                losst.backward(retain_graph=True)
                 x1, x2, x3, x4, x5 = mid_feas
-                grad_reg = (
-                        # get_reg(input_imgs.grad) +
-                        get_reg(x3.grad) + get_reg(x5.grad)
-                )
+                grad_reg = 0
+                wei = self.args.reg_loss_wrt
+                if wei[0] != 0:
+                    grad_reg += get_reg(input_imgs) * wei[0]
+                for ind in range(1, 6):
+                    if wei[ind] != 0:
+                        try:
+                            grad_reg += get_reg(eval(f'x{ind}')) * wei[ind]
+                        except:
+                            raise ValueError(str(ind))
                 grad_reg.backward()
                 self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
-
+                optimizer.step()
+            else:
+                optimizer.zero_grad()
+                losst.backward()
                 optimizer.step()
 
             batch_time.update(time.time() - end)

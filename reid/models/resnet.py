@@ -699,9 +699,9 @@ class ResNetOri(nn.Module):
         # x5_grad_reg = (features * x5_weight).mean()
         # x1_res.retain_grad()
         # x2_res.retain_grad()
-        x3.retain_grad()
+        # x3.retain_grad()
         # x4_res.retain_grad()
-        features.retain_grad()
+        # features.retain_grad()
         return (features, clss,
                 [x1,x2,x3,x4, ],
                 # x5_grad_reg.unsqueeze(dim=0)
