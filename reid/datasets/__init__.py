@@ -42,7 +42,7 @@ def parse_name(ds):
     elif ds == 'mkt' or ds == 'market' or ds == 'market1501':
         args_ds.dataset = 'market1501'
         args_ds.eval_conf = 'market1501'
-    elif ds == 'msmt':
+    elif ds == 'msmt' or ds == 'msmt17':
         args_ds.dataset = 'msmt17'
         args_ds.eval_conf = 'market1501'
     elif ds == 'cdm':
@@ -95,16 +95,19 @@ def create(name, *args, **kwargs):
     return __factory[kwargs.get('dataset')](root=root, *args, **kwargs)
 
 
-def creates(names, *args, **kwargs):
-    dss = [create(name, *args, **kwargs) for name in names]
+def creates(namess, *args, **kwargs):
     dsf = Dataset(root='', split_id=0)
+    namess.sort()
+    cache_name = lz.work_path + '.'.join(namess) + '.cache.pkl'
 
-    # if osp.exists('/home/xinglu/work/cache.pkl'):
-    #     dsf_dict = pickle_load('/home/xinglu/work/cache.pkl')
-    #     for k, v in dsf_dict.items():
-    #         setattr(dsf, k, v)
-    #
-    #     return dsf
+    if osp.exists(cache_name):
+        dsf_dict = pickle_load(cache_name)
+        for k, v in dsf_dict.items():
+            setattr(dsf, k, v)
+        dsf.num_trainval_ids = np.unique(np.asarray(dsf.trainval)[:, 1].astype(int)).shape[0]
+        dsf.num_train_ids = np.unique(np.asarray(dsf.train)[:, 1].astype(int)).shape[0]
+        print('use cache')
+        return dsf
 
     def to_df(rec):
         return pd.DataFrame.from_records(rec, columns=['fname', 'pid', 'cid'])
@@ -125,7 +128,8 @@ def creates(names, *args, **kwargs):
         df_f = pd.concat(df_l)
         return df_f
 
-    for name in ['trainval', 'train', 'query', 'gallery']: # val
+    dss = [create(name, *args, **kwargs) for name in namess]
+    for name in ['trainval', 'train', 'query', 'gallery']:  # val
         dff = combine(name)
         # dff.fname = dff.path + '/' + dff.fname
         setattr(dsf, name, dff)
@@ -137,7 +141,7 @@ def creates(names, *args, **kwargs):
 
     mapp = dict(zip(pids, np.arange(pids.shape[0])))
 
-    for name in ['trainval', 'train', 'query', 'gallery']:# val
+    for name in ['trainval', 'train', 'query', 'gallery']:  # val
         getattr(dsf, name).pid.replace(mapp, inplace=True)
         getattr(dsf, name).reset_index(inplace=True, drop=True)
 
@@ -150,14 +154,16 @@ def creates(names, *args, **kwargs):
     dsf.split = {'query': np.unique(dsf.query.pid.values.tolist()),
                  'gallery': np.unique(dsf.gallery.pid.values).tolist()}
 
-    for name in ['trainval',  'train', 'query', 'gallery']:# val
+    for name in ['trainval', 'train', 'query', 'gallery']:  # val
         dff = getattr(dsf, name)
         # del dff['path'], dff['name']
         del dff['name']
         dff = dff.to_records(index=False)
         dff = dff.tolist()
         setattr(dsf, name, dff)
-
+    pickle_dump({name: getattr(dsf, name)
+                 for name in ['trainval', 'train', 'query', 'gallery']},
+                cache_name)
     return dsf
 
 # if __name__ == '__main__':

@@ -50,7 +50,7 @@ class Preprocessor(object):
         if not osp.exists(fpath) and self.root is not None:
             fpath = osp.join(self.root, fpath)
         if not osp.exists(fpath):
-            raise ValueError
+            raise ValueError(fpath)
         # if fpath in self.cache:
         #     res = self.cache[fpath]
         #     img = self.transform(res['img'])

@@ -345,9 +345,16 @@ class TripletLoss(nn.Module):
 
                 neg = some_neg.min()
                 pos = some_pos.max()
-
+                # (neg - pos).sum().backward(retain_graph=True)
+                # inputs.grad
                 dist_ap.append(pos)
                 dist_an.append(neg)
+
+                # F.softplus(torch.stack(dist_ap) - torch.stack(dist_an)).sum().backward(retain_graph=True)
+                # inputs.grad
+
+
+
             elif self.mode == 'adap':
                 some_pos = dist[i][mask[i]]
                 some_neg = dist[i][mask[i] == 0]
@@ -390,6 +397,8 @@ class TripletLoss(nn.Module):
             loss = F.softplus(dist_ap - dist_an).mean()
         prec = (dist_an.data > dist_ap.data).sum().type(
             torch.FloatTensor) / y.size(0)
+        # loss.backward(retain_graph=True)
+        # inputs.grad
 
         if not dbg:
             return loss, prec, dist

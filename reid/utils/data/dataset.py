@@ -1,4 +1,5 @@
 from __future__ import print_function
+import os
 import os.path as osp
 import numpy as np
 
@@ -6,7 +7,7 @@ from reid.utils.serialization import read_json
 import lz
 
 
-def _pluck(identities, indices, relabel=False):
+def _pluck(identities, indices, relabel=False,root=''):
     pid2lbl = {}
     ret = []
     for index, pid in enumerate(indices):
@@ -16,6 +17,9 @@ def _pluck(identities, indices, relabel=False):
                 # name = osp.splitext(fname)[0]
                 # x, y, _ = map(int, name.split('_'))
                 # assert pid == x and camid == y
+                if not osp.exists(fname):
+                    fname = f'{root}/images/{fname}'
+                assert osp.exists(fname)
                 if relabel:
                     ret.append((fname, index, camid))
                     pid2lbl[pid] = index
@@ -64,12 +68,12 @@ class Dataset(object):
 
         self.meta = read_json(osp.join(self.root, 'meta.json'))
         identities = self.meta['identities']
-        self.train, _ = _pluck(identities, train_pids, relabel=True)
-        self.val, _ = _pluck(identities, val_pids, relabel=True)
-        self.trainval, pid2lbl = _pluck(identities, trainval_pids, relabel=True)
+        self.train, _ = _pluck(identities, train_pids, relabel=True, root = self.root)
+        self.val, _ = _pluck(identities, val_pids, relabel=True, root = self.root)
+        self.trainval, pid2lbl = _pluck(identities, trainval_pids, relabel=True, root = self.root)
         self.pid2lbl = pid2lbl
-        self.query = _pluck(identities, self.split['query'])
-        self.gallery = _pluck(identities, self.split['gallery'])
+        self.query = _pluck(identities, self.split['query'], root = self.root)
+        self.gallery = _pluck(identities, self.split['gallery'], root = self.root)
         self.num_train_ids = len(train_pids)
         self.num_val_ids = len(val_pids)
         self.num_trainval_ids = len(trainval_pids)

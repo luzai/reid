@@ -290,8 +290,7 @@ def main(args):
                             margin3=args.margin3, mode=args.cent_mode,
                             push_scale=args.push_scale,
                             args=args),
-                 xent
-                 ]
+                 xent]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer

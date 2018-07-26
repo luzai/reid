@@ -658,10 +658,9 @@ class ResNetOri(nn.Module):
         )
         self.embed1 = nn.Linear(self.out_planes, self.num_features, bias=False)
         reset_params(self.embed1)
-
         self.embed2 = nn.Linear(self.num_features, self.num_classes, bias=False)
         reset_params(self.embed2)
-
+        # self.adap_pool = nn.AdaptiveAvgPool2d(1)
         if pretrained:
             if 'SE' in block_name or 'SE' in block_name2:
                 logging.info('load senet')
@@ -687,10 +686,10 @@ class ResNetOri(nn.Module):
         x4 = self.layer4(x3)
         x4 = F.adaptive_avg_pool2d(x4, 1).view(bs, -1)
 
-        x1_res = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
-        x2_res = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
-        x3_res = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
-        x4_res = x4
+        # x1_res = F.adaptive_avg_pool2d(x1, 1).view(bs, -1)
+        # x2_res = F.adaptive_avg_pool2d(x2, 1).view(bs, -1)
+        # x3_res = F.adaptive_avg_pool2d(x3, 1).view(bs, -1)
+        # x4_res = x4
 
         x5 = self.post2(x4)
         features = self.embed1(x5)
@@ -698,9 +697,13 @@ class ResNetOri(nn.Module):
 
         # x5_weight = self.fcc(features).mean(dim=0)
         # x5_grad_reg = (features * x5_weight).mean()
-
+        # x1_res.retain_grad()
+        # x2_res.retain_grad()
+        x3.retain_grad()
+        # x4_res.retain_grad()
+        features.retain_grad()
         return (features, clss,
-                [x1_res, x2_res, x3_res, x4_res, ],
+                [x1,x2,x3,x4, ],
                 # x5_grad_reg.unsqueeze(dim=0)
                 )
 

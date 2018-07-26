@@ -336,6 +336,10 @@ class TriTrainer(object):
             mid_feas.append(features)
             losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
             # losst is triplet loss
+            # losst.backward(retain_graph=True)
+            # losst.backward(retain_graph=True, create_graph=True)
+            # features.grad
+
             if self.iter % 10 == 0:
                 self.writer.add_scalar('vis/loss-triplet', losst.item(), self.iter)
                 self.writer.add_scalar('vis/prec-triplet', prect.item(), self.iter)
@@ -503,19 +507,22 @@ class TriTrainer(object):
                 optimizer.step()
             else:
                 optimizer.zero_grad()
-                losst.backward()
 
-                # losst.backward(retain_graph=True)
-                # input_imgs_grad_attached = torch.autograd.grad(
-                #     outputs=losst, inputs=input_imgs,
-                #     # create_graph=True,
-                #     # retain_graph=False,
-                #     only_inputs=True
-                # )[0].view(
-                #     batch_size, -1
-                # )
-                # grad_reg = (input_imgs_grad_attached.norm(2, dim=1) ** 2).mean()
-                # self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
+                # losst.backward()
+                def get_reg(xx):
+                    xx = xx.view(bs, -1)
+                    grad_reg = (xx.norm(2, dim=1) ** 2).mean()
+                    return grad_reg
+
+                bs = input_imgs.shape[0]
+                losst.backward(retain_graph=True, create_graph=True)
+                x1, x2, x3, x4, x5 = mid_feas
+                grad_reg = (
+                        # get_reg(input_imgs.grad) +
+                        get_reg(x3.grad) + get_reg(x5.grad)
+                )
+                grad_reg.backward()
+                self.writer.add_scalar('vis/grad_reg', grad_reg.item(), self.iter)
 
                 optimizer.step()
 
