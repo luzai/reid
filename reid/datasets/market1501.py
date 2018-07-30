@@ -586,6 +586,18 @@ class Market1501(Dataset):
         write_json(splits, osp.join(self.root, 'splits.json'))
 
 
+class Extract(Dataset):
+    def __init__(self, **kwargs):
+        self.name = 'extract'
+        self.root = work_path + 'reid.person'
+
+        imps = glob.glob(self.root + '/**/*.jpg')
+        df = pd.DataFrame(imps)
+        df['pids'] = 0
+        df['cids'] = 0
+        self.query = df.to_records(index=False).tolist()
+
+
 class CUB(Dataset):
     def __init__(self, **kwargs):
         self.name = 'cub'
@@ -636,13 +648,12 @@ class Stanford_Prod(Dataset):
         self.num_train_ids = self.num_trainval_ids
 
 
-
-
 if __name__ == '__main__':
     tic = time.time()
-    Market1501()
+    # Market1501()
     # CUB()
-    Stanford_Prod()
+    # Stanford_Prod()
+    Extract()
     print(time.time() - tic)
 
     # Mars()

@@ -1,26 +1,30 @@
-# -*- coding: future_fstrings -*-
-from __future__ import print_function, absolute_import, division, unicode_literals
-import matplotlib
+# # -*- coding: future_fstrings -*-
+# from __future__ import print_function, absolute_import, division, unicode_literals
 
-# matplotlib.use('TkAgg')
-# matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+# import matplotlib
+# # matplotlib.use('TkAgg')
+# # matplotlib.use('Agg')
+# import matplotlib.pyplot as plt
 
 import os, sys, time, \
     random, \
     subprocess, glob, re, \
-    numpy as np, pandas as pd, \
-    copy, multiprocessing as mp, \
-    logging, pathlib, \
-    shutil, collections, itertools, math, \
+    numpy as np, \
+    multiprocessing as mp, \
+    logging, \
+    collections, \
     functools, signal
 from os import path as osp
-from easydict import EasyDict as edict
 
+# from easydict import EasyDict as edict
+# import cv2, cvbase as cvb, copy ,math
 # import redis, networkx as nx, \
-#  yaml, subprocess, pprint, json, csv, argparse, string, colorlog
+#  yaml, subprocess, pprint, json, \
+# csv, argparse, string, colorlog, \
+# shutil, itertools, pandas as pd, pathlib,
 # from IPython import embed
 # from tensorboardX import SummaryWriter
+
 
 if os.environ.get('pytorch', "1") == "1":
     tic = time.time()
@@ -33,7 +37,10 @@ if os.environ.get('pytorch', "1") == "1":
     old_repr = torch.Tensor.__repr__
     torch.Tensor.__repr__ = lambda obj: (f'{tuple(obj.shape)} {obj.type()} \n'
                                          f'{old_repr(obj)} \n'
-                                         f'type: {obj.type()} shape: {obj.shape}')
+                                         f'type: {obj.type()} shape: {obj.shape}') if obj.is_contiguous() else (
+        f'{tuple(obj.shape)} {obj.type()} \n'
+        f'{old_repr(obj.contiguous())} \n'
+        f'type: {obj.type()} shape: {obj.shape}')
     print('import pytorch', time.time() - tic)
 else:
     tic = time.time()
@@ -60,7 +67,7 @@ else:
     print('import tf', time.time() - tic)
 
 root_path = osp.normpath(
-    osp.join(osp.abspath(osp.dirname(__file__)))
+    osp.join(osp.abspath(osp.dirname(__file__)), )
 ) + '/'
 
 home_path = os.environ['HOME'] + '/'
@@ -92,7 +99,7 @@ def set_stream_logger(log_level=logging.DEBUG):
 
 
 def set_file_logger(work_dir=None, log_level=logging.DEBUG):
-    work_dir = work_dir or os.getcwd()
+    work_dir = work_dir or root_path
     fh = logging.FileHandler(os.path.join(work_dir, 'log-ing'))
     fh.setLevel(log_level)
     fh.setFormatter(
@@ -105,11 +112,12 @@ logging.root.setLevel(logging.DEBUG)
 set_stream_logger(logging.INFO)
 set_file_logger(log_level=logging.DEBUG)
 
+## ndarray will be pretty
 # np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
 #                                    f'{arr.__str__()} \n'
-#                                    f'dtype:{arr.dtype} shape:{arr.shape}'
-#                        , repr=True)
+#                                    f'dtype:{arr.dtype} shape:{arr.shape}'                       , repr=True)
 
+## print(ndarray) will be pretty (and pycharm dbg)
 np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
                                    f'{arr.__repr__()} \n'
                                    f'dtype:{arr.dtype} shape:{arr.shape}', repr=False)
@@ -257,9 +265,6 @@ def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
 
         sleep = int(sleep)
         time.sleep(random.randint(max(0, sleep - 20), sleep + 20))
-    # if n == 1:
-    #     return devs[0]
-    # else:
     return devs[:n]
 
 
@@ -319,8 +324,8 @@ class Logger(object):
             self.file.close()
 
 
-sys.stdout = Logger('log-prt')
-sys.stderr = Logger('log-prt-err')
+sys.stdout = Logger(root_path + 'log-prt')
+sys.stderr = Logger(root_path + 'log-prt-err')
 
 
 class Timer(object):
@@ -629,6 +634,7 @@ def load_state_dict(model, state_dict, own_prefix='', own_de_prefix=''):
 
 
 def grid_iter(*args):
+    import itertools
     res = list(itertools.product(*args))
     np.random.shuffle(res)
     for arg in res:
@@ -771,7 +777,7 @@ class Database(object):
 
 
 def pickle_dump(data, file, **kwargs):
-    import pickle
+    import pickle, pathlib
     # python2 can read 2
     kwargs.setdefault('protocol', pickle.HIGHEST_PROTOCOL)
     if isinstance(file, str) or isinstance(file, pathlib.Path):
@@ -807,6 +813,7 @@ def dataframe_dump(df, path):
 
 
 def dataframe_load(path):
+    import pandas as pd
     return pd.read_hdf(path, 'df')
 
 
@@ -850,6 +857,54 @@ def json_dump(obj, file, mode='a'):  # write not append!
                       )
     elif hasattr(file, 'write'):
         json.dump(obj, file)
+
+
+def msgpack_dump(obj, file, **kwargs):
+    import msgpack, msgpack_numpy as m
+    kwargs.setdefault('allow_np', True)
+    allow_np = kwargs.pop('allow_np')
+    if allow_np:
+        kwargs.setdefault('default', m.encode)
+    kwargs.setdefault('use_bin_type', True)
+
+    with open(file, 'wb') as fp:
+        msgpack.pack(obj, fp, **kwargs)
+
+
+def msgpack_dumps(obj, **kwargs):
+    import msgpack, msgpack_numpy as m
+    kwargs.setdefault('allow_np', True)
+    allow_np = kwargs.pop('allow_np')
+    if allow_np:
+        kwargs.setdefault('default', m.encode)
+    kwargs.setdefault('use_bin_type', True)
+
+    return msgpack.packb(obj, **kwargs)
+
+
+def msgpack_load(file, **kwargs):
+    import msgpack, gc, msgpack_numpy as m
+    gc.disable()
+    kwargs.setdefault('allow_np', True)
+    allow_np = kwargs.pop('allow_np')
+    if allow_np:
+        kwargs.setdefault('object_hook', m.decode)
+    kwargs.setdefault('use_list', False)
+    kwargs.setdefault('raw', False)
+    with open(file, 'rb') as f:
+        res = msgpack.unpack(f, **kwargs)
+    gc.enable()
+    return res
+
+
+def msgpack_loads(file, **kwargs):
+    pass
+
+
+# import msgpack_numpy as m
+#
+# msgpack_dump(np.zeros((2, 2)), '/tmp/tmp', default=m.encode)
+# msgpack_load('/tmp/tmp', object_hook=m.decode)
 
 
 def json_load(file):
@@ -1076,7 +1131,7 @@ def dict_update(to, from_dict, must_exist=True):
             assert to[k] == v
         except Exception as inst:
             logging.debug(
-                'update ori key {} from {} to {}'.format(k, to.get(k,None), v))
+                'update ori key {} from {} to {}'.format(k, to.get(k, None), v))
             to[k] = v
     return to
 
@@ -1208,5 +1263,18 @@ def my_wget(fid, fname):
     return task
 
 
-if __name__ == '__main__':
-    print(get_dev(n=1, ok = (0,2,3)), )
+def to_json_format(obj):
+    if isinstance(obj, np.ndarray):
+        # return obj.tolist()
+        return obj
+    if isinstance(obj, list) or isinstance(obj, tuple):
+        return [to_json_format(subobj) for subobj in obj]
+    if isinstance(obj, dict):
+        for key in obj.keys():
+            obj[key] = to_json_format(obj[key])
+        return obj
+    if isinstance(obj, int) or isinstance(obj, str) or isinstance(obj, float):
+        return obj
+    if isinstance(obj, torch.Tensor):
+        return obj.cpu().numpy()
+    return obj

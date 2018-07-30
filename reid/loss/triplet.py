@@ -328,31 +328,40 @@ class TripletLoss(nn.Module):
         # self.margin3 = torch.tensor(args.margin3).cuda()
         self.margin2 = args.margin2
         self.margin3 = args.margin3
+        self.args = args
 
     def forward(self, inputs, targets, dbg=False, cids=None):
         n = inputs.size(0)
         dist = calc_distmat(inputs, inputs)
-        # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         dist_ap, dist_an = [], []
-        # all_ind = to_variable(torch.arange(0, n).type(torch.LongTensor), requires_grad=False, volatile=True)
+        all_ind = torch.arange(0, n).type(torch.LongTensor)
         # posp_inds, negp_inds = [], []
 
         for i in range(n):
             if self.mode == 'hard':
+                # For each anchor, find the hardest positive and negative
                 some_pos = dist[i][mask[i]]
                 some_neg = dist[i][mask[i] == 0]
 
                 neg = some_neg.min()
                 pos = some_pos.max()
-                # (neg - pos).sum().backward(retain_graph=True)
-                # inputs.grad
                 dist_ap.append(pos)
                 dist_an.append(neg)
 
-                # F.softplus(torch.stack(dist_ap) - torch.stack(dist_an)).sum().backward(retain_graph=True)
-                # inputs.grad
-
+            elif self.mode == 'reg.a':
+                some_pos = dist[i][mask[i]]
+                some_neg = dist[i][mask[i] == 0]
+                some_pos_ind = all_ind[mask[i]]
+                some_neg_ind = all_ind[mask[i] == 0]
+                neg_ind = some_neg_ind[torch.argmin(some_neg)]
+                pos_ind = some_pos_ind[torch.argmax(some_pos)]
+                xa = inputs[i]
+                xp = inputs[pos_ind]
+                xn = inputs[neg_ind]
+                xa -= self.args.margin4 * (xn - xp)
+                dist_ap.append(((xa - xp) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
+                dist_an.append(((xa - xn) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
 
 
             elif self.mode == 'adap':

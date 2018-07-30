@@ -3,13 +3,14 @@ import sys
 sys.path.insert(0, '/data1/xinglu/prj/open-reid')
 
 from lz import *
+from easydict import EasyDict as edict
+import copy
 
 no_proc = False
 parallel = True
 # parallel = False
-gpu_range = (0, 1, 2, 3,)
+gpu_range = (0, 1, 2)
 cfgs = [
-
     # edict(
     #     logs_dir='tri6.combine.2',
     #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
@@ -30,54 +31,36 @@ cfgs = [
     #     height=256, width=128, cu03_classic=False, epochs=65 * 4, steps=[40 * 4, 60 * 4],
     # ),
 
-    edict(
-        logs_dir='bak',
-        double=1, adv_inp=0, adv_fea=1, adv_inp_eps=0.3, adv_fea_eps=0.3,
-        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-        reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        # evaluate=True,
-        aux='l2_adv',
-        dataset='cu03lbl',
-        gpu=(1,), last_conv_stride=2,
-        gpu_fix=True,
-        batch_size=16, num_instances=4, num_classes=128,
-        dropout=0, loss='tri', tri_mode='hard',
-        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-        random_ratio=1, lr_cent=0,
-        gpu_range=gpu_range, lr_mult=1,
-        push_scale=1., embed=None,
-        margin='soft', margin2=1.1, margin3=1.1,
-    ),
-
     # edict(
-    #     logs_dir='tri7.margin',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0.3,
+    #     logs_dir='bak',
+    #     # double=1, adv_inp=0, adv_fea=1, adv_inp_eps=0.3, adv_fea_eps=0.3,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
     #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
-    #     aux='l2_adv',
+    #     # aux='l2_adv',
     #     dataset='cu03lbl',
-    #     gpu=(1,), last_conv_stride=2,
-    #     gpu_fix=True,
-    #     batch_size=16, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tri', tri_mode='hard',
+    #     gpu=(1,), last_conv_stride=1, last_conv_dilation=3,
+    #     # gpu_fix=True,
+    #     batch_size=32, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri', tri_mode='reg.a',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=gpu_range, lr_mult=1,
     #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1.1, margin3=1.0,
+    #     margin='soft', margin2=1.1, margin3=1.1, margin4=.1,
     # ),
+
     # edict(
     #     logs_dir='tri7.margin.dbl',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0.3,
+    #     double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
     #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
     #     aux='l2_adv',
     #     dataset='cu03lbl',
     #     gpu=(1,), last_conv_stride=2,
-    #     gpu_fix=True,
-    #     batch_size=16, num_instances=4, num_classes=128,
+    #     # gpu_fix=True,
+    #     batch_size=64, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri', tri_mode='hard',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
@@ -87,49 +70,74 @@ cfgs = [
     # ),
     # edict(
     #     logs_dir='tri7.feaadv',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0.3,
+    #     double=0, adv_inp=0, adv_fea=1, adv_inp_eps=0,adv_fea_eps = .3,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
     #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
-    #     aux='l2_adv',
+    #     aux='nol_adv',
     #     dataset='cu03lbl',
     #     gpu=(1,), last_conv_stride=2,
-    #     gpu_fix=True,
-    #     batch_size=16, num_instances=4, num_classes=128,
+    #     # gpu_fix=True,
+    #     batch_size=64, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri', tri_mode='hard',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=gpu_range, lr_mult=1,
     #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1.1, margin3=1.1,
+    #     margin='soft', margin2=1., margin3=1.,
     # ),
     # edict(
     #     logs_dir='tri7.feaadv.dbl',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0.3,
+    #     double=1, adv_inp=0, adv_fea=1, adv_inp_eps=0 , adv_fea_eps = .3,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
     #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
-    #     aux='l2_adv',
+    #     aux='nol_adv',
     #     dataset='cu03lbl',
-    #     gpu=(1,), last_conv_stride=2,
-    #     gpu_fix=True,
-    #     batch_size=16, num_instances=4, num_classes=128,
+    #     # gpu_fix=True,
+    #     batch_size=64, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri', tri_mode='hard',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
     #     gpu_range=gpu_range, lr_mult=1,
     #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1.1, margin3=1.1,
+    #     margin='soft', margin2=1., margin3=1.,
     # ),
 ]
 
+cfg = edict(
+    logs_dir='tri8.margin',
+    double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    # evaluate=True,
+    aux='l2_adv',
+    dataset='cu03lbl',
+    gpu=(1,), last_conv_stride=2,
+    # gpu_fix=True,
+    batch_size=64, num_instances=4, num_classes=128,
+    dropout=0, loss='tri', tri_mode='hard',
+    cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    random_ratio=1, lr_cent=0,
+    gpu_range=gpu_range, lr_mult=1,
+    push_scale=1., embed=None,
+    margin='soft', margin2=1.0, margin3=1.0,
+)
+
+for m4 in [.1, -.1, .2, 0, 1]:
+    cfg_t = copy.deepcopy(cfg)
+    cfg_t.margin4 = m4
+    cfg_t.tri_mode = 'reg.a'
+    cfg_t.logs_dir = f'{cfg.logs_dir}.m4_{m4}'
+    cfgs.append( cfg_t)
+
 # cfg = edict(
-#     logs_dir='tri6.reglosswrt',
+#     logs_dir='tri8.margin',
 #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
 #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-#     reg_loss_wrt=[0, 1, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+#     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
 #     # evaluate=True,
-#     aux='l2_grad',
+#     aux='l2_adv',
 #     dataset='cu03lbl',
 #     gpu=(1,), last_conv_stride=2,
 #     # gpu_fix=True,
@@ -139,18 +147,45 @@ cfgs = [
 #     random_ratio=1, lr_cent=0,
 #     gpu_range=gpu_range, lr_mult=1,
 #     push_scale=1., embed=None,
+#     margin='soft', margin2=1.0, margin3=1.0,
+# )
+# for ds in ['cu03det', 'mkt']:
+#     for m1 in [.9, 1, 1.1]:
+#         for m2 in [.9, 1, 1.1]:
+#             for dbl in [0, 1]:
+#                 cfg_t = copy.deepcopy(cfg)
+#                 cfg_t.margin2 = m1
+#                 cfg_t.margin3 = m2
+#                 cfg_t.double = dbl
+#                 cfg_t.dataset = ds
+#                 cfg_t.logs_dir = f'{cfg.logs_dir}.m1.{m1}.m2.{m2}.dbl.{dbl}.{ds}'
+#                 cfgs.append(cfg_t)
+
+# cfg = edict(
+#     logs_dir='tri8',
+#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+#     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+#     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+#     # evaluate=True,
+#     # aux='l2_grad',
+#     dataset='cu03lbl',
+#     gpu=(1,), last_conv_stride=2, last_conv_dilation=1,
+#     # gpu_fix=True,
+#     batch_size=64, num_instances=4, num_classes=128,
+#     dropout=0, loss='tri', tri_mode='hard',
+#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+#     random_ratio=1, lr_cent=0,
+#     gpu_range=gpu_range, lr_mult=1,
+#     push_scale=1., embed=None,
 #     margin='soft', margin2=1., margin3=1.,
 # )
-# for reg_loss in ['in.x3.x5', 'x1', 'x1.x3.x5']:
-#     mapp = {
-#         'in.x3.x5': [1, 0, 0, 1, 0, 1, ],
-#         'x1': [0, 1, 0, 0, 0, 0, ],
-#         'x1.x3.x5': [0, 1, 0, 1, 0, 1, ],
-#     }
-#     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.{reg_loss}'
-#     cfg_t.reg_loss_wrt = mapp[reg_loss]
-#     cfgs.append(cfg_t)
+# for stride in [1, 2]:
+#     for dilation in [1, 2, 3]:
+#         cfg_t = copy.deepcopy(cfg)
+#         cfg_t.last_conv_stride = stride
+#         cfg_t.last_conv_dilation = dilation
+#         cfg_t.logs_dir = f'{cfg.logs_dir}.s{stride}.d{dilation}'
+#         cfgs.append(cfg_t)
 
 # cfg = edict(
 #     logs_dir='mkt.xent', double=1, adv_inp=1, adv_fea=0,
@@ -192,7 +227,7 @@ base = edict(
     optimizer_cent='adam', topk=5, test_best=True,
     push_scale=1., gpu_fix=False, test_batch_size=8,
     lr=3e-4, margin=0.5, area=(0.85, 1),
-    margin2=1., margin3=1.,
+    margin2=1., margin3=1., margin4=0.,
     steps=[40, 60], epochs=65,
     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', convop='nn.Conv2d',
     weight_dis_cent=0, vis=False,
@@ -255,7 +290,7 @@ for ind, args in enumerate(cfgs):
 
 if __name__ == '__main__':
     import tabulate
-
+    import pandas as pd
 
     def is_all_same(lst):
         res = [lsti == lst[0] for lsti in lst]

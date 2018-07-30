@@ -5,7 +5,7 @@ from .utils.meters import AverageMeter
 from lz import *
 from tensorboardX import SummaryWriter
 from reid.mining import mine_hard_triplets
-import torch
+import torch, math
 from .models.resnet import *
 
 

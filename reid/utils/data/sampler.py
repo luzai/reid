@@ -5,7 +5,7 @@ import numpy as np
 import lz
 from torch.utils.data.sampler import *
 import queue
-
+import  pandas as pd
 
 class RandomIdentitySampler(Sampler):
     def __init__(self, data_source, num_instances=4, batch_size=160, shuffle=True):

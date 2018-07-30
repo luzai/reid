@@ -52,23 +52,21 @@ class Bottleneck(nn.Module):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
+
+        padding = dilation
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=1 if dilation == 1 else 2,
+                               padding=padding,
                                bias=False, dilation=dilation)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
         if downsample is not None:
-            if len(downsample) <= 3:
-                dilation_ = 1
-            else:
-                dilation_ = downsample[3]
             self.downsample = nn.Sequential(
                 nn.Conv2d(downsample[0], downsample[1],
                           kernel_size=1,
                           padding=0,
-                          stride=downsample[2], dilation=dilation_,
+                          stride=stride,
                           bias=False),
                 nn.BatchNorm2d(downsample[1]),
             )
@@ -642,14 +640,6 @@ class ResNetOri(nn.Module):
         self.layer4 = self._make_layer(block2, 512, layers[3],
                                        stride=last_conv_stride,
                                        dilation=last_conv_dilation)
-        # channel = 128
-        # reduction = 4
-        # self.fcc = nn.Sequential(
-        #     nn.Linear(channel, channel // reduction),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(channel // reduction, channel),
-        #     nn.ReLU(inplace=True),  # nn.Sigmoid()
-        # )
 
         self.post2 = nn.Sequential(
             nn.BatchNorm1d(self.out_planes),
@@ -703,7 +693,7 @@ class ResNetOri(nn.Module):
         # x4_res.retain_grad()
         # features.retain_grad()
         return (features, clss,
-                [x1,x2,x3,x4, ],
+                [x1, x2, x3, x4, ],
                 # x5_grad_reg.unsqueeze(dim=0)
                 )
 

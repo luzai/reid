@@ -5,7 +5,7 @@ from PIL import Image
 from lz import *
 # from lomo.lomo_map import extract_feature
 from torch.utils.data import Dataset
-
+import  copy
 
 class Preprocessor(object):
     def __init__(self, dataset, root=None, transform=None, test_aug=False, has_npy=False, has_pose=False):
@@ -49,15 +49,16 @@ class Preprocessor(object):
         #     fpath = '/home/xinglu/Nextcloud/2.jpg'
         if not osp.exists(fpath) and self.root is not None:
             fpath = osp.join(self.root, fpath)
-        if not osp.exists(fpath):
-            raise ValueError(fpath)
+        assert osp.exists(fpath), ValueError(fpath)
         # if fpath in self.cache:
         #     res = self.cache[fpath]
         #     img = self.transform(res['img'])
         #     res_return = copy.deepcopy(res)
         #     res_return.update({'img': img})
         #     return res_return
-
+        if os.stat(fpath).st_size == 0:
+            rm(fpath)
+            return self._get_single_item(0)
         res['img'] = Image.open(fpath).convert('RGB')
         # self.cache[fpath] = res
         img = self.transform(res['img'])

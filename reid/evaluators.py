@@ -6,7 +6,7 @@ from reid.feature_extraction import *
 from reid.utils.meters import AverageMeter
 from reid.utils.rerank import *
 from reid.lib.cython_eval import eval_market1501_wrap
-
+from easydict import  EasyDict as edict
 
 def extract_features(model, data_loader, print_freq=1):
 
@@ -454,14 +454,3 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     mAP = np.mean(all_AP)
 
     return mAP, all_cmc
-
-
-if __name__ == '__main__':
-    with lz.Database(lz.root_path + '/exps/work/eval/eval.h5', 'r') as db:
-        print(list(db.keys()))
-        for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-            locals()[name] = db['test/' + name]
-        print(distmat.shape)
-        timer = lz.Timer()
-        print(eval_market1501_wrap(distmat, query_ids, gallery_ids, query_cams, gallery_cams, 10))
-        timer.since_start()
