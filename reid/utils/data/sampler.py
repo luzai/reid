@@ -1,11 +1,11 @@
 from lz import *
 from collections import defaultdict
 import itertools
-import numpy as np
-import lz
+import numpy as np, lz, collections
 from torch.utils.data.sampler import *
 import queue
-import  pandas as pd
+import pandas as pd
+
 
 class RandomIdentitySampler(Sampler):
     def __init__(self, data_source, num_instances=4, batch_size=160, shuffle=True):
@@ -56,13 +56,13 @@ class RandomIdentityWeightedSampler(Sampler):
                  batch_size=128,
                  rand_ratio=1.,
                  weights=None,
-                 dop_info=None,):
+                 dop_info=None, ):
         assert batch_size % num_instances == 0
         self.batch_size = batch_size
         self.data_source = data_source
         self.num_instances = num_instances
         self.rand_ratio = rand_ratio
-        self.dop_info=dop_info
+        self.dop_info = dop_info
         pids = np.asarray(data_source)[:, 1].astype(int)
         # data_source is img_path pida, cids
         inds = np.arange(pids.shape[0], dtype=int)
@@ -70,11 +70,9 @@ class RandomIdentityWeightedSampler(Sampler):
             weights = np.ones_like(inds, dtype=float)
             weights = weights / weights.sum()
 
-        self.info = pd.DataFrame.from_items([
-            ('pids', pids),
-            ('inds', inds),
-            ('probs', weights)
-        ])
+        self.info = pd.DataFrame.from_dict(
+            collections.OrderedDict(pids=pids, inds=inds, probs=weights)
+        )
         self.pids = np.unique(pids)
         self.num_pids = self.pids.shape[0]
         self.inds = inds

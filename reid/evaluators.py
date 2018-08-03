@@ -179,7 +179,7 @@ def parse_name(ds):
         args_ds.eval_conf = 'market1501'
     else:
         # raise ValueError(f'dataset ... {ds}')
-        args_ds.dataset_val = args_ds.dataset
+        args_ds.dataset_val = ds
         args_ds.eval_conf = 'market1501'
     return args_ds
 
@@ -290,7 +290,6 @@ class Evaluator(object):
         return res
 
     def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
-
         self.model.eval()
         query_ids = [pid for _, pid, _ in query]
         gallery_ids = [pid for _, pid, _ in gallery]
@@ -337,9 +336,6 @@ class Evaluator(object):
             if self.conf == 'market1501':
                 distmat = distmat.astype(np.float16)
                 del features
-                import gc
-                gc.collect()
-
                 print(f'facing {distmat.shape}')
                 # if distmat.shape[0] < 10000:
                 mAP, all_cmc = eval_market1501_wrap(
@@ -359,12 +355,6 @@ class Evaluator(object):
                     'cuhk03': dict(separate_camera_set=True,
                                    single_gallery_shot=True,
                                    first_match_break=False),
-                    # 'market1501': dict(separate_camera_set=False,  # hard
-                    #                    single_gallery_shot=False,  # hard
-                    #                    first_match_break=True),
-                    'allshots': dict(separate_camera_set=False,  # hard
-                                     single_gallery_shot=False,  # hard
-                                     first_match_break=False),
                 }
                 cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
 

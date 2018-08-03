@@ -27,7 +27,8 @@ class Mars(object):
     dataset_dir = 'mars'
 
     def __init__(self, root='/home/xinglu/.torch/data', min_seq_len=0, **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
+        root = '/home/xinglu/.torch/data'
+        self.images_dir = self.dataset_dir = osp.join(root, self.dataset_dir)
         self.train_name_path = osp.join(self.dataset_dir, 'info/train_name.txt')
         self.test_name_path = osp.join(self.dataset_dir, 'info/test_name.txt')
         self.track_train_info_path = osp.join(self.dataset_dir, 'info/tracks_train_info.mat')
@@ -78,12 +79,15 @@ class Mars(object):
         print("  ------------------------------")
 
         self.train = train
+        self.trainval = train
+        self.val = None
         self.query = query
         self.gallery = gallery
 
-        self.num_train_pids = num_train_pids
-        self.num_query_pids = num_query_pids
-        self.num_gallery_pids = num_gallery_pids
+        self.num_train_pids = self.num_trainval_pids = self.num_train_ids = self.num_trainval_ids = num_train_pids
+        self.num_val_ids =self.num_val_pids  = 0
+        self.num_query_ids = self.num_query_pids = num_query_pids
+        self.num_gallery_ids =self.num_gallery_pids = num_gallery_pids
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
@@ -586,16 +590,45 @@ class Market1501(Dataset):
         write_json(splits, osp.join(self.root, 'splits.json'))
 
 
+# need to provide: num_train_pids = num_trainval_pids, num_query_pids, num_gallary_pids
+# trainval=train, val=None, query, gallery
+# format: imgp, pid, cid
+
 class Extract(Dataset):
     def __init__(self, **kwargs):
         self.name = 'extract'
-        self.root = work_path + 'reid.person'
+        # self.root = work_path + 'reid.person'
+        self.root = work_path + 'extra_train'
+        assert osp.exists(self.root)
+        dftl = []
+        for pid in range(10):
+            imps = glob.glob(self.root + f'/{pid}/*')  # png or jpg
+            dft = pd.DataFrame({'imgs': imps, 'pids': pid, 'cids': np.arange(len(imps))})
+            dftl.append(dft)
+        df = pd.concat(dftl, axis=0)
+        all_ind = np.random.permutation(df.shape[0])
 
-        imps = glob.glob(self.root + '/**/*.jpg')
-        df = pd.DataFrame(imps)
-        df['pids'] = 0
-        df['cids'] = 0
-        self.query = df.to_records(index=False).tolist()
+        traintest_split = None
+        if traintest_split is not None:
+            train_ind = all_ind[:df.shape[0] * (traintest_split - 1) // traintest_split]
+            test_ind = all_ind[df.shape[0] * (traintest_split - 1) // traintest_split:]
+            df_train = df.iloc[train_ind]
+            df_test = df.iloc[test_ind]
+            self.gallery = self.query = df_test.to_records(index=False).tolist()
+            self.train = self.trainval = df_train.to_records(index=False).tolist()
+        else:
+            self.gallery = self.query = self.train = self.trainval = df.to_records(index=False).tolist()
+        self.val = None
+        self.num_train_pids = 10
+        self.num_trainval_ids = 10
+        self.num_val_ids = 0
+        self.num_query_pids = 10
+        self.num_gallery_pids = 10
+        self.images_dir = None
+        # for pid, dft in df.groupby('pids'):
+        #     print(pid, dft.shape)
+        print(len(self.trainval), len(self.gallery))
+        pass
 
 
 class CUB(Dataset):

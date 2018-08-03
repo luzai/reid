@@ -1,10 +1,9 @@
-# # -*- coding: future_fstrings -*-
 # from __future__ import print_function, absolute_import, division, unicode_literals
 
-# import matplotlib
-# # matplotlib.use('TkAgg')
-# # matplotlib.use('Agg')
-# import matplotlib.pyplot as plt
+import matplotlib
+# matplotlib.use('TkAgg')
+# matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 import os, sys, time, \
     random, \
@@ -16,15 +15,18 @@ import os, sys, time, \
     functools, signal
 from os import path as osp
 
-# from easydict import EasyDict as edict
-# import cv2, cvbase as cvb, copy ,math
+from easydict import EasyDict as edict
+import cv2, cvbase as cvb, copy, pandas as pd
+
 # import redis, networkx as nx, \
 #  yaml, subprocess, pprint, json, \
 # csv, argparse, string, colorlog, \
-# shutil, itertools, pandas as pd, pathlib,
+# shutil, itertools,pathlib,
 # from IPython import embed
 # from tensorboardX import SummaryWriter
-
+os.environ.setdefault('log', '1')
+os.environ.setdefault('pytorch', '1')
+os.environ.setdefault('tensorflow', '0')
 
 if os.environ.get('pytorch', "1") == "1":
     tic = time.time()
@@ -42,7 +44,7 @@ if os.environ.get('pytorch', "1") == "1":
         f'{old_repr(obj.contiguous())} \n'
         f'type: {obj.type()} shape: {obj.shape}')
     print('import pytorch', time.time() - tic)
-else:
+if os.environ.get('tensorflow', '0') == '1':
     tic = time.time()
     import tensorflow as tf
     import tensorflow.contrib
@@ -84,8 +86,10 @@ matplotlib.style.use('ggplot')
 from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
 '''
+
+
 # torch.set_default_tensor_type(torch.cuda.DoubleTensor)
-ori_np_err = np.seterr(all='raise')
+# ori_np_err = np.seterr(all='raise')
 
 
 def set_stream_logger(log_level=logging.DEBUG):
@@ -107,20 +111,22 @@ def set_file_logger(work_dir=None, log_level=logging.DEBUG):
     logging.root.addHandler(fh)
 
 
-logging.root.setLevel(logging.DEBUG)
-# set_stream_logger(logging.DEBUG)
-set_stream_logger(logging.INFO)
-set_file_logger(log_level=logging.DEBUG)
+if os.environ.get('log', '0') == '1':
+    logging.root.setLevel(logging.DEBUG)
+    # set_stream_logger(logging.DEBUG)
+    set_stream_logger(logging.INFO)
+    set_file_logger(log_level=logging.DEBUG)
 
 ## ndarray will be pretty
-# np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
-#                                    f'{arr.__str__()} \n'
-#                                    f'dtype:{arr.dtype} shape:{arr.shape}'                       , repr=True)
+np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
+                                   f'{arr.__str__()} \n'
+                                   f'dtype:{arr.dtype} shape:{arr.shape}', repr=True)
+
 
 ## print(ndarray) will be pretty (and pycharm dbg)
-np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
-                                   f'{arr.__repr__()} \n'
-                                   f'dtype:{arr.dtype} shape:{arr.shape}', repr=False)
+# np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
+#                                    f'{arr.__repr__()} \n'
+#                                    f'dtype:{arr.dtype} shape:{arr.shape}', repr=False)
 
 
 # old_np_repr = np.ndarray.__repr__
@@ -324,8 +330,9 @@ class Logger(object):
             self.file.close()
 
 
-sys.stdout = Logger(root_path + 'log-prt')
-sys.stderr = Logger(root_path + 'log-prt-err')
+if os.environ.get('log', '0') == '1':
+    sys.stdout = Logger(root_path + 'log-prt')
+    sys.stderr = Logger(root_path + 'log-prt-err')
 
 
 class Timer(object):
@@ -1047,6 +1054,12 @@ def show_img(path):
     return fig
 
 
+def plt_imshow(img):
+    plt.figure()
+    plt.imshow(img)
+    plt.axis('off')
+
+
 def show_pdf(path):
     from IPython.display import IFrame
     path = osp.relpath(path)
@@ -1265,8 +1278,10 @@ def my_wget(fid, fname):
 
 def to_json_format(obj):
     if isinstance(obj, np.ndarray):
-        # return obj.tolist()
-        return obj
+        if obj.dtype == object:
+            return obj.tolist()
+        else:
+            return obj
     if isinstance(obj, list) or isinstance(obj, tuple):
         return [to_json_format(subobj) for subobj in obj]
     if isinstance(obj, dict):

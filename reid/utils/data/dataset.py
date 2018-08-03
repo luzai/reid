@@ -1,6 +1,4 @@
-from __future__ import print_function
-import os
-import os.path as osp
+from os import path as osp
 import numpy as np
 
 from reid.utils.serialization import read_json

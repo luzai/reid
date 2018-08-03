@@ -85,13 +85,13 @@ cpdef eval_market1501(
 
     tic = time.time()
     cdef my_int[:,:] indices = np.argsort(distmat, axis=1).astype(my_npint)
-    print('time indices', time.time()-tic)
+    # print('time indices', time.time()-tic)
     tic = time.time()
     cdef bool_t[:,:] matches = (np.asarray(g_pids)[np.asarray(indices)] == np.asarray(q_pids)[:, np.newaxis]).astype(np.uint8)
-    print('time matches', time.time()-tic)
+    # print('time matches', time.time()-tic)
     tic = time.time()
     cdef float[:,:] all_cmc = np.empty((num_q,max_rank),dtype=np.float32)
-    print('time all_cmc', time.time()-tic)
+    # print('time all_cmc', time.time()-tic)
     cdef float[:] all_AP = np.zeros(num_q,dtype=np.float32)
 
     cdef:

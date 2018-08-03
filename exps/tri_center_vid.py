@@ -19,7 +19,6 @@ from reid.mining import *
 from reid.utils.data import transforms as T
 from reid.utils.data.preprocessor import Preprocessor
 from reid.utils.data.sampler import *
-from reid.utils.logging import Logger
 from reid.utils.serialization import *
 from reid.utils.dop import DopInfo
 
@@ -30,18 +29,23 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        if args.loss != 'tcxvid':
+        if args.loss != 'trivid':
             print(f'skip {args.loss} {args.logs_dir}')
             continue
-        # args.log_at = np.concatenate([
-        #     args.log_at,
-        #     range(args.epochs - 1, args.epochs + 1, 1)
-        # ])
-        args.logs_dir = 'work/' + args.logs_dir
+
+        args.log_at = np.concatenate([
+            args.log_at,
+            range(args.epochs - 8, args.epochs, 1)
+        ])
+        args.logs_dir = lz.work_path + 'reid/work/' + args.logs_dir
+        if osp.exists(args.logs_dir) and osp.exists(args.logs_dir + '/checkpoint.64.pth'):
+            print(os.listdir(args.logs_dir))
+            continue
+
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
-                                  mem=[0.12, 0.07], sleep=32.3)
+                                  mem_thresh=[0.09, 0.09], sleep=32.3)
         lz.logging.info(f'use gpu {args.gpu}')
         # args.batch_size = 16
         # args.gpu = (3, )
@@ -50,20 +54,25 @@ def run(_):
 
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
-        if not args.evaluate:
+        if not args.evaluate and not args.vis:
             assert args.logs_dir != args.resume
             lz.mkdir_p(args.logs_dir, delete=True)
             lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
+        if cfgs.no_proc:
+            main(args)
+        else:
+            proc = mp.Process(target=main, args=(args,))
+            proc.start()
+            lz.logging.info('next')
+            time.sleep(random.randint(39, 90))
+            if not cfgs.parallel:
+                proc.join()
+            else:
+                procs.append(proc)
 
-        # main(args)
-        proc = mp.Process(target=main, args=(args,))
-        proc.start()
-        lz.logging.info('next')
-        time.sleep(random.randint(39, 90))
-        procs.append(proc)
-
-    for proc in procs:
-        proc.join()
+    if cfgs.parallel:
+        for proc in procs:
+            proc.join()
 
 
 def get_data(args):
@@ -76,13 +85,15 @@ def get_data(args):
         args.batch_size, args.num_instances,
         args.workers, args.combine_trainval,)
     pin_memory = args.pin_mem
+    name_val = args.dataset_val or args.dataset
     npy = args.has_npy
     rand_ratio = args.random_ratio
-
-    # root = osp.join(data_dir, name)
-    root = data_dir
-    dataset = datasets.create(
-        name, root, split_id=split_id, mode=args.dataset_mode)
+    if isinstance(name, list):
+        dataset = datasets.creates(name, split_id=split_id,
+                                   cuhk03_classic_split=args.cu03_classic)
+    else:
+        dataset = datasets.create(name, split_id=split_id,
+                                  cuhk03_classic_split=args.cu03_classic)
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -131,7 +142,7 @@ def get_data(args):
         pin_memory=False, drop_last=False,
     )
 
-    return dataset, num_classes, train_loader,  dop_info, query_loader, gallery_loader
+    return dataset, num_classes, train_loader, dop_info, query_loader, gallery_loader
 
 
 def main(args):
@@ -149,7 +160,7 @@ def main(args):
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
 
-    dataset, num_classes, train_loader, dop_info , query_loader, gallery_loader= get_data(args)
+    dataset, num_classes, train_loader, dop_info, query_loader, gallery_loader = get_data(args)
 
     # Create model
     model = models.create(args.arch,
@@ -201,20 +212,21 @@ def main(args):
 
     # Evaluator
     evaluator = Evaluator(model, gpu=args.gpu,
-                          conf=args.eval_conf, args=args, vid=True)
+                          args=args, vid=True)
     # return
     if args.evaluate:
-        res = evaluator.evaluate_vid(query_loader,gallery_loader, metric,
-                                 final=True, suffix='test')
+        res = evaluator.evaluate_vid(query_loader, gallery_loader, metric,
+                                     final=True, suffix='test')
 
         lz.logging.info('eval {}'.format(res))
         return res
     # Criterion
-    criterion = [TripletLoss(margin=args.margin, mode='hard'),
+    criterion = [TripletLoss(margin=args.margin, mode=args.tri_mode, args=args),
                  CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
                             margin2=args.margin2,
-                            margin3=args.margin3, mode=args.mode,
-                            push_scale=args.push_scale), ]
+                            margin3=args.margin3, mode=args.cent_mode,
+                            push_scale=args.push_scale,
+                            args=args), ]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
@@ -222,15 +234,16 @@ def main(args):
     for name, param in model.named_parameters():
         if name == 'module.embed1.weight' or name == 'module.embed2.weight':
             fast_params.append(param)
-    fast_params_ids = set(map(fid, fast_params))
-    normal_params = [p for p in model.parameters() if fid(p)
-                     not in fast_params_ids]
+    fast_params_ids = set(map(id, fast_params))
+    normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': 1.},
+        {'params': fast_params, 'lr_mult': args.lr_mult},
         {'params': normal_params, 'lr_mult': 1.},
     ]
-    optimizer_cent = torch.optim.SGD(
-        criterion[1].parameters(), lr=args.lr_cent, )
+    if args.optimizer_cent == 'sgd':
+        optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
+    else:
+        optimizer_cent = torch.optim.Adam(criterion[1].parameters(), lr=args.lr_cent, )
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             # model.parameters(),
@@ -238,14 +251,17 @@ def main(args):
             lr=args.lr,
             betas=args.adam_betas,
             eps=args.adam_eps,  # adam hyperparameter
-            weight_decay=args.weight_decay)
+            weight_decay=args.weight_decay,
+            amsgrad=args.amsgrad,
+        )
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(
             # filter(lambda p: p.requires_grad, model.parameters()),
             param_groups,
             lr=args.lr,
             weight_decay=args.weight_decay, momentum=0.9,
-            nesterov=True)
+            nesterov=False,
+        )
     else:
         raise NotImplementedError
 
@@ -266,7 +282,7 @@ def main(args):
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
     # Trainer
-    trainer = TriCenterTrainer(model, criterion, dbg=True,
+    trainer = TriTrainer(model, criterion, dbg=True,
                                logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
@@ -303,16 +319,14 @@ def main(args):
     # schedule = CyclicLR(optimizer)
     schedule = None
     # Start training
-
     for epoch in range(start_epoch, args.epochs):
-        # warm up
-        # mAP, acc,rank5 = evaluator.evaluate_vid(val_loader, dataset.val, dataset.val, metric)
-
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)
 
-        hist = trainer.train(epoch, train_loader, optimizer, print_freq=args.print_freq, schedule=schedule,
-                             optimizer_cent=optimizer_cent)
+        hist = trainer.train(epoch, train_loader, optimizer,
+                             print_freq=args.print_freq, schedule=schedule,
+                             # optimizer_cent=optimizer_cent
+                             )
         for k, v in hist.items():
             writer.add_scalar('train/' + k, v, epoch)
         writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
@@ -323,7 +337,7 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch % 2 == 0:
+        if epoch % 15 == 0:
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
                 'cent': criterion[1].centers,
@@ -346,7 +360,7 @@ def main(args):
         #     writer.add_scalar('train/'+n, v, epoch)
 
         res = evaluator.evaluate_vid(
-            query_loader, gallery_loader , metric, epoch=epoch)
+            query_loader, gallery_loader, metric, epoch=epoch)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
 
@@ -360,15 +374,16 @@ def main(args):
             'epoch': epoch + 1,
             'best_top1': best_top1,
         }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
-
+        print(res)
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
+        # break
 
     # Final test
-    res = evaluator.evaluate_vid(
-        query_loader, gallery_loader, metric)
-    for n, v in res.items():
-        writer.add_scalar('test/' + n, v, args.epochs)
+    # res = evaluator.evaluate_vid(
+    #     query_loader, gallery_loader, metric)
+    # for n, v in res.items():
+    #     writer.add_scalar('test/' + n, v, args.epochs)
 
     if osp.exists(osp.join(args.logs_dir, 'model_best.pth')) and args.test_best:
         print('Test with best model:')
@@ -382,6 +397,10 @@ def main(args):
         lz.logging.info('final eval is {}'.format(res))
 
     writer.close()
+    print(res)
+    for k, v in res.items():
+        res[k] = float(v)
+    json_dump(res, args.logs_dir + '/res.json', 'w')
     return res
 
 
@@ -393,5 +412,5 @@ if __name__ == '__main__':
     toc = time.time()
     print('consume time ', toc - tic)
     if toc - tic > 600:
-        mail('tri center finish')
+        mail('tri center vid finish')
     print(datetime.datetime.now().strftime('%D-%H:%M:%S'))

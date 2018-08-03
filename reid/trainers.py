@@ -287,6 +287,16 @@ def set_bn_to_eval(m):
         m.eval()
 
 
+class SummaryWriter2(object):
+    def __init__(self, *args, **kwargs): pass
+
+    def add_scalar(self, *args, **kwargs): pass
+
+    def add_scalars(self, *args, **kwargs): pass
+
+    def add_image(self, *args, **kwargs): pass
+
+
 class TriTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=True, args=None, dop_info=None, **kwargs):
         self.model = model
@@ -297,7 +307,7 @@ class TriTrainer(object):
         self.dbg = dbg
         if dbg:
             mkdir_p(logs_at, delete=True)
-            self.writer = SummaryWriter(logs_at)
+            self.writer = SummaryWriter2(logs_at)
         else:
             self.writer = None
 
@@ -318,7 +328,7 @@ class TriTrainer(object):
             data_time.update(time.time() - end)
             input_imgs = inputs.get('img').cuda()
             batch_size = input_imgs.size(0)
-            if self.iter % 100 == 0:
+            if self.iter % 10000 == 0:
                 x = vutils.make_grid(
                     input_imgs, normalize=True, scale_each=True)
                 self.writer.add_image('input', x, self.iter)
@@ -340,7 +350,7 @@ class TriTrainer(object):
             # losst.backward(retain_graph=True, create_graph=True)
             # features.grad
 
-            if self.iter % 10 == 0:
+            if self.iter % 100 == 0:
                 self.writer.add_scalar('vis/loss-triplet', losst.item(), self.iter)
                 self.writer.add_scalar('vis/prec-triplet', prect.item(), self.iter)
                 self.writer.add_scalar('vis/lr', self.lr, self.iter)

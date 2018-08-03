@@ -37,7 +37,7 @@ def run(_):
             args.log_at,
             range(args.epochs - 8, args.epochs, 1)
         ])
-        args.logs_dir = lz.work_path + 'reid/work/'+ args.logs_dir
+        args.logs_dir = lz.work_path + 'reid/work/' + args.logs_dir
         if osp.exists(args.logs_dir) and osp.exists(args.logs_dir + '/checkpoint.64.pth'):
             print(os.listdir(args.logs_dir))
             continue
@@ -45,7 +45,7 @@ def run(_):
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
-                                  mem_thresh=[0.12, 0.20], sleep=32.3)
+                                  mem_thresh=[0.09, 0.09], sleep=32.3)
         lz.logging.info(f'use gpu {args.gpu}')
         # args.batch_size = 16
         # args.gpu = (3, )
@@ -89,10 +89,13 @@ def get_data(args):
     npy = args.has_npy
     rand_ratio = args.random_ratio
     if isinstance(name, list):
-        dataset=datasets.creates(name ,split_id = split_id)
+        dataset = datasets.creates(name, split_id=split_id,
+                                   cuhk03_classic_split=args.cu03_classic)
     else:
-        dataset = datasets.create(name, split_id=split_id, )
-    dataset_val = datasets.create(name_val, split_id=split_id, )
+        dataset = datasets.create(name, split_id=split_id,
+                                  cuhk03_classic_split=args.cu03_classic)
+    dataset_val = datasets.create(name_val, split_id=split_id,
+                                  cuhk03_classic_split=args.cu03_classic)
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -127,7 +130,7 @@ def get_data(args):
     #     has_npy=npy),
     #     batch_size=batch_size, num_workers=workers,
     #     shuffle=False, pin_memory=pin_memory)
-    trainval_test_loader =None
+    trainval_test_loader = None
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer,
@@ -343,8 +346,8 @@ def main(args):
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
             }, True, fpath=osp.join(args.logs_dir,
-                                    # 'checkpoint.{}.pth'.format(epoch))
-                                    'model_latest.pth', )
+                                    'checkpoint.{}.pth'.format(epoch))
+                # 'model_latest.pth',)
             )
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
@@ -434,7 +437,6 @@ def main(args):
         res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
-
         top1 = res['top-1']
         is_best = top1 > best_top1
 
@@ -445,7 +447,7 @@ def main(args):
             'epoch': epoch + 1,
             'best_top1': best_top1,
         }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.{}.pth'.format(epoch)))  #
-
+        print(res)
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
         # break
