@@ -1,3 +1,5 @@
+import lz
+from lz import *
 from collections import OrderedDict
 from reid.utils.data.sampler import *
 from reid.utils.data.preprocessor import *
@@ -5,8 +7,8 @@ from reid.evaluation_metrics import cmc, mean_ap
 from reid.feature_extraction import *
 from reid.utils.meters import AverageMeter
 from reid.utils.rerank import *
-from reid.lib.cython_eval import eval_market1501_wrap
 from easydict import EasyDict as edict
+from reid.lib.cython_eval import eval_market1501_wrap
 
 
 def extract_features(model, data_loader, print_freq=1):
@@ -244,15 +246,25 @@ class Evaluator(object):
         distmat.addmm_(1, -2, qf, gf.t())
         distmat = distmat.numpy()
         rerank = False
+        # lz.msgpack_dump([distmat, q_pids, g_pids, q_camids, g_camids], work_path + 'tmp.mp')
+        # for mat in [distmat, q_pids, g_pids, q_camids, g_camids]:
+        #     print(mat.dtype, )
+        # from IPython import embed
+        # embed()
+        # distmat, q_pids, g_pids, q_camids, g_camids = lz.msgpack_load(work_path + 'tmp.mp')
+
         if self.conf == 'market1501':
             self.timer.since_last_check('distmat ')
-            distmat = distmat.astype(np.float16)
+            # distmat = np.array(distmat, np.float16)
             print(f'facing {distmat.shape}')
-            mAP, all_cmc = eval_market1501_wrap(
-                distmat, q_pids, g_pids, q_camids, g_camids,
-                max_rank=10)
+            mAP, all_cmc = eval_market1501_wrap(distmat,
+                                                q_pids,
+                                                g_pids,
+                                                q_camids,
+                                                g_camids, 10)
             self.timer.since_last_check('map cmc ok')
             res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
+
         else:
             self.timer.since_last_check('distmat ')
             print("Computing CMC and mAP")
@@ -383,70 +395,29 @@ class Evaluator(object):
                                            'top-10': cmc_scores[self.conf][9],
                                            }])
             timer.since_start()
-        # todo
-        res['mAP'] += self.args.impr
-        res['top-1'] += self.args.impr
+        # res['mAP'] += self.args.impr
+        # res['top-1'] += self.args.impr
         # json_dump(res, self.args.logs_dir + '/res.json')
         return res
 
 
-def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
-    """Evaluation with market1501 metric
-    Key: for each query identity, its gallery images from the same camera view are discarded.
-    """
-    num_q, num_g = distmat.shape
-    if num_g < max_rank:
-        max_rank = num_g
-        print("Note: number of gallery samples is quite small, got {}".format(num_g))
-    indices = np.argsort(distmat, axis=1)
-    if distmat.shape[0] < 65535:
-        indices = indices.astype(np.uint16)
-    else:
-        indices = indices.astype(np.uint32)
-    matches = (g_pids[indices] == q_pids[:, np.newaxis])
 
-    # compute cmc curve for each query
-    all_cmc = []
-    all_AP = []
-    num_valid_q = 0.  # number of valid query
-    for q_idx in range(num_q):
-        # get query pid and camid
-        q_pid = q_pids[q_idx]
-        q_camid = q_camids[q_idx]
 
-        # remove gallery samples that have the same pid and camid with query
-        order = indices[q_idx]
-        # remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
-        # keep = np.invert(remove)
-        keep = (g_pids[order] != q_pid) | (g_camids[order] != q_camid)
-        # compute cmc curve
-        orig_cmc = matches[q_idx][keep]  # binary vector, positions with value 1 are correct matches
-        if not np.any(orig_cmc):
-            # this condition is true when query identity does not appear in gallery
-            continue
 
-        cmc = orig_cmc.cumsum()
-        cmc[cmc > 1] = 1
+if __name__ == '__main__':
+    def func():
+        distmat, q_pids, g_pids, q_camids, g_camids = lz.msgpack_load(work_path + 'tmp.mp')
 
-        all_cmc.append(cmc[:max_rank])
-        num_valid_q += 1.
+        mAP, all_cmc = eval_market1501_wrap(distmat,
+                                            q_pids,
+                                            g_pids,
+                                            q_camids,
+                                            g_camids, 10)
+        print(mAP, all_cmc)
 
-        # compute average precision
-        # reference: https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Average_precision
-        num_rel = orig_cmc.sum()
-        tmp_cmc = orig_cmc.cumsum()
-        tmp_cmc = [x / (i + 1.) for i, x in enumerate(tmp_cmc)]
-        tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
-        if num_rel == 0:
-            AP = 0
-        else:
-            AP = tmp_cmc.sum() / num_rel
-        all_AP.append(AP)
 
-    assert num_valid_q > 0, "Error: all query identities do not appear in gallery"
+    import multiprocessing as mp
 
-    all_cmc = np.asarray(all_cmc).astype(np.float32)
-    all_cmc = all_cmc.sum(0) / num_valid_q
-    mAP = np.mean(all_AP)
-
-    return mAP, all_cmc
+    p = mp.Process(target=func)
+    p.start()
+    p.join()

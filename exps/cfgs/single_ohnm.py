@@ -6,8 +6,8 @@ from lz import *
 from easydict import EasyDict as edict
 import copy
 
-no_proc = False
-parallel = True
+no_proc = True
+parallel = False
 gpu_range = (0, 1, 2)
 cfgs = [
     # edict(
@@ -54,11 +54,11 @@ cfgs = [
 
     edict(
         logs_dir='10.mars.cont2',  # todo margin long dbl
-        # logs_dir='bak',  # todo margin long dbl
+        # logs_dir='bak',
         double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
         reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
         reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        evaluate=True,
+        # evaluate=True,
         # aux='l2_adv',
         dataset='mars', dataset_val='mars',
         gpu=(3,), last_conv_stride=2,
@@ -73,7 +73,7 @@ cfgs = [
         steps=[40, 60], epochs=70,
         resume='/data1/xinglu/work/reid/work/10.mars.cont/checkpoint.30.pth',
         restart=True,
-        workers=12, log_at=(0, 40, 60, 59, 70, 71),
+        workers=12, log_at=(0, 10, 20, 40, 60, 69, 70, 71),
     ),
 
 ]
@@ -230,7 +230,6 @@ cfgs = [
 #     random_ratio=1, lr_cent=0,
 #     gpu_range=range(4),
 #     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-#     impr=0.02,
 # )
 #
 # for smooth, double, adv_inp in grid_iter(
