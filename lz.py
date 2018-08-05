@@ -71,10 +71,11 @@ if os.environ.get('tensorflow', '0') == '1':
 root_path = osp.normpath(
     osp.join(osp.abspath(osp.dirname(__file__)), )
 ) + '/'
-
 home_path = os.environ['HOME'] + '/'
 work_path = home_path + '/work/'
 share_path = '/data1/share/'
+
+sys.path.insert(0, root_path)
 
 '''
 %load_ext autoreload
@@ -579,22 +580,6 @@ def to_torch(ndarray):
         raise ValueError("Cannot convert {} to torch tensor"
                          .format(type(ndarray)))
     return ndarray
-
-
-def to_variable(tn, volatile=False, requires_grad=False, cuda=False, **kwargs):
-    if tn is None:
-        return None
-    if isinstance(tn, collections.Sequence):
-        return [to_variable(tn_, **kwargs) for tn_ in tn if tn_ is not None]
-    tn = to_torch(tn)
-    if cuda and torch.cuda.is_available():
-        tn = tn.cuda()
-    if not volatile or requires_grad:
-        tn.requires_grad = True
-        return tn
-    else:
-        with torch.no_grad():
-            return tn
 
 
 def norm_np(tensor):
@@ -1276,17 +1261,20 @@ def my_wget(fid, fname):
     return task
 
 
-def to_json_format(obj):
+def to_json_format(obj, allow_np=True):
     if isinstance(obj, np.ndarray):
         if obj.dtype == object:
             return obj.tolist()
         else:
-            return obj
+            if allow_np:
+                return obj
+            else:
+                return obj.tolist()
     if isinstance(obj, list) or isinstance(obj, tuple):
-        return [to_json_format(subobj) for subobj in obj]
+        return [to_json_format(subobj, allow_np) for subobj in obj]
     if isinstance(obj, dict):
         for key in obj.keys():
-            obj[key] = to_json_format(obj[key])
+            obj[key] = to_json_format(obj[key], allow_np)
         return obj
     if isinstance(obj, int) or isinstance(obj, str) or isinstance(obj, float):
         return obj

@@ -32,11 +32,11 @@ def run(_):
         if args.loss != 'tcx' and args.loss != 'tri':
             print(f'skip {args.loss} {args.logs_dir}')
             continue
-
-        args.log_at = np.concatenate([
-            args.log_at,
-            range(args.epochs - 8, args.epochs, 1)
-        ])
+        if args.log_at is None:
+            args.log_at = np.concatenate([
+                range(0, 640, 31),
+                range(args.epochs - 8, args.epochs, 1)
+            ])
         args.logs_dir = lz.work_path + 'reid/work/' + args.logs_dir
         if osp.exists(args.logs_dir) and osp.exists(args.logs_dir + '/checkpoint.64.pth'):
             print(os.listdir(args.logs_dir))
@@ -90,12 +90,15 @@ def get_data(args):
     rand_ratio = args.random_ratio
     if isinstance(name, list):
         dataset = datasets.creates(name, split_id=split_id,
-                                   cuhk03_classic_split=args.cu03_classic)
+                                   cuhk03_classic_split=args.cu03_classic,
+                                   )
     else:
         dataset = datasets.create(name, split_id=split_id,
-                                  cuhk03_classic_split=args.cu03_classic)
+                                  cuhk03_classic_split=args.cu03_classic,
+                                  )
     dataset_val = datasets.create(name_val, split_id=split_id,
-                                  cuhk03_classic_split=args.cu03_classic)
+                                  cuhk03_classic_split=args.cu03_classic,
+                                  )
 
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -412,7 +415,7 @@ def main(args):
             continue
         if epoch < args.start_save:
             continue
-        if epoch % 15 == 0:
+        if epoch % 9 == 0:
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
                 'cent': criterion[1].centers,

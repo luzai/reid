@@ -1,22 +1,6 @@
 from lz import *
-from reid.utils.data import Dataset
 from reid.utils.serialization import write_json, read_json
-
-
-def _pluck(identities, indices, relabel=False):
-    ret = []
-    for index, pid in enumerate(indices):
-        pid_images = identities[pid]
-        for camid, cam_images in enumerate(pid_images):
-            for fname in cam_images:
-                name = osp.splitext(fname)[0]
-                x, y, _ = map(int, name.split('_'))
-                assert pid == x and camid == y
-                if relabel:
-                    ret.append((fname, index, camid))
-                else:
-                    ret.append((fname, pid, camid))
-    return ret
+import h5py
 
 
 class CUHK03(object):
@@ -38,18 +22,12 @@ class CUHK03(object):
         split_id (int): split index (default: 0)
         cuhk03_labeled (bool): whether to load labeled images; if false, detected images are loaded (default: False)
     """
-    dataset_dir = 'raw'
-    images_dir = '/home/xinglu/.torch/data/cuhk03/'
 
     def __init__(self, root='/home/xinglu/.torch/data/cuhk03/',
-                 split_id=0, mode='label',
+                 split_id=0, dataset_mode='label',
                  cuhk03_classic_split=False, **kwargs):
-        self.root = root
-        if mode == 'label':
-            cuhk03_labeled = True
-        else:
-            cuhk03_labeled = False
-        self.dataset_dir = osp.join(root, self.dataset_dir)
+        self.root = self.dataset_dir = self.images_dir = '/home/xinglu/.torch/data/cuhk03/'
+        cuhk03_labeled = dataset_mode == 'label'
         self.data_dir = osp.join(self.dataset_dir, 'cuhk03_release')
         self.raw_mat_path = osp.join(self.data_dir, 'cuhk-03.mat')
 
@@ -154,8 +132,8 @@ class CUHK03(object):
                 osp.exists(self.split_new_lab_json_path):
             return
 
-        mkdir_if_missing(self.imgs_detected_dir)
-        mkdir_if_missing(self.imgs_labeled_dir)
+        mkdir_p(self.imgs_detected_dir, delete=False)
+        mkdir_p(self.imgs_labeled_dir, delete=False)
 
         print("Extract image data from {} and save as png".format(self.raw_mat_path))
         mat = h5py.File(self.raw_mat_path, 'r')

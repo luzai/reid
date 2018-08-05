@@ -112,7 +112,7 @@ def mean_ap(distmat, query_ids=None, gallery_ids=None,
         y_true = matches[i, valid]
         y_score = -distmat[i][indices[i]][valid]
         if not np.any(y_true):
-            print('warning! this query is distractor! no y_true, ')
+            # print('warning! this query is distractor! no y_true, ')
             continue
         aps.append(average_precision_score(y_true, y_score))
         # from sklearn.metrics import  precision_recall_curve

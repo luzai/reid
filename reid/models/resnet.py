@@ -74,7 +74,7 @@ class Bottleneck(nn.Module):
             self.downsample = None
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
         if isinstance(x, tuple):
             x, last = x
         residual = x
@@ -661,7 +661,7 @@ class ResNetOri(nn.Module):
                 logging.info('load resnet')
                 load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
         if len(x.shape) == 3:
             x = x.view(1, 3, 256, 128)
         bs = x.size(0)

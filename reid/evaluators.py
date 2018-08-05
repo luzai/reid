@@ -6,10 +6,10 @@ from reid.feature_extraction import *
 from reid.utils.meters import AverageMeter
 from reid.utils.rerank import *
 from reid.lib.cython_eval import eval_market1501_wrap
-from easydict import  EasyDict as edict
+from easydict import EasyDict as edict
+
 
 def extract_features(model, data_loader, print_freq=1):
-
     model.eval()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -21,13 +21,9 @@ def extract_features(model, data_loader, print_freq=1):
     for i, data in enumerate(data_loader):
         imgs, npys, fnames, pids = data.get('img'), data.get('npy'), data.get('fname'), data.get('pid')
         data_time.update(time.time() - end)
-        # import gc
-        # gc.collect()
         outputs = extract_cnn_feature(model,
                                       [imgs, npys])
         for fname, output, pid in zip(fnames, outputs, pids):
-            # if limit is not None and int(pid) not in limit.tolist():
-            #     continue
             features[fname] = output
             labels[fname] = pid
 
@@ -207,7 +203,7 @@ class Evaluator(object):
                 imgs = imgs.cuda()
                 b, s, c, h, w = imgs.size()
                 imgs = imgs.view(b * s, c, h, w)
-                features, _ = self.model(imgs)
+                features = self.model(imgs)[0]
                 features = features.view(b, s, -1)
                 features = torch.mean(features, 1)  # use avg
                 features = features.data.cpu()
@@ -227,7 +223,7 @@ class Evaluator(object):
                 imgs = imgs.cuda()
                 b, s, c, h, w = imgs.size()
                 imgs = imgs.view(b * s, c, h, w)
-                features, _ = self.model(imgs)
+                features = self.model(imgs)[0]
                 features = features.view(b, s, -1)
                 features = torch.mean(features, 1)
                 features = features.data.cpu()
@@ -248,44 +244,54 @@ class Evaluator(object):
         distmat.addmm_(1, -2, qf, gf.t())
         distmat = distmat.numpy()
         rerank = False
-        self.timer.since_last_check('distmat ')
-        print("Computing CMC and mAP")
-        mAP = mean_ap(distmat, q_pids, g_pids, q_camids, g_camids)
-        self.timer.since_last_check('mAP ok ')
-        print('Mean AP: {:4.1%}'.format(mAP))
-        cmc_configs = {
-            'cuhk03': dict(separate_camera_set=True,
-                           single_gallery_shot=True,
-                           first_match_break=False),
-            'market1501': dict(separate_camera_set=False,  # hard
-                               single_gallery_shot=False,  # hard
-                               first_match_break=True),
-            'allshots': dict(separate_camera_set=False,  # hard
-                             single_gallery_shot=False,  # hard
-                             first_match_break=False),
-        }
-        cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
-        cmc_scores = {name: cmc(distmat, q_pids, g_pids,
-                                q_camids, g_camids, **params)
-                      for name, params in cmc_configs.items()}
-        print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
-        if rerank:
-            res = lz.dict_concat([res,
-                                  {'mAP.rk': mAP,
-                                   'top-1.rk': cmc_scores[self.conf][0],
-                                   'top-5.rk': cmc_scores[self.conf][4],
-                                   'top-10.rk': cmc_scores[self.conf][9],
-                                   }])
+        if self.conf == 'market1501':
+            self.timer.since_last_check('distmat ')
+            distmat = distmat.astype(np.float16)
+            print(f'facing {distmat.shape}')
+            mAP, all_cmc = eval_market1501_wrap(
+                distmat, q_pids, g_pids, q_camids, g_camids,
+                max_rank=10)
+            self.timer.since_last_check('map cmc ok')
+            res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
         else:
-            res = lz.dict_concat([res,
-                                  {'mAP': mAP,
-                                   'top-1': cmc_scores[self.conf][0],
-                                   'top-5': cmc_scores[self.conf][4],
-                                   'top-10': cmc_scores[self.conf][9],
-                                   }])
+            self.timer.since_last_check('distmat ')
+            print("Computing CMC and mAP")
+            mAP = mean_ap(distmat, q_pids, g_pids, q_camids, g_camids)
+            self.timer.since_last_check('mAP ok ')
+            print('Mean AP: {:4.1%}'.format(mAP))
+            cmc_configs = {
+                'cuhk03': dict(separate_camera_set=True,
+                               single_gallery_shot=True,
+                               first_match_break=False),
+                'market1501': dict(separate_camera_set=False,  # hard
+                                   single_gallery_shot=False,  # hard
+                                   first_match_break=True),
+                'allshots': dict(separate_camera_set=False,  # hard
+                                 single_gallery_shot=False,  # hard
+                                 first_match_break=False),
+            }
+            cmc_configs = {k: v for k, v in cmc_configs.items() if k == self.conf}
+            cmc_scores = {name: cmc(distmat, q_pids, g_pids,
+                                    q_camids, g_camids, **params)
+                          for name, params in cmc_configs.items()}
+            print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
+            if rerank:
+                res = lz.dict_concat([res,
+                                      {'mAP.rk': mAP,
+                                       'top-1.rk': cmc_scores[self.conf][0],
+                                       'top-5.rk': cmc_scores[self.conf][4],
+                                       'top-10.rk': cmc_scores[self.conf][9],
+                                       }])
+            else:
+                res = lz.dict_concat([res,
+                                      {'mAP': mAP,
+                                       'top-1': cmc_scores[self.conf][0],
+                                       'top-5': cmc_scores[self.conf][4],
+                                       'top-10': cmc_scores[self.conf][9],
+                                       }])
 
-        json_dump(res, self.args.logs_dir + '/res.json', 'w')
-        self.timer.since_last_check('cmc ok')
+            json_dump(res, self.args.logs_dir + '/res.json', 'w')
+            self.timer.since_last_check('cmc ok')
 
         return res
 
@@ -300,7 +306,7 @@ class Evaluator(object):
         query_cams = np.asarray(query_cams)
         gallery_cams = np.asarray(gallery_cams)
 
-        features, _ = extract_features(self.model, data_loader)
+        features = extract_features(self.model, data_loader)[0]
         assert len(features) != 0
         res = {}
         final = kwargs.get('final', False)

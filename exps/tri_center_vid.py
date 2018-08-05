@@ -32,11 +32,11 @@ def run(_):
         if args.loss != 'trivid':
             print(f'skip {args.loss} {args.logs_dir}')
             continue
-
-        args.log_at = np.concatenate([
-            args.log_at,
-            range(args.epochs - 8, args.epochs, 1)
-        ])
+        if args.log_at is None:
+            args.log_at = np.concatenate([
+                range(0, 640, 31),
+                range(args.epochs - 8, args.epochs, 1)
+            ])
         args.logs_dir = lz.work_path + 'reid/work/' + args.logs_dir
         if osp.exists(args.logs_dir) and osp.exists(args.logs_dir + '/checkpoint.64.pth'):
             print(os.listdir(args.logs_dir))
