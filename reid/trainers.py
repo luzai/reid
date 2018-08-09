@@ -399,7 +399,7 @@ class TriTrainer(object):
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
-                features_adv, logits_adv = self.model(input_imgs_adv)
+                features_adv, logits_adv , _= self.model(input_imgs_adv)
                 losst_adv, prect_adv, _ = self.criterion(logits_adv, targets)
                 self.writer.add_scalar('vis/loss-adv', losst_adv.item(), self.iter)
                 self.writer.add_scalar('vis/prec-adv', prect_adv.item(), self.iter)
@@ -471,7 +471,7 @@ class TriTrainer(object):
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
-                features_adv, logits_adv = self.model(input_imgs_adv)
+                features_adv, logits_adv,_ = self.model(input_imgs_adv)
                 losst_adv, _, _ = self.criterion(logits_adv, targets)
                 (self.args.adv_inp * losst_adv).backward()
                 self.writer.add_scalar('vis/loss_adv_inp', losst_adv.item(), self.iter)

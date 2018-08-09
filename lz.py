@@ -44,26 +44,26 @@ if os.environ.get('pytorch', "1") == "1":
         f'{old_repr(obj.contiguous())} \n'
         f'type: {obj.type()} shape: {obj.shape}')
     print('import pytorch', time.time() - tic)
+
+
+def allow_growth():
+    import tensorflow as tf
+    oldinit = tf.Session.__init__
+
+    def myinit(session_object, target='', graph=None, config=None):
+        if config is None:
+            config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        oldinit(session_object, target, graph, config)
+
+    tf.Session.__init__ = myinit
+    return oldinit
+
 if os.environ.get('tensorflow', '0') == '1':
     tic = time.time()
     import tensorflow as tf
-    import tensorflow.contrib
-    import tensorflow.contrib.keras
-
-
-    def allow_growth():
-        import tensorflow as tf
-        oldinit = tf.Session.__init__
-
-        def myinit(session_object, target='', graph=None, config=None):
-            if config is None:
-                config = tf.ConfigProto()
-            config.gpu_options.allow_growth = True
-            oldinit(session_object, target, graph, config)
-
-        tf.Session.__init__ = myinit
-        return oldinit
-
+    # import tensorflow.contrib
+    # import tensorflow.contrib.keras
 
     oldinit = allow_growth()
     print('import tf', time.time() - tic)
@@ -891,12 +891,6 @@ def msgpack_load(file, **kwargs):
 
 def msgpack_loads(file, **kwargs):
     pass
-
-
-# import msgpack_numpy as m
-#
-# msgpack_dump(np.zeros((2, 2)), '/tmp/tmp', default=m.encode)
-# msgpack_load('/tmp/tmp', object_hook=m.decode)
 
 
 def json_load(file):

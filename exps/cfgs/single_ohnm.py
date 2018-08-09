@@ -6,8 +6,8 @@ from lz import *
 from easydict import EasyDict as edict
 import copy
 
-no_proc = True
-parallel = False
+no_proc = False
+parallel = True
 gpu_range = (0, 1, 2)
 cfgs = [
     # edict(
@@ -52,171 +52,80 @@ cfgs = [
     #     epochs=5, steps=[3, ], log_at=[0, 1, 2, 3, 4, 5, 6]
     # ),
 
+    # edict(
+    #     logs_dir='tri.adap',
+    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    #     # evaluate=True,
+    #     # aux='l2_adv',  # l2_adv linf_adv nol_adv
+    #     dataset='cu03lbl',
+    #     gpu=(1,), last_conv_stride=2,
+    #     batch_size=64, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri', tri_mode='adap', lr=1e-4,
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=gpu_range, lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft', margin2=1.0, margin3=1.0, margin4=0,
+    # ),
+
     edict(
-        logs_dir='10.mars.cont2',  # todo margin long dbl
+        logs_dir='10.mars.bs2',  # todo margin long dbl
         # logs_dir='bak',
         double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
         reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
         reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
         # evaluate=True,
         # aux='l2_adv',
-        dataset='mars', dataset_val='mars',
+        dataset='mars',
         gpu=(3,), last_conv_stride=2,
-        gpu_fix=True,
-        batch_size=64, num_instances=4, num_classes=128,
+        # gpu_fix=True,
+        batch_size=64, num_instances=4, num_classes=128, seq_len=15,
         dropout=0, loss='trivid', tri_mode='hard',
         cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
         random_ratio=1, lr_cent=0,
         gpu_range=gpu_range, lr_mult=1,
         push_scale=1., embed=None,
         margin='soft', margin2=1, margin3=1.0,
-        steps=[40, 60], epochs=70,
-        resume='/data1/xinglu/work/reid/work/10.mars.cont/checkpoint.30.pth',
-        restart=True,
-        workers=12, log_at=(0, 10, 20, 40, 60, 69, 70, 71),
+        steps=[30, 50, ], epochs=55,
+        # resume='/data1/xinglu/work/reid/work/10.mars.cont2/checkpoint.10.pth',
+        # restart=True,
+        workers=12, log_at=(0, 10, 20, 30, 40, 50, 59, 60, 61,),
     ),
 
 ]
 
 # cfg = edict(
-#     logs_dir='tri8.margin.dbl',
-#     double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+#     logs_dir='10.adv',
+#     double=0, adv_inp=1, adv_fea=0, adv_inp_eps=0,
 #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
 #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
 #     # evaluate=True,
-#     aux='l2_adv',
+#     aux='l2_adv',  # l2_adv linf_adv nol_adv
 #     dataset='cu03lbl',
 #     gpu=(1,), last_conv_stride=2,
-#     # gpu_fix=True,
 #     batch_size=64, num_instances=4, num_classes=128,
 #     dropout=0, loss='tri', tri_mode='hard',
 #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
 #     random_ratio=1, lr_cent=0,
 #     gpu_range=gpu_range, lr_mult=1,
 #     push_scale=1., embed=None,
-#     margin='soft', margin2=1.0, margin3=1.0,
+#     margin='soft', margin2=1.0, margin3=1.0, margin4=0,
 # )
 #
-# for m4 in [-0.1, -0.05, 0]:
-#     for ds in ['cu03det', ]:
-#         cfg_t = copy.deepcopy(cfg)
-#         cfg_t.margin4 = m4
-#         cfg_t.tri_mode = 'reg.a'
-#         cfg_t.dataset = ds
-#         cfg_t.logs_dir = f'{cfg.logs_dir}.m4_{m4}.{ds}'
-#         cfgs.append(cfg_t)
-#
-# cfg = edict(
-#     logs_dir='tri8.margin',
-#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-#     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-#     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-#     # evaluate=True,
-#     aux='l2_adv',
-#     dataset='cu03lbl',
-#     gpu=(1,), last_conv_stride=2,
-#     # gpu_fix=True,
-#     batch_size=64, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', tri_mode='hard',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     gpu_range=gpu_range, lr_mult=1,
-#     push_scale=1., embed=None,
-#     margin='soft', margin2=1.0, margin3=1.0,
-# )
-#
-# for m4 in [-0.1, -0.05, 0]:
-#     for ds in ['cu03det', ]:
-#         cfg_t = copy.deepcopy(cfg)
-#         cfg_t.margin4 = m4
-#         cfg_t.tri_mode = 'reg.a'
-#         cfg_t.dataset = ds
-#
-#         cfg_t.logs_dir = f'{cfg.logs_dir}.m4_{m4}.{ds}'
-#         cfgs.append(cfg_t)
-#
-# cfg = edict(
-#     logs_dir='tri8.margin.dbl.clsc',
-#     double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-#     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-#     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-#     # evaluate=True,
-#     aux='l2_adv',
-#     dataset='cu03lbl', cu03_classic=True,
-#     gpu=(1,), last_conv_stride=2,
-#     # gpu_fix=True,
-#     batch_size=64, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', tri_mode='hard',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     gpu_range=gpu_range, lr_mult=1,
-#     push_scale=1., embed=None,
-#     margin='soft', margin2=1.0, margin3=1.0,
-# )
-#
-# for m4 in [-0.1, -0.05, 0]:
-#     for ds in ['cu03det', ]:
-#         cfg_t = copy.deepcopy(cfg)
-#         cfg_t.margin4 = m4
-#         cfg_t.tri_mode = 'reg.a'
-#         cfg_t.dataset = ds
-#         cfg_t.logs_dir = f'{cfg.logs_dir}.m4_{m4}.{ds}'
-#         cfgs.append(cfg_t)
-#
-# cfg = edict(
-#     logs_dir='tri8.margin.clsc',
-#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-#     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-#     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-#     # evaluate=True,
-#     aux='l2_adv',
-#     dataset='cu03lbl', cu03_classic=True,
-#     gpu=(1,), last_conv_stride=2,
-#     # gpu_fix=True,
-#     batch_size=64, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', tri_mode='hard',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     gpu_range=gpu_range, lr_mult=1,
-#     push_scale=1., embed=None,
-#     margin='soft', margin2=1.0, margin3=1.0,
-# )
-#
-# for m4 in [-0.1, -0.05, 0]:
-#     for ds in ['cu03det', ]:
-#         cfg_t = copy.deepcopy(cfg)
-#         cfg_t.margin4 = m4
-#         cfg_t.tri_mode = 'reg.a'
-#         cfg_t.dataset = ds
-#
-#         cfg_t.logs_dir = f'{cfg.logs_dir}.m4_{m4}.{ds}'
-#         cfgs.append(cfg_t)
-
-# cfg = edict(
-#     logs_dir='tri8',
-#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-#     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-#     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-#     # evaluate=True,
-#     # aux='l2_grad',
-#     dataset='cu03lbl',
-#     gpu=(1,), last_conv_stride=2, last_conv_dilation=1,
-#     # gpu_fix=True,
-#     batch_size=64, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', tri_mode='hard',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     gpu_range=gpu_range, lr_mult=1,
-#     push_scale=1., embed=None,
-#     margin='soft', margin2=1., margin3=1.,
-# )
-# for stride in [1, 2]:
-#     for dilation in [1, 2, 3]:
-#         cfg_t = copy.deepcopy(cfg)
-#         cfg_t.last_conv_stride = stride
-#         cfg_t.last_conv_dilation = dilation
-#         cfg_t.logs_dir = f'{cfg.logs_dir}.s{stride}.d{dilation}'
-#         cfgs.append(cfg_t)
+# for m4 in [0]:
+#     for ds in ['cu03lbl']:
+#         for aux in ['l2_adv', 'linf_adv', 'nol_adv']:
+#             for adv_inp_eps in [.3, 3e-2, 3e-3]:
+#                 cfg_t = copy.deepcopy(cfg)
+#                 cfg_t.margin4 = m4
+#                 cfg_t.tri_mode = 'hard'
+#                 cfg_t.dataset = ds
+#                 cfg_t.aux = aux
+#                 cfg_t.adv_inp_eps = adv_inp_eps
+#                 cfg_t.logs_dir = f'{cfg.logs_dir}.{aux}.{adv_inp_eps}'
+#                 cfgs.append(cfg_t)
 
 # cfg = edict(
 #     logs_dir='mkt.xent', double=1, adv_inp=1, adv_fea=0,

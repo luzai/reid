@@ -85,9 +85,9 @@ class Mars(object):
         self.gallery = gallery
 
         self.num_train_pids = self.num_trainval_pids = self.num_train_ids = self.num_trainval_ids = num_train_pids
-        self.num_val_ids =self.num_val_pids  = 0
+        self.num_val_ids = self.num_val_pids = 0
         self.num_query_ids = self.num_query_pids = num_query_pids
-        self.num_gallery_ids =self.num_gallery_pids = num_gallery_pids
+        self.num_gallery_ids = self.num_gallery_pids = num_gallery_pids
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
@@ -686,9 +686,28 @@ if __name__ == '__main__':
     # Market1501()
     # CUB()
     # Stanford_Prod()
-    Extract()
+    # Extract()
     print(time.time() - tic)
+    import lmdb, lz
 
-    # Mars()
-    # iLIDSVID()
-    # PRID()
+    ds = Mars()
+
+    data_list = []
+    for dss in [ds.trainval, ds.query, ds.gallery]:
+        for fns, pid, cid in dss:
+            for fn in fns:
+                # data_list.append(osp.basename(fn))
+                data_list.append(fn)
+    data_list = np.asarray(data_list)
+    num_data = len(data_list)
+    max_map_size = int(num_data * 500 ** 2 * 3)  # be careful with this
+    env = lmdb.open('/home/xinglu/.torch/data/mars/img_lmdb', map_size=max_map_size)
+
+    for img_path in data_list:
+        with env.begin(write=True) as txn:
+            with open(img_path, 'rb') as imgf:
+                imgb = imgf.read()
+            txn.put(osp.basename(img_path).encode(), imgb)
+
+# iLIDSVID()
+# PRID()
