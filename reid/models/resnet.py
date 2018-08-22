@@ -3,7 +3,7 @@ from lz import *
 from torch.nn import init
 from torchvision.models.resnet import conv3x3, model_urls, model_zoo
 from reid.utils.serialization import load_state_dict
-from .common import _make_conv, _make_fc
+from reid.models.common import _make_conv, _make_fc
 
 
 class BasicBlock(nn.Module):
@@ -2086,3 +2086,6 @@ def res_att1(**kwargs):
     return ResAtt1(**kwargs)
 
 '''
+if __name__ == '__main__':
+    from torchvision.models.resnet import ResNet, BasicBlock
+    print(ResNet(BasicBlock, [2, 2, 2, 2], ))

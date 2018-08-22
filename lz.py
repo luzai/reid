@@ -59,9 +59,11 @@ def allow_growth():
     tf.Session.__init__ = myinit
     return oldinit
 
+
 if os.environ.get('tensorflow', '0') == '1':
     tic = time.time()
     import tensorflow as tf
+
     # import tensorflow.contrib
     # import tensorflow.contrib.keras
 
@@ -122,6 +124,8 @@ if os.environ.get('log', '0') == '1':
 np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
                                    f'{arr.__str__()} \n'
                                    f'dtype:{arr.dtype} shape:{arr.shape}', repr=True)
+
+logging.info('import lz')
 
 
 ## print(ndarray) will be pretty (and pycharm dbg)
@@ -205,6 +209,11 @@ def allow_growth_sess():
     _sess_config.gpu_options.allow_growth = True
     sess = tf.Session(config=_sess_config, graph=tf_graph)
     return sess
+
+
+def allow_growth_keras():
+    import keras
+    keras.backend.set_session(allow_growth_sess())
 
 
 def get_gpu_memory_map():
@@ -668,10 +677,10 @@ def optional_arg_decorator(fn):
     return wrapped_decorator
 
 
-def randomword(length):
+def randomword(length,):
     import random
     import string
-    return ''.join(random.choice(string.ascii_lowercase) for _ in range(length))
+    return ''.join(random.choice(string.ascii_letters+string.digits+'_') for _ in range(length))
 
 
 def static_vars(**kwargs):
@@ -784,9 +793,12 @@ def pickle_dump(data, file, **kwargs):
 
 
 def get_img_size(img='/data1/xinglu/prj/test.jpg', verbose=True):
-    out, err = shell(f'convert "{img}" -print "(%w, %h)" ', verbose=verbose)
-    out = eval(out)
-    out = (out[1], out[0])
+    try:
+        out, err = shell(f'convert "{img}" -print "(%w, %h)" ', verbose=verbose)
+        out = eval(out)
+        out = (out[1], out[0])
+    except:
+        out = cv2.imread(img).shape[:2]
     return out
 
 
@@ -1275,3 +1287,8 @@ def to_json_format(obj, allow_np=True):
     if isinstance(obj, torch.Tensor):
         return obj.cpu().numpy()
     return obj
+
+
+if __name__ == '__main__':
+    for _ in range(16):
+        print(randomword(8))

@@ -399,7 +399,7 @@ class TriTrainer(object):
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
-                features_adv, logits_adv , _= self.model(input_imgs_adv)
+                features_adv, logits_adv, _ = self.model(input_imgs_adv)
                 losst_adv, prect_adv, _ = self.criterion(logits_adv, targets)
                 self.writer.add_scalar('vis/loss-adv', losst_adv.item(), self.iter)
                 self.writer.add_scalar('vis/prec-adv', prect_adv.item(), self.iter)
@@ -471,7 +471,7 @@ class TriTrainer(object):
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad)
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
-                features_adv, logits_adv,_ = self.model(input_imgs_adv)
+                features_adv, logits_adv, _ = self.model(input_imgs_adv)
                 losst_adv, _, _ = self.criterion(logits_adv, targets)
                 (self.args.adv_inp * losst_adv).backward()
                 self.writer.add_scalar('vis/loss_adv_inp', losst_adv.item(), self.iter)
@@ -583,9 +583,9 @@ class TriTrainer(object):
 
             if (i + 1) % print_freq == 0:
                 print(f'Epoch: [{epoch}][{i+1}/{len(data_loader)}]  '
-                      f'Time {batch_time.val:.1f}/{batch_time.avg:.1f}  '
-                      f'Data {data_time.val:.1f}/{data_time.avg:.1f}  '
-                      f'loss {losses.val:.2f}/{losses.avg:.2f}  '
+                      f'Time {batch_time.val:.3f}/{batch_time.avg:.3f}  '
+                      f'Data {data_time.val:.3f}/{data_time.avg:.3f}  '
+                      f'loss {losses.val:.3f}/{losses.avg:.3f}  '
                       f'prec {precisions.val:.2%}/{precisions.avg:.2%}  '
                       )
             # break
@@ -1042,7 +1042,7 @@ class TriCenterTrainer(object):
 class XentTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=True, args=None, **kwargs):
         self.model = model
-        self.criterion = criterion[0]
+        self.criterion = criterion[2]
         self.iter = 0
         self.dbg = dbg
         if dbg:
@@ -1075,7 +1075,7 @@ class XentTrainer(object):
                 schedule.batch_step()
             self.lr = optimizer.param_groups[0]['lr']
             self.model.train()
-            features, logits = self.model(input_imgs)
+            features, logits, _ = self.model(input_imgs)
             loss = self.criterion(logits, targets)
             # loss is softmax loss
             prec = accuracy(logits, targets.data)[0]
@@ -1190,3 +1190,8 @@ class XentTrainer(object):
             'loss': losses.avg,
             'prec': precisions.avg,
         })
+
+
+class TCXTrainer:
+    def __init__(self, **kwargs):
+        raise NotImplementedError

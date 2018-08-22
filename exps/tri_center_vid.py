@@ -136,6 +136,7 @@ def get_data(args):
         batch_size=args.test_batch_size, shuffle=False, num_workers=args.workers,
         pin_memory=False, drop_last=False,
     )
+    # print('this gallery', dataset.gallery)
     gallery_loader = DataLoader(
         VideoDataset(dataset.gallery, seq_len=args.seq_len, sample='evenly', transform=test_transformer),
         batch_size=args.test_batch_size, shuffle=False, num_workers=args.workers,
@@ -283,7 +284,7 @@ def main(args):
                   format(epoch, hist))
     # Trainer
     trainer = TriTrainer(model, criterion, dbg=True,
-                               logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
+                         logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

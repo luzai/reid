@@ -1,17 +1,13 @@
-from scipy.spatial.distance import cdist
-
-import lz
 from lz import *
 import cv2
+from sklearn.manifold import TSNE
 
 feas_dict = msgpack_load(work_path + '/reid.person/fea.mp', allow_np=True)
 
-feask = list(feas_dict.keys())[:]
-feas = list(feas_dict.values())[:]
-# feask = list(feas_dict.keys())
-# feas = list(feas_dict.values())
+limit_size = 5000
+feask = list(feas_dict.keys())[:limit_size]
+feas = list(feas_dict.values())[:limit_size]
 feas = np.asarray(feas)
-print(feas.shape)
 feas_norm = np.linalg.norm(feas, ord=2, axis=1, keepdims=True)
 feas_normalized = feas / feas_norm
 
@@ -20,8 +16,6 @@ feas_normalized = feas / feas_norm
 # plt.matshow(dist)
 # plt.colorbar()
 # plt.show()
-
-from sklearn.manifold import TSNE
 
 embed2 = TSNE(n_components=2).fit_transform(
     feas_normalized
@@ -36,8 +30,8 @@ extend = np.array([height, width, ])
 # embed2 += extend
 
 shape = tuple(
-    (embed2.max(axis=0).astype(int) + extend
-     ).tolist()) + (3,)
+    (embed2.max(axis=0).astype(int) + extend).tolist()
+) + (3,)
 print(shape)
 res = np.ones(
     shape
@@ -50,10 +44,9 @@ for ind in range(feas.shape[0]):
     embed = embed2[ind].astype(int)
     row, col = embed
     h, w, _ = img.shape
-    # tmp = res[row:row + h, col:col + w]
     res[row:row + h, col:col + w] = img
-    # if ind > 10:
-    #     break
+    if ind > 10:
+        break
 # cv2.namedWindow('tmp', cv2.WINDOW_NORMAL)
 # cv2.imshow('tmp', res)
 # cv2.waitKey(0)

@@ -29,7 +29,7 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        if args.loss != 'tcx' and args.loss != 'tri':
+        if args.loss != 'tcx' and args.loss != 'tri' and args.loss != 'xent':
             print(f'skip {args.loss} {args.logs_dir}')
             continue
         if args.log_at is None:
@@ -307,8 +307,8 @@ def main(args):
     fast_params_ids = set(map(id, fast_params))
     normal_params = [p for p in model.parameters() if id(p) not in fast_params_ids]
     param_groups = [
-        {'params': fast_params, 'lr_mult': args.lr_mult},
-        {'params': normal_params, 'lr_mult': 1.},
+        {'params': fast_params, 'lr_mult': 10}, # args.lr_mult
+        {'params': normal_params, 'lr_mult': 0},
     ]
     if args.optimizer_cent == 'sgd':
         optimizer_cent = torch.optim.SGD(criterion[1].parameters(), lr=args.lr_cent, )
@@ -362,6 +362,11 @@ def main(args):
     elif args.loss == 'tri':
         trainer = TriTrainer(model, criterion, dbg=True,
                              logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
+    elif args.loss == 'xent':
+        trainer = XentTrainer(model, criterion, dbg=True,
+                              logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
+    else:
+        raise NotImplementedError()
 
     # Schedule learning rate
     def adjust_lr(epoch, optimizer=optimizer, base_lr=args.lr, steps=args.steps, decay=args.decay):

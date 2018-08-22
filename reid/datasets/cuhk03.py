@@ -281,6 +281,11 @@ class CUHK03(object):
 
 
 if __name__ == '__main__':
-    CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='label')
-    CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='detect')
+    cu03 = CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='label')
+    for img, _, _ in (cu03.query):
+        print(img)
+        # import shutil
+        # shutil.copy(img, '/home/xinglu/.torch/data/cuhk03/test/')
+    pd.DataFrame(cu03.query)
+    # CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='detect')
     # CUHK03('/home/xinglu/.torch/data/cuhk03', mode='combine')

@@ -46,20 +46,20 @@ class Preprocessor(object):
         #     fpath = '/home/xinglu/Nextcloud/1.jpg'
         # else:
         #     fpath = '/home/xinglu/Nextcloud/2.jpg'
-        if not osp.exists(fpath) and self.root is not None:
-            fpath = osp.join(self.root, fpath)
-        assert osp.exists(fpath), ValueError(fpath)
+
+        # if not osp.exists(fpath) and self.root is not None:
+        #     fpath = osp.join(self.root, fpath)
+        #
         # if fpath in self.cache:
         #     res = self.cache[fpath]
         #     img = self.transform(res['img'])
         #     res_return = copy.deepcopy(res)
         #     res_return.update({'img': img})
         #     return res_return
-        if os.stat(fpath).st_size == 0:
+        if osp.exists(fpath) and os.stat(fpath).st_size == 0:
             rm(fpath)
             return self._get_single_item(0)
-        with Image.open(fpath) as f:
-            res['img'] = f.convert('RGB')
+        res['img'] = read_image(fpath)
         # self.cache[fpath] = res
         img = self.transform(res['img'])
         # img = img.type(torch.double)
