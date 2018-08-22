@@ -10,13 +10,12 @@ no_proc = False
 parallel = True
 gpu_range = (0, 1, 2, 3)
 cfgs = [
-
     edict(
-        logs_dir='11.xent.cu03lbl.ft',
+        logs_dir='11.xent.cu03lbl.ft.bak',
         double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0, adv_fea_eps=0,
         reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
         reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        # evaluate=True,
+        evaluate=True,
         # aux='l2_adv',
         dataset='cu03lbl',
         gpu=(1,), last_conv_stride=1, last_conv_dilation=1,
@@ -28,9 +27,9 @@ cfgs = [
         gpu_range=gpu_range, lr_mult=1,
         push_scale=1., embed=None,
         margin='soft', margin2=1., margin3=1.0,
-        resume='/home/xinglu/work/reid/work/tri6.combine.2/model_best.pth',
+        resume='/home/xinglu/work/reid/work.use/tri6.combine.2/model_best.pth',
         restart=True,
-        epochs=35, steps=[15, 30], log_at=[2, 15, 30, 34, 35, 36],
+        epochs=35, steps=[15, 30], log_at=[2, 15, 30, 34, 35, 36],adv_eval=True,
     ),
 
     # edict(
@@ -197,6 +196,7 @@ base = edict(
     aux='',  # l2_adv linf_adv defaul: nol_adv; l1_grad default: l2_grad
     reg_mid_fea=[0., 0., 0., 0., 0.],
     amsgrad=False, freeze_bn=False,
+    adv_eval=False ,
     reg_loss_wrt=[0, 0, 0, 0, 0, 0],
     impr=0., cu03_classic=False,
     last_conv_stride=2,

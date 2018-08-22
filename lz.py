@@ -37,11 +37,11 @@ if os.environ.get('pytorch', "1") == "1":
     import torch.nn.functional as F
 
     old_repr = torch.Tensor.__repr__
-    torch.Tensor.__repr__ = lambda obj: (f'{tuple(obj.shape)} {obj.type()} \n'
-                                         f'{old_repr(obj)} \n'
+    torch.Tensor.__repr__ = lambda obj: (f'{tuple(obj.shape)} {obj.type()} '
+                                         f'{old_repr(obj)} '
                                          f'type: {obj.type()} shape: {obj.shape}') if obj.is_contiguous() else (
-        f'{tuple(obj.shape)} {obj.type()} \n'
-        f'{old_repr(obj.contiguous())} \n'
+        f'{tuple(obj.shape)} {obj.type()} '
+        f'{old_repr(obj.contiguous())} '
         f'type: {obj.type()} shape: {obj.shape}')
     print('import pytorch', time.time() - tic)
 
@@ -121,8 +121,8 @@ if os.environ.get('log', '0') == '1':
     set_file_logger(log_level=logging.DEBUG)
 
 ## ndarray will be pretty
-np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
-                                   f'{arr.__str__()} \n'
+np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} '
+                                   f'{arr.__str__()} '
                                    f'dtype:{arr.dtype} shape:{arr.shape}', repr=True)
 
 logging.info('import lz')
@@ -677,10 +677,10 @@ def optional_arg_decorator(fn):
     return wrapped_decorator
 
 
-def randomword(length,):
+def randomword(length, ):
     import random
     import string
-    return ''.join(random.choice(string.ascii_letters+string.digits+'_') for _ in range(length))
+    return ''.join(random.choice(string.ascii_letters + string.digits + '_') for _ in range(length))
 
 
 def static_vars(**kwargs):

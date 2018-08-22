@@ -25,7 +25,7 @@ class CUHK03(object):
 
     def __init__(self, root='/home/xinglu/.torch/data/cuhk03/',
                  split_id=0, dataset_mode='label',
-                 cuhk03_classic_split=False, **kwargs):
+                 cuhk03_classic_split=False, args=None, **kwargs):
         self.root = self.dataset_dir = self.images_dir = '/home/xinglu/.torch/data/cuhk03/'
         cuhk03_labeled = dataset_mode == 'label'
         self.data_dir = osp.join(self.dataset_dir, 'cuhk03_release')
@@ -101,6 +101,17 @@ class CUHK03(object):
         self.trainval = self.train
         self.num_val_ids = 0
         self.num_trainval_ids = self.num_train_ids
+
+        print('load cuhk03, change')
+        if args is not None and args.get('adv_eval', False):
+            df = pd.DataFrame(self.query)
+            df.loc[:, 0] = df.loc[:, 0].str.replace('/home/xinglu/.torch/data/cuhk03/raw/images_labeled/',
+                                                    work_path + 'data/cuhk03/fgsm/')
+            self.query = df.to_records(index=False).tolist()
+            df = pd.DataFrame(self.gallery)
+            df.loc[:, 0] = df.loc[:, 0].str.replace('/home/xinglu/.torch/data/cuhk03/raw/images_labeled/',
+                                                    work_path + 'data/cuhk03/fgsm/')
+            self.gallery = df.to_records(index=False).tolist()
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
@@ -282,10 +293,10 @@ class CUHK03(object):
 
 if __name__ == '__main__':
     cu03 = CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='label')
-    for img, _, _ in (cu03.query):
+    for img, _, _ in (cu03.gallery):
         print(img)
-        # import shutil
-        # shutil.copy(img, '/home/xinglu/.torch/data/cuhk03/test/')
-    pd.DataFrame(cu03.query)
+        import shutil
+        shutil.copy(img, '/home/xinglu/.torch/data/cuhk03/test/')
+    # pd.DataFrame(cu03.query)
     # CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='detect')
     # CUHK03('/home/xinglu/.torch/data/cuhk03', mode='combine')

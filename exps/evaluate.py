@@ -26,53 +26,13 @@ from tensorboardX import SummaryWriter
 
 
 def run(_):
-    cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
-    procs = []
-    for args in cfgs.cfgs:
-        if args.loss != 'tcx' and args.loss != 'tri' and args.loss != 'xent':
-            print(f'skip {args.loss} {args.logs_dir}')
-            continue
-        if args.log_at is None:
-            args.log_at = np.concatenate([
-                range(0, 640, 31),
-                range(args.epochs - 8, args.epochs, 1)
-            ])
-        args.logs_dir = lz.work_path + 'reid/work/' + args.logs_dir
-        if osp.exists(args.logs_dir) and osp.exists(args.logs_dir + '/checkpoint.64.pth'):
-            print(os.listdir(args.logs_dir))
-            continue
-
-        if not args.gpu_fix:
-            args.gpu = lz.get_dev(n=len(args.gpu),
-                                  ok=args.gpu_range,
-                                  mem_thresh=[0.09, 0.09], sleep=32.3)
-        lz.logging.info(f'use gpu {args.gpu}')
-        # args.batch_size = 16
-        # args.gpu = (3, )
-        # args.epochs = 1
-        # args.logs_dir+='.bak'
-
-        if isinstance(args.gpu, int):
-            args.gpu = [args.gpu]
-        if not args.evaluate and not args.vis:
-            assert args.logs_dir != args.resume
-            lz.mkdir_p(args.logs_dir, delete=True)
-            lz.pickle_dump(args, args.logs_dir + '/conf.pkl')
-        if cfgs.no_proc:
-            main(args)
-        else:
-            proc = mp.Process(target=main, args=(args,))
-            proc.start()
-            lz.logging.info('next')
-            time.sleep(random.randint(39, 90))
-            if not cfgs.parallel:
-                proc.join()
-            else:
-                procs.append(proc)
-
-    if cfgs.parallel:
-        for proc in procs:
-            proc.join()
+    base_path = work_path + '/reid/work/'
+    pathf = base_path + '/tri8.margin.m4_0'
+    args = pickle_load(pathf + '/conf.pkl')
+    args.evaluate = True
+    args.resume = pathf + '/model_best.pth'
+    print(args)
+    main(args)
 
 
 def get_data(args):

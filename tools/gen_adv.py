@@ -25,10 +25,12 @@ def l2_normalize(x):
     return x2.view(shape)
 
 
-# imgl = glob.glob(basedir + 'test/*')
-for imgp, pid, cid in ds.trainval:
-    print(imgp, pid, cid)
-# for imgp in imgl:
+imgl = glob.glob(basedir + 'test/*')
+# for imgp, pid, cid in ds.trainval:
+#     print(imgp, pid, cid)
+for imgp in imgl:
+    imgpdst = basedir + 'fgsm/' + osp.basename(imgp)
+    if osp.exists(imgpdst) : continue
     orig = cv2.imread(imgp)
     orig = cv2.resize(orig, (128, 256))  # orig in BGR
     img = orig.copy()[..., ::-1].astype(np.float32)
@@ -94,5 +96,4 @@ for imgp, pid, cid in ds.trainval:
     # cvb.show_img(adv, 'after', wait_time=1)
     # cvb.show_img(perturbation, 'pertub', wait_time=30*1000)
     # cv2.destroyAllWindows()
-    imgpdst = basedir + 'fgsm/' + osp.basename(imgp)
     cvb.write_img(adv, imgpdst)
