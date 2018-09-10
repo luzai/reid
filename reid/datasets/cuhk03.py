@@ -102,8 +102,9 @@ class CUHK03(object):
         self.num_val_ids = 0
         self.num_trainval_ids = self.num_train_ids
 
-        print('load cuhk03, change')
+        print('load cuhk03 ...')
         if args is not None and args.get('adv_eval', False):
+            print('use adv')
             df = pd.DataFrame(self.query)
             df.loc[:, 0] = df.loc[:, 0].str.replace('/home/xinglu/.torch/data/cuhk03/raw/images_labeled/',
                                                     work_path + 'data/cuhk03/fgsm/')

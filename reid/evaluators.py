@@ -192,6 +192,7 @@ class Evaluator(object):
         self.vid = vid
         self.timer = lz.Timer()
         name_val = args.dataset_val or args.dataset
+        self.args = args
         self.conf = parse_name(name_val).get('eval_conf', 'market1501')
 
     def evaluate_vid(self, queryloader, galleryloader, metric=None, **kwargs):
@@ -240,18 +241,19 @@ class Evaluator(object):
             self.timer.since_last_check('extract gallery')
 
         print("Computing distance matrix")
-        m, n = qf.size(0), gf.size(0)
-        distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-                  torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-        distmat.addmm_(1, -2, qf, gf.t())
-        distmat = distmat.numpy()
-        rerank = False
-        # lz.msgpack_dump([distmat, q_pids, g_pids, q_camids, g_camids], work_path + 'tmp.mp')
-        # for mat in [distmat, q_pids, g_pids, q_camids, g_camids]:
-        #     print(mat.dtype, )
-        # from IPython import embed
-        # embed()
-        # distmat, q_pids, g_pids, q_camids, g_camids = lz.msgpack_load(work_path + 'tmp.mp')
+        rerank = True
+        print('!!rerank is ', rerank )
+        if rerank:
+            xx = to_numpy(qf)
+            yy = to_numpy(gf)
+            lz.msgpack_dump([xx, yy], work_path + 'tmp.mp')
+            distmat = re_ranking(xx, yy)
+        else:
+            m, n = qf.size(0), gf.size(0)
+            distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
+                      torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
+            distmat.addmm_(1, -2, qf, gf.t())
+            distmat = distmat.numpy()
 
         if self.conf == 'market1501':
             self.timer.since_last_check('distmat ')
@@ -327,11 +329,12 @@ class Evaluator(object):
         else:
             prefix = ''
         logging.info(f'prefix is {prefix}')
-        # if final:
-        #     rerank_range = [False, True]
-        # else:
-        rerank_range = [False, ]
+        if self.args['rerank']:
+            rerank_range = [True, False]
+        else:
+            rerank_range = [False, ]
         for rerank in rerank_range:
+            print('whether to use rerank :', rerank)
             distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
 
             if final:
@@ -353,7 +356,7 @@ class Evaluator(object):
             timer = lz.Timer()
             if self.conf == 'market1501':
                 distmat = distmat.astype(np.float16)
-                del features
+                # del features
                 print(f'facing {distmat.shape}')
                 # if distmat.shape[0] < 10000:
                 mAP, all_cmc = eval_market1501_wrap(
@@ -363,8 +366,13 @@ class Evaluator(object):
                 #     mAP, all_cmc = eval_market1501(
                 #         distmat, query_ids, gallery_ids, query_cams, gallery_cams,
                 #         max_rank=10)
-
-                res = {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}
+                if rerank:
+                    res = lz.dict_concat([res,
+                                          {'mAP.rk': mAP, 'top-1.rk': all_cmc[0], 'top-5.rk': all_cmc[4],
+                                           'top-10.rk': all_cmc[9]}])
+                else:
+                    res = lz.dict_concat([res,
+                                          {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}])
             else:
                 mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
                 print('Mean AP: {:4.1%}'.format(mAP))
@@ -399,9 +407,6 @@ class Evaluator(object):
         # res['top-1'] += self.args.impr
         # json_dump(res, self.args.logs_dir + '/res.json')
         return res
-
-
-
 
 
 if __name__ == '__main__':

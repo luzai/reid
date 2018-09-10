@@ -49,7 +49,7 @@ for imgp in imgl:
         pred = np.argmax(logits.data.cpu().numpy())
         print('Prediction before attack: %s' % (pred))
     # break
-    for eps in np.arange(0.09, 100, .01):
+    for eps in np.arange(0.1, 100, .01):
         eps = float(eps)
         inp = Variable(torch.from_numpy(img).cuda().float().unsqueeze(0), requires_grad=True)
         # compute loss
