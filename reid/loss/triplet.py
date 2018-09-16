@@ -363,7 +363,6 @@ class TripletLoss(nn.Module):
                 dist_ap.append(((xa - xp) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
                 dist_an.append(((xa - xn) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
 
-
             elif self.mode == 'adap':
                 some_pos = dist[i][mask[i]]
                 some_neg = dist[i][mask[i] == 0]
@@ -397,9 +396,15 @@ class TripletLoss(nn.Module):
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[np.random.randint(0, negp.size(0))])
 
-        dist_ap = _concat(dist_ap) * self.margin2
-        dist_an = _concat(dist_an) / self.margin3
+        dist_ap = _concat(dist_ap)
+        dist_an = _concat(dist_an)
         y = torch.ones(dist_an.size(), requires_grad=False).cuda()
+
+        assert self.margin == 'soft', 'only soft now'
+        pre_loss = F.softplus(dist_ap - dist_an).mean().detach()
+        coff = torch.exp(pre_loss) / (1 + torch.exp(pre_loss))
+        dist_ap *= (coff * self.margin2)
+        dist_an /= (coff * self.margin3)
         if self.margin != 'soft':
             loss = self.ranking_loss(dist_an, dist_ap, y)
         else:

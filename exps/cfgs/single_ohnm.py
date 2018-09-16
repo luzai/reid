@@ -74,8 +74,8 @@ cfgs = [
     # ),
 
     # edict(
-    #     logs_dir='10.mars.margin1.1.1,1',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    #     logs_dir='10.mars.margin1.dbl.1.1,1',
+    #     double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
     #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
     #     # evaluate=True,
@@ -94,47 +94,47 @@ cfgs = [
     #     workers=12, log_at=(0, 10, 20, 30, 34, 35, 36, 40, 50, 59, 60, 61,),
     # ),
     #
-    edict(
-        logs_dir='10.mars.margin.dbl.cont',
-        double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-        reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        # evaluate=True,
-        # aux='l2_adv',
-        dataset='mars',
-        gpu=(3,), last_conv_stride=2,
-        # gpu_fix=True,
-        batch_size=64, num_instances=4, num_classes=128, seq_len=15,
-        dropout=0, loss='trivid', tri_mode='hard',
-        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-        random_ratio=1, lr_cent=0,
-        gpu_range=gpu_range, lr_mult=1,
-        push_scale=1., embed=None,
-        margin='soft', margin2=1.0, margin3=1., margin4=0,
-        steps=[15, 30, ], epochs=35, restart=False,
-        resume=work_path + 'reid/work/10.mars.margin.dbl/model_best.pth',
-        workers=12, log_at=(0, 10, 20, 30, 34, 35, 36, 40, 50, 59, 60, 61,),
-    ),
-    edict(
-        logs_dir='10.mars.margin.dbl.-0.1.cont',
-        double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-        reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        # aux='l2_adv',
-        dataset='mars',
-        gpu=(3,), last_conv_stride=2,
-        # gpu_fix=True,
-        batch_size=64, num_instances=4, num_classes=128, seq_len=15,
-        dropout=0, loss='trivid', tri_mode='reg.a',
-        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-        random_ratio=1, lr_cent=0,
-        gpu_range=gpu_range, lr_mult=1,
-        push_scale=1., embed=None,
-        margin='soft', margin2=1.0, margin3=1., margin4=-0.1,
-        steps=[15, 30, ], epochs=35, restart=False,
-        resume=work_path + 'reid/work/10.mars.margin.dbl.-0.1/model_best.pth',
-        workers=12, log_at=(0, 10, 20, 30, 34, 35, 36, 40, 50, 59, 60, 61,),
-    ),
+    # edict(
+    #     logs_dir='10.mars.margin.dbl.cont',
+    #     double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    #     # evaluate=True,
+    #     # aux='l2_adv',
+    #     dataset='mars',
+    #     gpu=(3,), last_conv_stride=2,
+    #     # gpu_fix=True,
+    #     batch_size=64, num_instances=4, num_classes=128, seq_len=15,
+    #     dropout=0, loss='trivid', tri_mode='hard',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=gpu_range, lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft', margin2=1.0, margin3=1., margin4=0,
+    #     steps=[15, 30, ], epochs=35, restart=False,
+    #     resume=work_path + 'reid/work/10.mars.margin.dbl/model_best.pth',
+    #     workers=12, log_at=(0, 10, 20, 30, 34, 35, 36, 40, 50, 59, 60, 61,),
+    # ),
+    # edict(
+    #     logs_dir='10.mars.margin.dbl.-0.1.cont',
+    #     double=1, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    #     # aux='l2_adv',
+    #     dataset='mars',
+    #     gpu=(3,), last_conv_stride=2,
+    #     # gpu_fix=True,
+    #     batch_size=64, num_instances=4, num_classes=128, seq_len=15,
+    #     dropout=0, loss='trivid', tri_mode='reg.a',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=gpu_range, lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft', margin2=1.0, margin3=1., margin4=-0.1,
+    #     steps=[15, 30, ], epochs=35, restart=False,
+    #     resume=work_path + 'reid/work/10.mars.margin.dbl.-0.1/model_best.pth',
+    #     workers=12, log_at=(0, 10, 20, 30, 34, 35, 36, 40, 50, 59, 60, 61,),
+    # ),
 ]
 
 # cfg = edict(

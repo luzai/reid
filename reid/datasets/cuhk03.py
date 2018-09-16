@@ -104,15 +104,14 @@ class CUHK03(object):
 
         print('load cuhk03 ...')
         if args is not None and args.get('adv_eval', False):
-            print('use adv')
-            df = pd.DataFrame(self.query)
-            df.loc[:, 0] = df.loc[:, 0].str.replace('/home/xinglu/.torch/data/cuhk03/raw/images_labeled/',
-                                                    work_path + 'data/cuhk03/fgsm/')
-            self.query = df.to_records(index=False).tolist()
-            df = pd.DataFrame(self.gallery)
-            df.loc[:, 0] = df.loc[:, 0].str.replace('/home/xinglu/.torch/data/cuhk03/raw/images_labeled/',
-                                                    work_path + 'data/cuhk03/fgsm/')
-            self.gallery = df.to_records(index=False).tolist()
+
+            def _replace(lst,src, dst):
+                df = pd.DataFrame(lst)
+                df.loc[:,0 ]= df.loc[:,0 ] .str. replace( src,dst )
+                return df .to_records(index=False ) .tolist()
+            print('use adv!!')
+            self.query = _replace( self.query,  'raw/images_labeled', 'images_labeled.fgs')
+            self.gallery = _replace(self.query, 'raw/images_labeled', 'images_labeled.fgs')
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""

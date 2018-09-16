@@ -241,8 +241,8 @@ class Evaluator(object):
             self.timer.since_last_check('extract gallery')
 
         print("Computing distance matrix")
-        rerank = True
-        print('!!rerank is ', rerank )
+        rerank = False  # todo
+        print('!!rerank is ', rerank)
         if rerank:
             xx = to_numpy(qf)
             yy = to_numpy(gf)

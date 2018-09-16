@@ -27,13 +27,14 @@ from tensorboardX import SummaryWriter
 
 def run(_):
     base_path = work_path + '/reid/work/'
-    pathf = base_path + '/10.mars.margin.dbl.-0.1.cont'
+    # pathf = base_path + '/10.mars.margin.dbl.-0.1.cont'
+    pathf = base_path + '10.mars.margin1.dbl.1.1,1'
     args = pickle_load(pathf + '/conf.pkl')
     args.evaluate = True
     args.adv_eval = False
-    args.rerank = True
+    args.rerank = False # todo
     args.resume = pathf + '/model_best.pth'
-    args.gpu = (0,)
+    args.gpu = (1,)
     print('arg is ', args)
     main(args)
 

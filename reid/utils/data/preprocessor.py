@@ -4,6 +4,30 @@ from lz import *
 # from lomo.lomo_map import extract_feature
 from torch.utils.data import Dataset
 import copy
+from itertools import chain
+
+
+class DirPreprocessor(object):
+    def __init__(self, dir, transorm):
+        self.dir = dir
+        self.imgs = glob.glob(dir + '/*.jpg') + \
+                    glob.glob(dir + '/*.png') + \
+                    glob.glob(dir + '/*.JPG')
+
+        self.transform = transorm
+
+    def __len__(self):
+        return len(self.imgs)
+
+    def __getitem__(self, indices):
+        if isinstance(indices, (tuple, list)):
+            return [self._get_single_item(index) for index in indices]
+        else:
+            return self._get_single_item(indices)
+
+    def _get_single_item(self, index):
+        imgp = self.imgs[index]
+        return self.transform(read_image(imgp)), imgp
 
 
 class Preprocessor(object):
@@ -72,7 +96,7 @@ class Preprocessor(object):
         return res_return
 
 
-import lmdb,six
+import lmdb, six
 
 root = '/home/xinglu/.torch/data/mars/img_lmdb'
 osp.exists(root)
