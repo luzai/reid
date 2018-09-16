@@ -342,7 +342,7 @@ class Logger(object):
 
 if os.environ.get('log', '0') == '1':
     sys.stdout = Logger(root_path + 'log-prt')
-    sys.stderr = Logger(root_path + 'batch.sh')
+    sys.stderr = Logger(root_path + 'log-prt-err')
 
 
 class Timer(object):

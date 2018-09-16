@@ -28,7 +28,7 @@ from tensorboardX import SummaryWriter
 def run(_):
     base_path = work_path + '/reid/work/'
     # pathf = base_path + '/11.xent.cu03lbl.ft'
-    pathf = base_path + '/tri8.margin.m4_0'
+    pathf = base_path + '/11.fx.margin.m2.1.1'
     # pathf = base_path + '/tri8.margin.m4_-0.1'
     # pathf = base_path + '/tri8.margin.dbl.m4_-0.1.cu03det'
     # pathf = base_path + '/tri8.margin.dbl.m4_-0.1.mkt'
@@ -36,7 +36,7 @@ def run(_):
     args.evaluate = True
     args.adv_eval = True
     args.rerank = False
-    args.resume = pathf + '/model_best.pth'
+    args.resume = pathf + '/checkpoint.64.pth'
     args.gpu = (3,)
     args.batch_size = 128
     print('arg is ', args)

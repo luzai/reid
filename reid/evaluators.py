@@ -356,7 +356,6 @@ class Evaluator(object):
             timer = lz.Timer()
             if self.conf == 'market1501':
                 distmat = distmat.astype(np.float16)
-                # del features
                 print(f'facing {distmat.shape}')
                 # if distmat.shape[0] < 10000:
                 mAP, all_cmc = eval_market1501_wrap(

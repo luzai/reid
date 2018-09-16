@@ -38,9 +38,9 @@ def run(_):
                 range(args.epochs - 8, args.epochs, 1)
             ])
         args.logs_dir = lz.work_path + 'reid/work/' + args.logs_dir
-        if osp.exists(args.logs_dir) and osp.exists(args.logs_dir + '/checkpoint.64.pth'):
-            print(os.listdir(args.logs_dir))
-            continue
+        # if osp.exists(args.logs_dir) and osp.exists(args.logs_dir + '/checkpoint.64.pth'):
+        #     print('no exi', os.listdir(args.logs_dir))
+        #     continue
 
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),

@@ -335,6 +335,7 @@ class TripletLoss(nn.Module):
         dist = calc_distmat(inputs, inputs)
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
         dist_ap, dist_an = [], []
+        dist_pn = []
         all_ind = torch.arange(0, n).type(torch.LongTensor)
         # posp_inds, negp_inds = [], []
 
@@ -362,6 +363,19 @@ class TripletLoss(nn.Module):
                 xa -= self.args.margin4 * (xn - xp)
                 dist_ap.append(((xa - xp) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
                 dist_an.append(((xa - xn) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
+            elif self.mode == 'reg.a.2':
+                some_pos = dist[i][mask[i]]
+                some_neg = dist[i][mask[i] == 0]
+                some_pos_ind = all_ind[mask[i]]
+                some_neg_ind = all_ind[mask[i] == 0]
+                neg_ind = some_neg_ind[torch.argmin(some_neg)]
+                pos_ind = some_pos_ind[torch.argmax(some_pos)]
+                xa = inputs[i]
+                xp = inputs[pos_ind]
+                xn = inputs[neg_ind]
+                dist_ap.append(((xa - xp) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
+                dist_an.append(((xa - xn) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
+                dist_pn.append(((xp - xn) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
 
             elif self.mode == 'adap':
                 some_pos = dist[i][mask[i]]
@@ -398,17 +412,26 @@ class TripletLoss(nn.Module):
 
         dist_ap = _concat(dist_ap)
         dist_an = _concat(dist_an)
+        if dist_pn != []:
+            dist_pn = _concat(dist_pn)
         y = torch.ones(dist_an.size(), requires_grad=False).cuda()
 
-        assert self.margin == 'soft', 'only soft now'
-        pre_loss = F.softplus(dist_ap - dist_an).mean().detach()
-        coff = torch.exp(pre_loss) / (1 + torch.exp(pre_loss))
-        dist_ap *= (coff * self.margin2)
-        dist_an /= (coff * self.margin3)
+        # pre_loss = F.softplus(dist_ap - dist_an).mean().detach()
+        # coff = 2 * torch.exp(pre_loss) / (1 + torch.exp(pre_loss))
+        coff = 0
+        # dist_ap *= (1 + self.margin2 * coff) ** 2
+        # dist_an /= (1 - self.margin3 * coff) ** 2
+        if dist_pn != []:
+            dist_pn *= self.args.margin4 * coff
+
+        # print('coff is ' , coff.item())
         if self.margin != 'soft':
             loss = self.ranking_loss(dist_an, dist_ap, y)
         else:
-            loss = F.softplus(dist_ap - dist_an).mean()
+            if dist_pn != []:
+                loss = F.softplus(dist_ap - dist_an + dist_pn).mean()
+            else:
+                loss = F.softplus(dist_ap - dist_an).mean()
         prec = (dist_an.data > dist_ap.data).sum().type(
             torch.FloatTensor) / y.size(0)
         # loss.backward(retain_graph=True)
