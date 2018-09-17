@@ -409,33 +409,26 @@ class TripletLoss(nn.Module):
 
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[np.random.randint(0, negp.size(0))])
-
+        assert self.args.margin == 'soft', 'must soft'
         dist_ap = _concat(dist_ap)
         dist_an = _concat(dist_an)
-        if dist_pn != []:
-            dist_pn = _concat(dist_pn)
+        dist_pn = _concat(dist_pn)
         y = torch.ones(dist_an.size(), requires_grad=False).cuda()
 
-        # pre_loss = F.softplus(dist_ap - dist_an).mean().detach()
-        # coff = 2 * torch.exp(pre_loss) / (1 + torch.exp(pre_loss))
-        coff = 0
-        # dist_ap *= (1 + self.margin2 * coff) ** 2
-        # dist_an /= (1 - self.margin3 * coff) ** 2
-        if dist_pn != []:
-            dist_pn *= self.args.margin4 * coff
+        pre_loss = F.softplus(dist_ap - dist_an).mean().detach()
+        coff = 2 * torch.exp(pre_loss) / (1 + torch.exp(pre_loss))
+        # coff = 0
+        dist_ap *= (1 + self.margin2 * coff) ** 2
+        dist_an *= (1 - self.margin3 * coff) ** 2
+        dist_pn *= self.args.margin4 * coff
 
         # print('coff is ' , coff.item())
         if self.margin != 'soft':
             loss = self.ranking_loss(dist_an, dist_ap, y)
         else:
-            if dist_pn != []:
-                loss = F.softplus(dist_ap - dist_an + dist_pn).mean()
-            else:
-                loss = F.softplus(dist_ap - dist_an).mean()
+            loss = F.softplus(dist_ap - dist_an + dist_pn).mean()
         prec = (dist_an.data > dist_ap.data).sum().type(
             torch.FloatTensor) / y.size(0)
-        # loss.backward(retain_graph=True)
-        # inputs.grad
 
         if not dbg:
             return loss, prec, dist

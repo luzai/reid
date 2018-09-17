@@ -56,57 +56,42 @@ cfgs = [
     #     workers=12, log_at=(0, 10, 20, 30, 40, 50, 59, 60, 61,),
     # ),
 
-    edict(
-        logs_dir='11.fx.margin.m2.1.1',
-        double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-        reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        # evaluate=True,
-        # aux='l2_adv',
-        dataset='mkt',
-        gpu=(3,), last_conv_stride=2,
-        # gpu_fix=True,
-        batch_size=64, num_instances=4, num_classes=128,
-        dropout=0, loss='tri', tri_mode='hard',
-        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-        random_ratio=1, lr_cent=0,
-        gpu_range=gpu_range, lr_mult=1,
-        push_scale=1., embed=None,
-        # margin='soft',
-        margin=0.5,
-        margin2=0, margin3=0, margin4=0,
-        steps=[40, 60, ], epochs=65,
-        log_at=[0, 30, 64, 65, 66],
-        # resume='/data1/xinglu/work/reid/work/11.fx.margin.m2.1.1/checkpoint.64.pth',
-        # evaluate=True,
-        workers=12,
-    ),
-
-    # edict(
-    #     logs_dir='11.fx.margin.m4.-0.1',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-    #     # evaluate=True,
-    #     # aux='l2_adv',
-    #     dataset='cu03lbl',
-    #     gpu=(3,), last_conv_stride=2,
-    #     # gpu_fix=True,
-    #     batch_size=128, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tri', tri_mode='reg.a',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=gpu_range, lr_mult=1,
-    #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1, margin3=1, margin4=-0.1,
-    #     steps=[40, 60, ], epochs=65,
-    #     log_at=[0, 30, 64, 65, 66],
-    #     # resume='/data1/xinglu/work/reid/work/10.mars.cont2/checkpoint.10.pth',
-    #     # restart=True,
-    #     workers=12,
-    # ),
-
 ]
+
+cfg = edict(
+    logs_dir='11.mg',
+    double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
+    reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    # aux='l2_adv',
+    dataset='cu03lbl',
+    gpu=(3,), last_conv_stride=2,
+    # gpu_fix=True,
+    batch_size=64, num_instances=4, num_classes=128,
+    dropout=0, loss='tri', tri_mode='reg.a.2',
+    cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    random_ratio=1, lr_cent=0,
+    gpu_range=gpu_range, lr_mult=1,
+    push_scale=1., embed=None,
+    margin='soft',
+    margin2=0.0, margin3=0.0, margin4=0.0,
+    steps=[40, 60, ], epochs=65,
+    log_at=[0, 30, 64, 65, 66],
+    workers=12,
+)
+
+for ds in ['cu03lbl']:
+    for m23 in [-0.01, 0, 0.01]:
+        cfg_t = copy.deepcopy(cfg)
+        cfg_t.margin2 = cfg_t.margin3 = m23
+        cfg_t.dataset = ds
+        cfg_t.logs_dir = f'{cfg.logs_dir}.m23.{m23}'
+        cfgs.append(cfg_t)
+for m4 in [0.1, -0.1, 0]:
+    cfg_t = copy.deepcopy(cfg)
+    cfg_t.margin4 = m4
+    cfg_t.logs_dir = f'{cfg.logs_dir}.m4.{m4}'
+    cfgs.append(cfg_t)
 
 # cfg = edict(
 #     logs_dir='10.adv',
@@ -139,31 +124,6 @@ cfgs = [
 #                 cfg_t.logs_dir = f'{cfg.logs_dir}.{aux}.{adv_inp_eps}'
 #                 cfgs.append(cfg_t)
 
-# cfg = edict(
-#     logs_dir='mkt.xent', double=1, adv_inp=1, adv_fea=0,
-#     dataset='mkt', xent_smooth=True,
-#     log_at=[0, 30, 64, 65, 66], lr_mult=10.,
-#     # gpu_fix=True, gpu=(0, 1),
-#     gpu=(0, 1, 2),
-#     batch_size=128, num_instances=4, num_classes=128,
-#     dropout=0, loss='xent', mode='',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     gpu_range=range(4),
-#     push_scale=1., embed=None, margin=.5, margin2=1., margin3=1.,
-# )
-#
-# for smooth, double, adv_inp in grid_iter(
-#         [True, False],
-#         [0, 1],
-#         [0, 1],
-# ):
-#     cfg_t = copy.deepcopy(cfg)
-#     cfg_t.double = double
-#     cfg_t.adv_inp = adv_inp
-#     cfg_t.xent_smooth = smooth
-#     cfg_t.logs_dir = f'{cfg.logs_dir}.smth{smooth}.adv{adv_inp}.dbl.{double}'
-#     cfgs.append(cfg_t)
 
 base = edict(
     aux='',  # l2_adv linf_adv defaul: nol_adv; l1_grad default: l2_grad
