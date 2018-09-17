@@ -19,3 +19,14 @@ scikit-image
 opencv-python
 lmdb
 tensorboardX
+tabulate
+tensorflow-gpu
+tensorboard
+cffi
+flake8
+yapf
+jupyter_contrib_nbextensions
+jupyter_nbextensions_configurator
+mkdocs
+mkdocs-material
+pylint
