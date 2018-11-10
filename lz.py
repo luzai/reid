@@ -1,9 +1,8 @@
 # from __future__ import print_function, absolute_import, division, unicode_literals
 
-import matplotlib
-# matplotlib.use('TkAgg')
-# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+# plt.switch_backend('Agg')
+# plt.switch_backend('TkAgg')
 
 import os, sys, time, \
     random, \
@@ -16,7 +15,8 @@ import os, sys, time, \
 from os import path as osp
 
 from easydict import EasyDict as edict
-import cv2, cvbase as cvb, copy, pandas as pd
+import cv2, cvbase as cvb, copy, pandas as pd, math
+import collections
 
 # import redis, networkx as nx, \
 #  yaml, subprocess, pprint, json, \
@@ -27,6 +27,18 @@ import cv2, cvbase as cvb, copy, pandas as pd
 os.environ.setdefault('log', '1')
 os.environ.setdefault('pytorch', '1')
 os.environ.setdefault('tensorflow', '0')
+os.environ.setdefault('chainer', '0')
+timer = cvb.Timer()
+if os.environ.get('chainer', "1") == "1":
+    import chainer
+    from chainer import cuda
+    # xp = cuda.get_array_module( )
+    old_repr = chainer.Variable.__repr__
+    chainer.Variable.__str__ = lambda obj: (f'ch {tuple(obj.shape)} {obj.dtype} '
+                                             f'{old_repr(obj)} '
+                                             f'type: {obj.dtype} shape: {obj.shape} ch')
+    chainer.Variable.__repr__ = chainer.Variable.__str__
+    logging.info(f'import chainer {timer.since_last_check()}')
 
 if os.environ.get('pytorch', "1") == "1":
     tic = time.time()
@@ -37,13 +49,16 @@ if os.environ.get('pytorch', "1") == "1":
     import torch.nn.functional as F
 
     old_repr = torch.Tensor.__repr__
-    torch.Tensor.__repr__ = lambda obj: (f'{tuple(obj.shape)} {obj.type()} '
+    torch.Tensor.__repr__ = lambda obj: (f'th {tuple(obj.shape)} {obj.type()} '
                                          f'{old_repr(obj)} '
-                                         f'type: {obj.type()} shape: {obj.shape}') if obj.is_contiguous() else (
+                                         f'type: {obj.type()} shape: {obj.shape} th') if obj.is_contiguous() else (
         f'{tuple(obj.shape)} {obj.type()} '
         f'{old_repr(obj.contiguous())} '
         f'type: {obj.type()} shape: {obj.shape}')
-    print('import pytorch', time.time() - tic)
+    logging.info(f'import pytorch {time.time() - tic}')
+
+# dbg = True
+dbg = False
 
 
 def allow_growth():
@@ -76,6 +91,7 @@ root_path = osp.normpath(
 home_path = os.environ['HOME'] + '/'
 work_path = home_path + '/work/'
 share_path = '/data1/share/'
+share_path2 = '/data2/share/'
 
 sys.path.insert(0, root_path)
 
@@ -92,7 +108,7 @@ InteractiveShell.ast_node_interactivity = "all"
 
 
 # torch.set_default_tensor_type(torch.cuda.DoubleTensor)
-# ori_np_err = np.seterr(all='raise')
+# ori_np_err = np.seterr(all='raise') # 1/100000=0 will be error
 
 
 def set_stream_logger(log_level=logging.DEBUG):
@@ -117,27 +133,29 @@ def set_file_logger(work_dir=None, log_level=logging.DEBUG):
 if os.environ.get('log', '0') == '1':
     logging.root.setLevel(logging.DEBUG)
     # set_stream_logger(logging.DEBUG)
-    set_stream_logger(logging.INFO)
+    set_stream_logger(logging.DEBUG)
     set_file_logger(log_level=logging.DEBUG)
 
 ## ndarray will be pretty
-np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} '
+np.set_string_function(lambda arr: f'np {arr.shape} {arr.dtype} '
                                    f'{arr.__str__()} '
-                                   f'dtype:{arr.dtype} shape:{arr.shape}', repr=True)
+                                   f'dtype:{arr.dtype} shape:{arr.shape} np', repr=True)
 
-logging.info('import lz')
 
 
 ## print(ndarray) will be pretty (and pycharm dbg)
-# np.set_string_function(lambda arr: f'{arr.shape} {arr.dtype} \n'
+# np.set_string_function(lambda arr: f'np {arr.shape} {arr.dtype} \n'
 #                                    f'{arr.__repr__()} \n'
-#                                    f'dtype:{arr.dtype} shape:{arr.shape}', repr=False)
+#                                    f'dtype:{arr.dtype} shape:{arr.shape} np', repr=False)
 
-
+## fail
 # old_np_repr = np.ndarray.__repr__
 # np.ndarray.__repr__ = lambda arr: (f'{arr.shape} {arr.dtype} \n'
 #                                    f'{old_np_repr(arr)} \n'
 #                                    f'dtype:{arr.dtype} shape:{arr.shape}')
+
+logging.info('import lz')
+
 
 def init_dev(n=(0,)):
     import os
@@ -297,6 +315,7 @@ def cpu_priority(level=19):
 
 
 def mkdir_p(path, delete=True):
+    path = str(path)
     if path == '':
         return
     if delete and osp.exists(path):
@@ -486,19 +505,9 @@ class Uninterrupt(object):
 
 def mail(content, to_mail=('907682447@qq.com',)):
     import datetime, collections
-    user_pass = {'username': '907682447@qq.com',
-                 'password': 'luzai123',
-                 'host': 'smtp.qq.com',
-                 'port': 587}
 
-    # user_pass = {'username': 'wxlms@outlook.com',
-    #              'password': 'yana3140102282',
-    #              'host': 'smtp.outlook.com',
-    #              'port': 587}
-    # user_pass = {'username': '3140102282@zju.edu.cn',
-    #              'password': 'eePh9zie',
-    #              'host': 'smtp.zju.edu.cn',
-    #              'port': 25}
+    user_passes = json_load(home_path + 'Dropbox/mail.json')
+    user_pass = user_passes[0]
 
     time_str = datetime.datetime.now().strftime('%m-%d %H:%M')
 
@@ -677,7 +686,7 @@ def optional_arg_decorator(fn):
     return wrapped_decorator
 
 
-def randomword(length =9, ):
+def randomword(length=9, ):
     import random
     import string
     return ''.join(random.choice(string.ascii_letters + string.digits + '_') for _ in range(length))
@@ -951,6 +960,8 @@ def shell(cmd, block=True, return_msg=True, verbose=True, timeout=None):
     my_env = os.environ.copy()
     home = os.path.expanduser('~')
     my_env['PATH'] = home + "/anaconda3/bin/:" + my_env['PATH']
+    my_env['http_proxy'] = ''
+    my_env['https_proxy'] = ''
     if verbose:
         logging.info('cmd is ' + cmd)
     if block:
@@ -973,7 +984,7 @@ def shell(cmd, block=True, return_msg=True, verbose=True, timeout=None):
         else:
             return task
     else:
-        print('Non-block!')
+        logging.debug('Non-block!')
         task = subprocess.Popen(cmd,
                                 shell=True,
                                 stdout=subprocess.PIPE,
@@ -1045,10 +1056,44 @@ def show_img(path):
     return fig
 
 
-def plt_imshow(img):
-    plt.figure()
-    plt.imshow(img)
-    plt.axis('off')
+def plt_imshow(img, ax=None):
+    img = to_img(img)
+    if ax is None:
+        plt.figure()
+        plt.imshow(img)
+        plt.axis('off')
+    else:
+        ax.imshow(img)
+        ax.axis('off')
+
+
+def to_img(img, ):
+    img = np.asarray(img)
+    img = img.copy()
+    shape = img.shape
+    if len(shape) == 3 and shape[0] == 3:
+        img = img.transpose(1, 2, 0)
+        img = np.array(img, order='C')
+    # if img.dtype == np.float32 or img.dtype == np.float64:
+    if img.max() < 1.1:
+        img -= img.min()
+        img /= img.max()
+        img *= 255
+    img = np.array(img, dtype=np.uint8)
+    if len(shape) == 3 and shape[-1] == 1:
+        img = img[..., 0]
+    return img.copy()
+
+
+def plt_matshow(mat):
+    fig, ax = plt.subplots()
+    ax.matshow(mat)
+    ax.axis('off')
+
+    # plt.figure()
+    # plt.matshow(mat, fignum=1)
+    # plt.axis('off')
+    # plt.colorbar()
 
 
 def show_pdf(path):
@@ -1125,6 +1170,8 @@ def dict_concat(d_l):
 def dict_update(to, from_dict, must_exist=True):
     to = to.copy()
     from_dict = from_dict.copy()
+    to = edict(to)
+    from_dict = edict(from_dict)
     for k, v in from_dict.items():
         if k not in to:
             if not must_exist:
@@ -1268,27 +1315,302 @@ def my_wget(fid, fname):
 
 
 def to_json_format(obj, allow_np=True):
+    import collections, torch
     if isinstance(obj, np.ndarray):
         if obj.dtype == object:
             return obj.tolist()
         else:
             if allow_np:
-                return obj
+                return np.asarray(obj, order="C")
             else:
                 return obj.tolist()
-    if isinstance(obj, list) or isinstance(obj, tuple):
+    elif isinstance(obj, list) or isinstance(obj, tuple) or isinstance(obj, collections.deque):
         return [to_json_format(subobj, allow_np) for subobj in obj]
-    if isinstance(obj, dict):
+    elif isinstance(obj, dict):
         for key in obj.keys():
             obj[key] = to_json_format(obj[key], allow_np)
         return obj
-    if isinstance(obj, int) or isinstance(obj, str) or isinstance(obj, float):
+    elif isinstance(obj, int) or isinstance(obj, str) or isinstance(obj, float):
         return obj
-    if isinstance(obj, torch.Tensor):
+    elif isinstance(obj, torch.Tensor):
         return obj.cpu().numpy()
-    return obj
+    elif isinstance(obj, np.int64):
+        return int(obj)
+    elif isinstance(obj, np.float32):
+        return float(obj)
+    elif obj is None:
+        return obj
+    else:
+        raise ValueError(f'unkown  {type(obj)}')
+    # return obj
+
+
+# todo imtate this
+
+# def default_collate(batch):
+#     "Puts each data field into a tensor with outer dimension batch size"
+#     if torch.is_tensor(batch[0]):
+#         out = None
+#         if _use_shared_memory:
+#             # If we're in a background process, concatenate directly into a
+#             # shared memory tensor to avoid an extra copy
+#             #   batch
+#             numel = sum([x.numel() for x in batch])
+#             storage = batch[0].storage()._new_shared(numel)
+#             out = batch[0].new(storage)
+#         return torch.stack(batch, 0, out=out)
+#     elif type(batch[0]).__module__ == 'numpy':
+#         elem = batch[0]
+#         if type(elem).__name__ == 'ndarray':
+#             return torch.stack([torch.from_numpy(b) for b in batch], 0)
+#         if elem.shape == ():  # scalars
+#             py_type = float if elem.dtype.name.startswith('float') else int
+#             return numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
+#     elif isinstance(batch[0], int):
+#         return torch.LongTensor(batch)
+#     elif isinstance(batch[0], float):
+#         return torch.DoubleTensor(batch)
+#     elif isinstance(batch[0], string_classes):
+#         return batch
+#     elif isinstance(batch[0], collections.Mapping):
+#         return {key: default_collate([d[key] for d in batch]) for key in batch[0]}
+#     elif isinstance(batch[0], collections.Sequence):
+#         transposed = zip(*batch)
+#         return [default_collate(samples) for samples in transposed]
+#
+#     raise TypeError(("batch must contain tensors, numbers, dicts or lists; found {}"
+#                      .format(type(batch[0]))))
+
+def preprocess(img, bbox=None, landmark=None, **kwargs):
+    from skimage import transform as trans
+
+    if isinstance(img, str):
+        img = cvb.read_img(img, **kwargs)
+    img = img.copy()
+    M = None
+    # image_size = []
+    # str_image_size = kwargs.get('image_size', '')
+    # if len(str_image_size) > 0:
+    #     image_size = [int(x) for x in str_image_size.split(',')]
+    #     if len(image_size) == 1:
+    #         image_size = [image_size[0], image_size[0]]
+    #     assert len(image_size) == 2
+    #     assert image_size[0] == 112
+    #     assert image_size[0] == 112 or image_size[1] == 96
+    image_size = [112, 112]
+    if landmark is not None:
+        assert len(image_size) == 2
+        src = np.array([
+            [30.2946, 51.6963],
+            [65.5318, 51.5014],
+            [48.0252, 71.7366],
+            [33.5493, 92.3655],
+            [62.7299, 92.2041]], dtype=np.float32)
+        if image_size[1] == 112:
+            src[:, 0] += 8.0
+        dst = landmark.astype(np.float32)
+
+        tform = trans.SimilarityTransform()
+        tform.estimate(dst, src)
+        M = tform.params[0:2, :]
+        # M = cv2.estimateRigidTransform( dst.reshape(1,5,2), src.reshape(1,5,2), False)
+
+    if M is None:
+        if bbox is None:  # use center crop
+            det = np.zeros(4, dtype=np.int32)
+            det[0] = int(img.shape[1] * 0.0625)
+            det[1] = int(img.shape[0] * 0.0625)
+            det[2] = img.shape[1] - det[0]
+            det[3] = img.shape[0] - det[1]
+        else:
+            det = bbox
+        margin = kwargs.get('margin', 44)
+        bb = np.zeros(4, dtype=np.int32)
+        bb[0] = np.maximum(det[0] - margin / 2, 0)
+        bb[1] = np.maximum(det[1] - margin / 2, 0)
+        bb[2] = np.minimum(det[2] + margin / 2, img.shape[1])
+        bb[3] = np.minimum(det[3] + margin / 2, img.shape[0])
+        ret = img[bb[1]:bb[3], bb[0]:bb[2], :]
+        if len(image_size) > 0:
+            ret = cv2.resize(ret, (image_size[1], image_size[0]))
+        return ret
+    else:  # do align using landmark
+        assert len(image_size) == 2
+
+        # src = src[0:3,:]
+        # dst = dst[0:3,:]
+
+        # print(src.shape, dst.shape)
+        # print(src)
+        # print(dst)
+        # print(M)
+        warped = cv2.warpAffine(img, M, (image_size[1], image_size[0]), borderValue=0.0)
+
+        # tform3 = trans.ProjectiveTransform()
+        # tform3.estimate(src, dst)
+        # warped = trans.warp(img, tform3, output_shape=_shape)
+        return warped
+
+
+def face_orientation(frame, landmarks):
+    size = frame.shape  # (height, width, color_channel)
+
+    image_points = np.array([
+        (landmarks[4], landmarks[5]),  # Nose tip
+        # (landmarks[10], landmarks[11]),  # Chin
+        (landmarks[0], landmarks[1]),  # Left eye left corner
+        (landmarks[2], landmarks[3]),  # Right eye right corne
+        (landmarks[6], landmarks[7]),  # Left Mouth corner
+        (landmarks[8], landmarks[9])  # Right mouth corner
+    ], dtype="double")
+
+    model_points = np.array([
+        (0.0, 0.0, 0.0),  # Nose tip
+        # (0.0, -330.0, -65.0),  # Chin
+        (-165.0, 170.0, -135.0),  # Left eye left corner
+        (165.0, 170.0, -135.0),  # Right eye right corne
+        (-150.0, -150.0, -125.0),  # Left Mouth corner
+        (150.0, -150.0, -125.0)  # Right mouth corner
+    ])
+
+    # Camera internals
+
+    center = (size[1] / 2, size[0] / 2)
+    focal_length = center[0] / np.tan(60 / 2 * np.pi / 180)
+    camera_matrix = np.array(
+        [[focal_length, 0, center[0]],
+         [0, focal_length, center[1]],
+         [0, 0, 1]], dtype="double"
+    )
+
+    dist_coeffs = np.zeros((4, 1))  # Assuming no lens distortion
+    (success, rotation_vector, translation_vector) = cv2.solvePnP(
+        model_points, image_points, camera_matrix,
+        dist_coeffs,
+        # flags=cv2.SOLVEPNP_ITERATIVE
+    )
+
+    axis = np.float32([[500, 0, 0],
+                       [0, 500, 0],
+                       [0, 0, 500]])
+
+    imgpts, jac = cv2.projectPoints(axis, rotation_vector, translation_vector, camera_matrix, dist_coeffs)
+    modelpts, jac2 = cv2.projectPoints(model_points, rotation_vector, translation_vector, camera_matrix, dist_coeffs)
+    rvec_matrix = cv2.Rodrigues(rotation_vector)[0]
+
+    proj_matrix = np.hstack((rvec_matrix, translation_vector))
+    eulerAngles = cv2.decomposeProjectionMatrix(proj_matrix)[6]
+
+    pitch, yaw, roll = [math.radians(_) for _ in eulerAngles]
+
+    pitch = math.degrees(math.asin(math.sin(pitch)))
+    roll = -math.degrees(math.asin(math.sin(roll)))
+    yaw = math.degrees(math.asin(math.sin(yaw)))
+
+    return imgpts, modelpts, (str(int(roll)), str(int(pitch)), str(int(yaw))), (landmarks[4], landmarks[5])
+
+
+def cal_sim(yyfea, yy2fea):
+    from scipy.spatial.distance import cdist
+    dist = cdist(yyfea, yy2fea)
+    cossim = (2 - dist) / 2
+    return cossim
+
+
+def get_normalized_pnt(nose, pnt):
+    nose = np.asarray(nose).reshape(2, )
+    pnt = np.asarray(pnt).reshape(2, )
+    dir = pnt - nose
+    norm = np.sqrt((dir ** 2).sum())
+    dir /= norm
+    pnt = nose + dir * 50
+    return pnt
+
+
+# random_colors = [ tuple(np.random.random_integers(0, 255, size=3)) for i in range(19) ]
+random_colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255),
+                 (171, 46, 62),
+                 (105, 246, 7),
+                 (19, 73, 138),
+                 (31, 210, 138),
+                 (35, 125, 76),
+                 (86, 6, 147),
+                 (249, 24, 45),
+                 (241, 214, 87),
+                 (102, 255, 173),
+                 (202, 146, 236),
+                 (163, 196, 242),
+                 (24, 48, 244),
+                 (187, 142, 60),
+                 (20, 146, 34),
+                 (226, 97, 210),
+                 (184, 40, 125),
+                 (208, 152, 12),
+                 (108, 158, 78),
+                 (91, 145, 136),
+                 ]
+
+
+def df_unique(df):
+    def is_all_same(lst):
+        lst = [lsti if not isinstance(lsti, np.ndarray) else lsti.tolist() for lsti in lst]
+        res = [lsti == lst[0] for lsti in lst]
+        try:
+            return np.asarray(res).all()
+        except Exception as e:
+            print(e)
+
+    res = []
+    for j in range(df.shape[1]):
+        if not is_all_same(df.iloc[:, j].tolist()):
+            res.append(j)
+    res = [df.columns[r] for r in res]
+    df1 = df[res]
+    return df1
+
+
+class UniformDistribution(object):
+    def __init__(self, low, high):
+        assert low <= high
+        self.low = low
+        self.high = high
+
+    def rvs(self, size=None, random_state=None):
+        uniform = random_state.uniform if random_state else np.random.uniform
+        return uniform(self.low, self.high, size)
+
+
+class LogUniformDistribution(object):
+    def __init__(self, low, high, precision='.1e'):
+        assert low <= high
+        self.low = low
+        self.high = high
+        self.precision = precision
+
+    def rvs(self, size=None, random_state=None):
+        uniform = random_state.uniform if random_state else np.random.uniform
+        res = np.exp(uniform(np.log(self.low), np.log(self.high), size))
+        # todo precision
+        res = float(f'{res:.1e}')
+        return res
+
+from sklearn.model_selection import ParameterSampler, ParameterGrid
+
+
+def my_softmax(arr):
+    from chainer import cuda
+    from chainer import functions as F
+    try:
+        arr = cuda.to_cpu(arr.array)
+    except:
+        pass
+    arr = np.array(arr, dtype=np.float32).reshape(1, -1)
+    arr = F.softmax(arr)
+    arr = cuda.to_cpu(arr.array)
+    arr = np.array(arr).reshape(-1)
+    return arr
 
 
 if __name__ == '__main__':
-    for _ in range(16):
-        print(randomword(8))
+    plt.plot(range(10))
+    plt.show()
