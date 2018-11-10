@@ -3,7 +3,7 @@ h5py
 numpy
 Pillow
 scipy
-torch==0.4.1
+torch
 torchvision
 gpustat
 easydict
@@ -30,3 +30,9 @@ jupyter_nbextensions_configurator
 mkdocs
 mkdocs-material
 pylint
+peewee
+# git+https://github.com/shadowsocks/shadowsocks.git@master
+cupy-cuda90
+chainer
+tqdm
+fuel 
