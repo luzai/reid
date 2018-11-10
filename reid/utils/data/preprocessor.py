@@ -90,7 +90,7 @@ class Preprocessor(object):
         if self.has_npy:
             # res['npy'] = to_torch(np.load(fpath3))
             raise NotImplementedError('do not use lomo cv2')
-            res['npy'] = extract_feature(img, fpath)
+            # res['npy'] = extract_feature(img, fpath)
         res_return = copy.deepcopy(res)
         res_return.update({'img': img})
         return res_return
@@ -98,32 +98,40 @@ class Preprocessor(object):
 
 import lmdb, six
 
-root = '/home/xinglu/.torch/data/mars/img_lmdb'
-osp.exists(root)
-env = lmdb.open(root, max_readers=1, readonly=True, lock=False,
-                readahead=False, meminit=False)
+serielized = {}
 
 
 def read_image(img_path):
     """Keep reading image until succeed.
     This can avoid IOError incurred by heavy IO process."""
     if 'mars' in img_path:
+        if 'mars' not in serielized:
+            root = '/home/xinglu/.torch/data/mars/img_lmdb'
+            osp.exists(root)
+            env = lmdb.open(root, max_readers=1, readonly=True, lock=False,
+                            readahead=False, meminit=False)
+            serielized['mars'] = env
+        else:
+            env = serielized['mars']
         with env.begin(write=False) as txn:
             imgbuf = txn.get(osp.basename(img_path).encode())
         buf = six.BytesIO()
         buf.write(imgbuf)
         buf.seek(0)
-        with Image.open(buf) as f:
-            img = f.convert('RGB')
+        # with Image.open(buf) as f:
+        f = Image.open(buf)
+        img = f.convert('RGB')
+        assert img is not None
         return img
 
     got_img = False
-    if not osp.exists(img_path):
-        raise IOError("{} does not exist".format(img_path))
+    assert osp.exists(img_path), ("{} does not exist".format(img_path))
     while not got_img:
         try:
-            with Image.open(img_path) as f:
-                img = f.convert('RGB')
+            # with Image.open(img_path) as f:
+            f = Image.open(img_path)
+            img = f.convert('RGB')
+            assert img is not None
             got_img = True
         except IOError:
             print("IOError incurred when reading '{}'. Will redo. Don't worry. Just chill.".format(img_path))

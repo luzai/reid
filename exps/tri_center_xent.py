@@ -29,7 +29,7 @@ def run(_):
     cfgs = lz.load_cfg('./cfgs/single_ohnm.py')
     procs = []
     for args in cfgs.cfgs:
-        if args.loss != 'tcx' and args.loss != 'tri' and args.loss != 'xent':
+        if args.loss != 'tcx' and args.loss != 'tri' and args.loss != 'xent' and args.loss != 'tri_adv':
             print(f'skip {args.loss} {args.logs_dir}')
             continue
         if args.log_at is None:
@@ -45,7 +45,7 @@ def run(_):
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
-                                  mem_thresh=[0.09, 0.09], sleep=32.3)
+                                  mem_thresh=[0.01, 0.01], sleep=32.3)
         lz.logging.info(f'use gpu {args.gpu}')
         # args.batch_size = 16
         # args.gpu = (3, )
@@ -73,6 +73,38 @@ def run(_):
     if cfgs.parallel:
         for proc in procs:
             proc.join()
+
+
+def get_data2(args):
+    (name, split_id,
+     data_dir, height, width,
+     batch_size, num_instances,
+     workers, combine_trainval) = (
+        args.dataset, args.split,
+        args.data_dir, args.height, args.width,
+        args.batch_size, args.num_instances,
+        args.workers, args.combine_trainval,)
+    pin_memory = args.pin_mem
+    name_val = args.dataset_val or args.dataset
+    npy = args.has_npy
+    rand_ratio = args.random_ratio
+    dataset_train = datasets.CUB2('train')
+    dataset_test = datasets.CUB2('test')
+    normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    num_classes = np.unique(dataset_train.train_labels).shape[0]
+    train_transformer = T.Compose([
+        T.ToPILImage(),
+        T.RandomCropFlip(height, width, area=args.area),
+        T.ToTensor(),
+        normalizer,
+    ])
+    test_transformer = T.Compose([
+        T.ToPILImage(),
+        T.RectScale(height, width),
+        T.ToTensor(),
+        normalizer,
+    ])
 
 
 def get_data(args):
@@ -148,7 +180,6 @@ def get_data(args):
             rand_ratio=rand_ratio,
             dop_info=dop_info,
         ),
-        # shuffle=True,
         pin_memory=pin_memory, drop_last=True)
     val_loader = DataLoader(
         Preprocessor(dataset_val.val, root=dataset_val.images_dir,
@@ -175,7 +206,7 @@ def get_data(args):
                      has_npy=npy),
         batch_size=batch_size,  # * 2
         num_workers=workers,
-        shuffle=False, pin_memory=False)  # todo for market and dukemtmc
+        shuffle=False, pin_memory=False)  # todo for market and dukemtmc do not pin mem, but small dataset pin_mem
     dataset.val = dataset_val.val
     dataset.query = dataset_val.query
     dataset.gallery = dataset_val.gallery
@@ -216,10 +247,12 @@ def main(args):
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
 
+    # if not args.dataset.endwith('2'):
     (dataset, num_classes,
      train_loader, val_loader, test_loader,
      dop_info, trainval_test_loader) = get_data(args)
-
+    # else:
+    #     get_data2(args)
     # Create model
     model = models.create(args.arch,
                           dropout=args.dropout,
@@ -227,7 +260,7 @@ def main(args):
                           block_name=args.block_name,
                           block_name2=args.block_name2,
                           num_features=args.num_classes,
-                          num_classes=num_classes,
+                          num_classes=1 if 'tri' in args.loss else num_classes,
                           num_deform=args.num_deform,
                           fusion=args.fusion,
                           last_conv_stride=args.last_conv_stride,
@@ -281,8 +314,15 @@ def main(args):
         # res = evaluator.evaluate(trainval_test_loader, trainval_test_loader.dataset.dataset,
         #                          trainval_test_loader.dataset.dataset, metric, final=True, prefix='train')
 
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric,
-                                 final=True, prefix='test')
+        if args.dataset_val != 'stanford_prod' and args.dataset != 'stanford_prod':
+            evaluator = Evaluator(model, gpu=args.gpu, args=args)
+            res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric,
+                                     final=True, prefix='test')
+            # res2 = evaluator.evaluate_retrival(test_loader, dataset.query, dataset.gallery)
+        else:
+            res = evaluator.evaluate_retrival(test_loader, dataset.query, dataset.gallery)
+
+        # res = evaluator.evaluate_recall(test_loader, dataset.query, dataset.gallery)
 
         lz.logging.info('eval {}'.format(res))
         return res
@@ -293,13 +333,17 @@ def main(args):
         xent = CrossEntropyLabelSmooth(num_classes=num_classes)
     setattr(xent, 'name', 'xent')
 
-    criterion = [TripletLoss(margin=args.margin, mode=args.tri_mode, args=args),
-                 CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
-                            margin2=args.margin2,
-                            margin3=args.margin3, mode=args.cent_mode,
-                            push_scale=args.push_scale,
-                            args=args),
-                 xent]
+    criterion = [
+        TripletLoss(
+            margin=args.margin, mode=args.tri_mode, args=args) if args.loss == 'tri' else
+        TripletLossAdv(
+            margin=args.margin, mode=args.tri_mode, args=args),
+        CenterLoss(num_classes=num_classes, feat_dim=args.num_classes,
+                   margin2=args.margin2,
+                   margin3=args.margin3, mode=args.cent_mode,
+                   push_scale=args.push_scale,
+                   args=args),
+        xent]
     if args.gpu is not None:
         criterion = [c.cuda() for c in criterion]
     # Optimizer
@@ -362,7 +406,7 @@ def main(args):
     if args.loss == 'tcx':
         trainer = TCXTrainer(model, criterion, dbg=True,
                              logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
-    elif args.loss == 'tri':
+    elif args.loss == 'tri' or args.loss == 'tri_adv':
         trainer = TriTrainer(model, criterion, dbg=True,
                              logs_at=args.logs_dir + '/vis', args=args, dop_info=dop_info)
     elif args.loss == 'xent':
@@ -444,13 +488,16 @@ def main(args):
         # res = evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
         # for n, v in res.items():
         #     writer.add_scalar('train/'+n, v, epoch)
+        if args.dataset_val != 'stanford_prod' and args.dataset != 'stanford_prod':
+            res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
 
-        res = evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric, epoch=epoch)
+        else:
+            res = evaluator.evaluate_retrival(test_loader, dataset.query, dataset.gallery)
+
         for n, v in res.items():
             writer.add_scalar('test/' + n, v, epoch)
         top1 = res['top-1']
         is_best = top1 > best_top1
-
         best_top1 = max(top1, best_top1)
         save_checkpoint({
             'state_dict': model.module.state_dict(),

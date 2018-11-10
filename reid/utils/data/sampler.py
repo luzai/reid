@@ -86,7 +86,7 @@ class RandomIdentityWeightedSampler(Sampler):
     def get_batch_pids(self):
         pids = []
         dop = self.dop_info.dop
-        lz.logging.debug('get new inds, {} {}'.format(dop, np.count_nonzero(dop == -1)))
+        # lz.logging.debug('get new inds, {} {}'.format(dop, np.count_nonzero(dop == -1)))
         pids_now = np.random.choice(self.pids,
                                     size=int(self.batch_size / self.num_instances * self.rand_ratio),
                                     replace=False)

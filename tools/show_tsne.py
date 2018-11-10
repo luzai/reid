@@ -25,7 +25,7 @@ height = 128
 width = 64
 embed2 = embed2 - embed2.min(axis=0)
 # np.median(np.abs(np.diff(embed2, axis=0)), axis=0)
-space = 48
+space = 64+16
 embed2 *= space
 embed2 = embed2.astype(int)
 extend = np.array([height, width, ])

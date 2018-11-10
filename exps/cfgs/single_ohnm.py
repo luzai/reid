@@ -9,121 +9,82 @@ import copy
 no_proc = False
 parallel = True
 gpu_range = (0, 1, 2, 3)
+# todo freeze bn
+# todo bn no weight decay
+# todo metric
+
+# todo dataset
+# todo loss
+
+
 cfgs = [
-    # edict(
-    #     logs_dir='11.xent.cu03lbl.bak',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0, adv_fea_eps=0,
-    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-    #     # evaluate=True,
-    #     # aux='l2_adv',
-    #     dataset='cu03lbl',
-    #     gpu=(1,), last_conv_stride=1, last_conv_dilation=1,
-    #     gpu_fix=True,
-    #     batch_size=64, num_instances=4, num_classes=128,
-    #     dropout=0, loss='xent', tri_mode='adap',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=gpu_range, lr_mult=1,
-    #     push_scale=1., embed=None,
-    #     margin='soft', margin2=0, margin3=0,
-    #     # resume='/home/xinglu/work/reid/work.use/tri6.combine.2/model_best.pth',
-    #     # resume='/home/xinglu/work/reid/work.use/tri6.combine.2/model_best.pth',
-    #     # restart=True,
-    #     epochs=35, steps=[15, 30], log_at=[2, 15, 30, 34, 35, 36], adv_eval=False,
-    # ),
-
-    # edict(
-    #     logs_dir='10.mars.margin.-0.1',
-    #     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-    #     # evaluate=True,
-    #     # aux='l2_adv',
-    #     dataset='mars',
-    #     gpu=(3,), last_conv_stride=2,
-    #     # gpu_fix=True,
-    #     batch_size=64, num_instances=4, num_classes=128, seq_len=15,
-    #     dropout=0, loss='trivid', tri_mode='reg.a',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=gpu_range, lr_mult=1,
-    #     push_scale=1., embed=None,
-    #     margin='soft', margin2=1, margin3=1.0, margin4=-.1,
-    #     steps=[30, 50, ], epochs=55,
-    #     # resume='/data1/xinglu/work/reid/work/10.mars.cont2/checkpoint.10.pth',
-    #     # restart=True,
-    #     workers=12, log_at=(0, 10, 20, 30, 40, 50, 59, 60, 61,),
-    # ),
-
+    edict(
+        logs_dir='stan.bak',
+        double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
+        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+        reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+        # aux='l2_adv',
+        dataset='cub', height=224, width=224,  # stanford_prod car196 cub
+        gpu=(2,), last_conv_stride=2,
+        gpu_fix=True,
+        batch_size=80, num_instances=4, num_classes=512,
+        dropout=0, loss='tri_adv', tri_mode='adap',
+        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+        random_ratio=1, lr_cent=0,
+        gpu_range=gpu_range, lr_mult=1,
+        push_scale=1., embed=None,
+        margin='soft',
+        margin2=0.0, margin3=0.0, margin4=0.0,
+        steps=[40, 60, ], epochs=65,
+        log_at=[0, 15, 30, 45, 64, 65, 66],
+        workers=12,
+        evaluate=True,
+        resume='/data2/xinglu/work/reid/work/cub.keepas.v3/model_best.pth'
+    ),
 ]
-
-cfg = edict(
-    logs_dir='11.mg',
-    double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0,
-    reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-    reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-    # aux='l2_adv',
-    dataset='cu03lbl',
-    gpu=(3,), last_conv_stride=2,
-    # gpu_fix=True,
-    batch_size=64, num_instances=4, num_classes=128,
-    dropout=0, loss='tri', tri_mode='reg.a.2',
-    cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    random_ratio=1, lr_cent=0,
-    gpu_range=gpu_range, lr_mult=1,
-    push_scale=1., embed=None,
-    margin='soft',
-    margin2=0.0, margin3=0.0, margin4=0.0,
-    steps=[40, 60, ], epochs=65,
-    log_at=[0, 30, 64, 65, 66],
-    workers=12,
-)
-
-for ds in ['cu03lbl']:
-    for m23 in [-0.01, 0, 0.01]:
-        cfg_t = copy.deepcopy(cfg)
-        cfg_t.margin2 = cfg_t.margin3 = m23
-        cfg_t.dataset = ds
-        cfg_t.logs_dir = f'{cfg.logs_dir}.m23.{m23}'
-        cfgs.append(cfg_t)
-for m4 in [0.1, -0.1, 0]:
-    cfg_t = copy.deepcopy(cfg)
-    cfg_t.margin4 = m4
-    cfg_t.logs_dir = f'{cfg.logs_dir}.m4.{m4}'
-    cfgs.append(cfg_t)
-
 # cfg = edict(
-#     logs_dir='10.adv',
-#     double=0, adv_inp=1, adv_fea=0, adv_inp_eps=0,
+#     logs_dir='stan',
+#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0, adv_fea_eps=0,
 #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
 #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-#     # evaluate=True,
-#     aux='l2_adv',  # l2_adv linf_adv nol_adv
-#     dataset='cu03lbl',
+#     aux='l2_adv',
+#     dataset='stanford_prod', height=224, width=224,
 #     gpu=(1,), last_conv_stride=2,
-#     batch_size=64, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri', tri_mode='hard',
+#     gpu_fix=False,
+#     batch_size=64, num_instances=4, num_classes=512,
+#     dropout=0, loss='tri_adv', tri_mode='adap',
 #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
 #     random_ratio=1, lr_cent=0,
 #     gpu_range=gpu_range, lr_mult=1,
 #     push_scale=1., embed=None,
-#     margin='soft', margin2=1.0, margin3=1.0, margin4=0,
+#     margin='soft',
+#     margin2=0.0, margin3=0.0, margin4=0.0,
+#     steps=[40, 60, ], epochs=65,
+#     log_at=[0, 15, 30, 45, 64, 65, 66],
+#     workers=12,
 # )
 #
-# for m4 in [0]:
-#     for ds in ['cu03lbl']:
-#         for aux in ['l2_adv', 'linf_adv', 'nol_adv']:
-#             for adv_inp_eps in [.3, 3e-2, 3e-3]:
-#                 cfg_t = copy.deepcopy(cfg)
-#                 cfg_t.margin4 = m4
-#                 cfg_t.tri_mode = 'hard'
-#                 cfg_t.dataset = ds
-#                 cfg_t.aux = aux
-#                 cfg_t.adv_inp_eps = adv_inp_eps
-#                 cfg_t.logs_dir = f'{cfg.logs_dir}.{aux}.{adv_inp_eps}'
-#                 cfgs.append(cfg_t)
-
+# for dyna_param in ParameterSampler(dict(
+#         adv_fea=LogUniformDistribution(1e-2, 2),
+#         adv_fea_eps=LogUniformDistribution(1e-3 / 400, 2 / 40),
+#         aux=['l2_adv', ],
+# ), 99):
+#     cfgt = copy.deepcopy(cfg)
+#     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
+#     cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.aux}.{cfgt.adv_fea}.{cfgt.adv_fea_eps}'
+#     cfgs.append(cfgt)
+#
+# for dyna_param in ParameterSampler(dict(
+#         adv_fea=LogUniformDistribution(1e-2, 2),
+#         adv_fea_eps=LogUniformDistribution(1e-3 , 2 ),
+#         aux=['linf_adv','lno_adv' ],
+# ), 99):
+#     cfgt = copy.deepcopy(cfg)
+#     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
+#     cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.aux}.{cfgt.adv_fea}.{cfgt.adv_fea_eps}'
+#     cfgs.append(cfgt)
+#
+# random.shuffle(cfgs[1:])
 
 base = edict(
     aux='',  # l2_adv linf_adv defaul: nol_adv; l1_grad default: l2_grad
@@ -171,7 +132,7 @@ base = edict(
 )
 
 for ind, val in enumerate(cfgs):
-    val = dict_update(base, val)
+    val = dict_update(base, val, must_exist=True)
     cfgs[ind] = edict(val)
 
 for ind, args in enumerate(cfgs):
@@ -202,27 +163,12 @@ if __name__ == '__main__':
     import tabulate
     import pandas as pd
 
-
-    def is_all_same(lst):
-        lst = [lsti if not isinstance(lsti, np.ndarray) else lsti.tolist() for lsti in lst]
-        res = [lsti == lst[0] for lsti in lst]
-        try:
-            return np.asarray(res).all()
-        except Exception as e:
-            print(e)
-
-
     df = pd.DataFrame(cfgs)
     if len(cfgs) == 1:
         print(df)
         exit(0)
-    res = []
-    for j in range(df.shape[1]):
-        if not is_all_same(df.iloc[:, j].tolist()):
-            res.append(j)
-    res = [df.columns[r] for r in res]
-    df1 = df[res]
-    df1.index = df1.logs_dir
-    # del df1['logs_dir']
+    df1 = df_unique(df)
+    df1.index = df1['logs_dir']
+    del df1['logs_dir']
 
     print(tabulate.tabulate(df1.sort_values(by='logs_dir'), headers="keys", tablefmt="pipe"))

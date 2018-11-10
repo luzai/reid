@@ -26,19 +26,19 @@ from tensorboardX import SummaryWriter
 
 
 def run(_):
-    base_path = work_path + '/reid/work/'
-    # pathf = base_path + '/11.xent.cu03lbl.ft'
-    pathf = base_path + '/11.fx.margin.m2.1.1'
-    # pathf = base_path + '/tri8.margin.m4_-0.1'
-    # pathf = base_path + '/tri8.margin.dbl.m4_-0.1.cu03det'
+    base_path = work_path + '/reid/work.use/'
+    pathf = base_path + 'tri6.combine.2/'
+    # pathf = base_path + '11.mg.m23.0.01'
     # pathf = base_path + '/tri8.margin.dbl.m4_-0.1.mkt'
     args = pickle_load(pathf + '/conf.pkl')
     args.evaluate = True
-    args.adv_eval = True
+    args.adv_eval = False
     args.rerank = False
-    args.resume = pathf + '/checkpoint.64.pth'
-    args.gpu = (3,)
+    args.resume = pathf + '/model_best.pth'
+    args.gpu = (1,)
     args.batch_size = 128
+    args.dataset =args.dataset_val = 'cu03lbl'
+
     print('arg is ', args)
     main(args)
 

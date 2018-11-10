@@ -7,8 +7,9 @@ from reid.datasets.cdm import CDM
 from reid.datasets.viper import VIPeR
 from reid.utils.data import Dataset
 import lz
-from easydict import  EasyDict as edict
-import  pandas as pd
+from easydict import EasyDict as edict
+import pandas as pd
+
 cls2name = {
     VIPeR: ['viper'],
     CUHK03: ['cu03det', 'cu03lbl', 'cu03det.classic', 'cu03lbl.classic', 'cuhk03'],
@@ -21,7 +22,8 @@ cls2name = {
     PRID: ['prid'],
     CUB: ['cub'],
     Stanford_Prod: ['stanford_prod'],
-    Extract:['extract']
+    Extract: ['extract'],
+    Car196: ['car196'],
 }
 
 __factory = {v1: i for i, v in cls2name.items() for v1 in v}
@@ -65,9 +67,8 @@ def parse_name(ds):
         args_ds.dataset = 'dukemtmc'
         args_ds.eval_conf = 'market1501'
     else:
-
-        args_ds . dataset = ds
-        # args_ds.eval_conf = 'market1501'
+        args_ds.dataset = ds
+        args_ds.eval_conf = 'market1501'
     return args_ds
 
 
