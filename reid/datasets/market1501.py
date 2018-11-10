@@ -230,7 +230,7 @@ class iLIDSVID(object):
             print("This dataset has been downloaded.")
             return
 
-        mkdir_if_missing(self.dataset_dir)
+        mkdir_p(self.dataset_dir, delete=False)
         fpath = osp.join(self.dataset_dir, osp.basename(self.dataset_url))
 
         print("Downloading iLIDS-VID dataset")
@@ -525,7 +525,7 @@ class Market1501(Dataset):
         from zipfile import ZipFile
 
         raw_dir = osp.join(self.root, 'raw')
-        mkdir_if_missing(raw_dir)
+        mkdir_p(raw_dir, False)
 
         # Download the raw zip file
         fpath = osp.join(raw_dir, 'Market-1501-v15.09.15.zip')
@@ -545,7 +545,7 @@ class Market1501(Dataset):
 
         # Format
         images_dir = osp.join(self.root, 'images')
-        mkdir_if_missing(images_dir)
+        mkdir_p(images_dir, delete=False)
 
         # 1501 identities (+1 for background) with 6 camera views each
         identities = [[[] for _ in range(6)] for _ in range(1502)]
@@ -634,7 +634,7 @@ class Extract(Dataset):
 class CUB(Dataset):
     def __init__(self, **kwargs):
         self.name = 'cub'
-        self.root = self.images_dir = '/home/xinglu/.torch/data/CUB_200_2011/'
+        self.root = self.images_dir = '/data2/share/cub200_2011/'
 
         images = np.loadtxt(self.root + '/images.txt', dtype=object)[:, 1]
         splits = np.loadtxt(self.root + '/train_test_split.txt', dtype=int)
@@ -648,7 +648,7 @@ class CUB(Dataset):
         df = pd.DataFrame({'path': images, 'cls': images_cls, 'is_train': splits[:, 1]})
         df['cids'] = np.arange(df.shape[0])
         df['path'] = self.root + 'images/' + df.path
-        df.head()
+        # df.head()
         df_train = df[df.is_train == 1]
         df_test = df[df.is_train == 0]
         self.trainval = df_train[['path', 'cls', 'cids']].to_records(index=False).tolist()
@@ -662,23 +662,50 @@ class CUB(Dataset):
 class Stanford_Prod(Dataset):
     def __init__(self, **kwargs):
         self.name = 'stanford_prod'
-        self.root = self.images_dir = '/home/xinglu/.torch/data/Stanford_Online_Products/'
+        self.root = self.images_dir = '/data2/share/online_products/Stanford_Online_Products/'
 
-        train_df = pd.DataFrame.from_csv(self.root + 'Ebay_train.txt', sep=' ')
-        test_df = pd.DataFrame.from_csv(self.root + 'Ebay_test.txt', sep=' ')
+        train_df = pd.read_csv(self.root + 'Ebay_train.txt', sep=' ')
+        test_df = pd.read_csv(self.root + 'Ebay_test.txt', sep=' ')
         train_df['cids'] = np.arange(train_df.shape[0])
-        train_df['path '] = self.root + train_df.path
+        train_df['path'] = self.root + train_df.path
         test_df['cids'] = np.arange(test_df.shape[0])
         test_df['path'] = self.root + test_df.path
         # train_df.head()
         self.num_trainval_ids = np.unique(train_df.class_id).shape[0]
         self.num_query_ids = self.num_gallery_ids = np.unique(test_df.class_id).shape[0]
+        # self.trainval = train_df[['path', 'class_id', 'cids']][:128].to_records(index=False).tolist()
+        # self.query = self.gallery = test_df[['path', 'class_id', 'cids']][:128].to_records(index=False).tolist()
         self.trainval = train_df[['path', 'class_id', 'cids']].to_records(index=False).tolist()
         self.query = self.gallery = test_df[['path', 'class_id', 'cids']].to_records(index=False).tolist()
+
         self.val = None
         self.train = self.trainval
         self.num_val_ids = 0
         self.num_train_ids = self.num_trainval_ids
+
+
+class Car196(Dataset):
+    def __init__(self, **kwargs):
+        self.root = self.images_dir = '/data2/share/cars196/CARS196/'
+        self.name = 'car196'
+        self.anno_path = self.root + 'cars_annos.mat'
+        cars_annos = loadmat(self.anno_path)
+        annotations = cars_annos["annotations"].ravel()
+        self.img_paths = [str(anno[0][0]) for anno in annotations]
+        self.img_paths = np.asarray(self.img_paths)
+        self.labels = [int(anno[5]) for anno in annotations]
+        df = pd.DataFrame({'path': self.img_paths, 'pids': self.labels, 'cids': np.arange(len(self.labels))})
+        df['path'] = self.images_dir + df.path
+        train_df = df[df.pids < 99]
+        test_df = df[df.pids >= 99]
+        self.trainval = train_df.to_records(index=False).tolist()
+        self.query = self.gallery = test_df.to_records(index=False).tolist()
+
+        self.val = None
+        self.train = self.trainval
+        self.num_val_ids = 0
+        self.num_train_ids = self.num_trainval_ids = np.unique(train_df.pids).shape[0]
+        self.num_query_ids = self.num_gallery_ids = np.unique(test_df.pids).shape[0]
 
 
 if __name__ == '__main__':
@@ -686,28 +713,95 @@ if __name__ == '__main__':
     # Market1501()
     # CUB()
     # Stanford_Prod()
+    Car196()
+    # iLIDSVID()
+    # PRID()
+
     # Extract()
-    print(time.time() - tic)
-    import lmdb, lz
+    # print(time.time() - tic)
+    # import lmdb, lz
+    #
+    # ds = Mars()
+    #
+    # data_list = []
+    # for dss in [ds.trainval, ds.query, ds.gallery]:
+    #     for fns, pid, cid in dss:
+    #         for fn in fns:
+    #             # data_list.append(osp.basename(fn))
+    #             data_list.append(fn)
+    # data_list = np.asarray(data_list)
+    # num_data = len(data_list)
+    # max_map_size = int(num_data * 500 ** 2 * 3)  # be careful with this
+    # env = lmdb.open('/home/xinglu/.torch/data/mars/img_lmdb', map_size=max_map_size)
+    #
+    # for img_path in data_list:
+    #     with env.begin(write=True) as txn:
+    #         with open(img_path, 'rb') as imgf:
+    #             imgb = imgf.read()
+    #         txn.put(osp.basename(img_path).encode(), imgb)
 
-    ds = Mars()
+from fuel.datasets import H5PYDataset
+from fuel.utils import find_in_data_path
 
-    data_list = []
-    for dss in [ds.trainval, ds.query, ds.gallery]:
-        for fns, pid, cid in dss:
-            for fn in fns:
-                # data_list.append(osp.basename(fn))
-                data_list.append(fn)
-    data_list = np.asarray(data_list)
-    num_data = len(data_list)
-    max_map_size = int(num_data * 500 ** 2 * 3)  # be careful with this
-    env = lmdb.open('/home/xinglu/.torch/data/mars/img_lmdb', map_size=max_map_size)
 
-    for img_path in data_list:
-        with env.begin(write=True) as txn:
-            with open(img_path, 'rb') as imgf:
-                imgb = imgf.read()
-            txn.put(osp.basename(img_path).encode(), imgb)
+class CUB2(Dataset):
+    _filename = 'cub200_2011/cub200_2011.hdf5'
 
-# iLIDSVID()
-# PRID()
+    def __init__(self, split='train', **kwargs):
+        path = find_in_data_path(self._filename)
+        self.split = split
+        self.train = H5PYDataset(file_or_path=path, which_sets=['train'])
+        self.train_labels = H5PYDataset(file_or_path=path,
+                                        which_sets=['train'], sources=['targets'],
+                                        load_in_memory=True).data_sources[0].ravel()
+        self.test = H5PYDataset(file_or_path=path, which_sets=['test'])
+        self.test_labels = H5PYDataset(file_or_path=path,
+                                       which_sets=['test'], sources=['targets'],
+                                       load_in_memory=True).data_sources[0].ravel()
+        self.train_handle = self.train.open()
+        self.test_hanle = self.test.open()
+        self.ntest = self.test.num_examples
+        self.ntrain = self.train.num_examples
+
+    def _get_single_item(self, index):
+        if self.split == 'train':
+            img, label = self.train.get_data(self.train_handle, [index])
+        else:
+            img, label = self.test.get_data(self.test_hanle, [index])
+        return img[0].transpose(1, 2, 0), label[0]
+
+    def _get_multiple_items(self, idxs):
+        if self.split == 'train':
+            img, label = self.train.get_data(self.train_handle, idxs)
+        else:
+            img, label = self.test.get_data(self.test_hanle, idxs)
+        return img.transpose(0, 2, 3, 1), label.ravel()
+
+    def __getitem__(self, item):
+        if isinstance(item, (tuple, list)):
+            return self._get_multiple_items(item)
+        else:
+            return self._get_single_item(item)
+
+    def __len__(self):
+        if self.split == 'train':
+            return self.ntrain
+        else:
+            return self.ntest
+
+    def close(self):
+        self.train_handle.close()
+        self.test_hanle.close()
+
+    def __del__(self):
+        self.close()
+
+    def __exit__(self):
+        self.close()
+
+
+class Stanford_prod2(Dataset):
+    pass
+
+
+from scipy.io import loadmat
