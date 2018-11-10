@@ -20,71 +20,61 @@ class RectScale(object):
         w, h = img.size
         if h == self.height and w == self.width:
             return img
-        return img.resize((self.width, self.height), self.interpolation)
+        # way 1:
+        ratio_w = self.width / w
+        ratio_h = self.height / h
+        ratio = max(ratio_h, ratio_w)
+        target_size = (int(w * ratio), int(h * ratio))
+        img = img.resize(target_size, self.interpolation)  # resize if width height
+        img = CenterCrop((self.height, self.width))(img)
+        # pytorch transofrm Resize is height width
+        # img is width height
+        return img
 
-
-class RandomSizedRectCrop(object):
-    def __init__(self, height, width, interpolation=Image.BILINEAR):
-        self.height = height
-        self.width = width
-        self.interpolation = interpolation
-
-    def __call__(self, img):
-        for attempt in range(10):
-            area = img.size[0] * img.size[1]
-            target_area = random.uniform(0.85, 1.0) * area
-            aspect_ratio = random.uniform(2, 3)
-
-            h = int(round(math.sqrt(target_area * aspect_ratio)))
-            w = int(round(math.sqrt(target_area / aspect_ratio)))
-
-            if w <= img.size[0] and h <= img.size[1]:
-                x1 = random.randint(0, img.size[0] - w)
-                y1 = random.randint(0, img.size[1] - h)
-
-                img = img.crop((x1, y1, x1 + w, y1 + h))
-                assert (img.size == (w, h))
-                return img.resize((self.width, self.height), self.interpolation)
-
-        # Fallback
-        scale = RectScale(self.height, self.width,
-                          interpolation=self.interpolation)
-        return scale(img)
+        # way 2:
+        # direct resize
 
 
 # todo more aug, try random erasing
 
 class RandomCropFlip(object):
-    def __init__(self, height, width, interpolation=Image.BILINEAR, area=(0.85, 1), aspect=(1.5, 3)):  # 0.64, 1; 2,3 # todo
+    def __init__(self, height, width, interpolation=Image.BILINEAR, area=(.75, 1),
+                 aspect=(1.5, 3)):  # 0.64, 1 # .85, 1  # 2, 3  # todo
         self.height = height
         self.width = width
         self.interpolation = interpolation
         self.aspect = aspect
         self.area = area
+        self.scale = RectScale(self.height, self.width,
+                               interpolation=self.interpolation)
 
     def __call__(self, img):
         if random.random() < 0.5:
             img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        for attempt in range(10):
+
+        for attempt in range(999):
             area = img.size[0] * img.size[1]
             target_area = random.uniform(*self.area) * area
             aspect_ratio = random.uniform(*self.aspect)
 
-            h = int(round(math.sqrt(target_area * aspect_ratio)))
-            w = int(round(math.sqrt(target_area / aspect_ratio)))
-
-            if w <= img.size[0] and h <= img.size[1]:
+            # this assume height > width
+            if img.size[0] < img.size[1]:
+                h = int(round(math.sqrt(target_area * aspect_ratio)))
+                w = int(round(math.sqrt(target_area / aspect_ratio)))
+            else:
+                w = int(round(math.sqrt(target_area * aspect_ratio)))
+                h = int(round(math.sqrt(target_area / aspect_ratio)))
+            if w <= img.size[0] and h <= img.size[1]:  # img is width height
+                # print('ok', w, h)
                 x1 = random.randint(0, img.size[0] - w)
                 y1 = random.randint(0, img.size[1] - h)
 
                 img = img.crop((x1, y1, x1 + w, y1 + h))
                 assert (img.size == (w, h))
-                return img.resize((self.width, self.height), self.interpolation)
-
+                # return img.resize((self.width, self.height), self.interpolation)
+                return self.scale(img)
         # Fallback
-        scale = RectScale(self.height, self.width,
-                          interpolation=self.interpolation)
-        return scale(img)
+        return self.scale(img)
 
 
 class RandomErasing(object):
@@ -132,3 +122,32 @@ class RandomErasing(object):
                 return img
 
         return img
+
+
+class RandomSizedRectCrop(object):
+    def __init__(self, height, width, interpolation=Image.BILINEAR):
+        self.height = height
+        self.width = width
+        self.interpolation = interpolation
+
+    def __call__(self, img):
+        for attempt in range(10):
+            area = img.size[0] * img.size[1]
+            target_area = random.uniform(0.85, 1.0) * area
+            aspect_ratio = random.uniform(2, 3)
+
+            h = int(round(math.sqrt(target_area * aspect_ratio)))
+            w = int(round(math.sqrt(target_area / aspect_ratio)))
+
+            if w <= img.size[0] and h <= img.size[1]:
+                x1 = random.randint(0, img.size[0] - w)
+                y1 = random.randint(0, img.size[1] - h)
+
+                img = img.crop((x1, y1, x1 + w, y1 + h))
+                assert (img.size == (w, h))
+                return img.resize((self.width, self.height), self.interpolation)
+
+        # Fallback
+        scale = RectScale(self.height, self.width,
+                          interpolation=self.interpolation)
+        return scale(img)
