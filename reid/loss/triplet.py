@@ -33,6 +33,12 @@ def calc_distmat(x, y):
     return distmat
 
 
+def calc_distmat_pairwise(xa, xp):
+    dist = torch.pow(xa - xp, 2).sum(dim=1)
+    dist.clamp_(min=1e-12, max=1e12).sqrt_()
+    return dist
+
+
 from torch.nn import init
 
 
@@ -349,7 +355,6 @@ class TripletLoss(nn.Module):
                 pos = some_pos.max()
                 dist_ap.append(pos)
                 dist_an.append(neg)
-
             elif self.mode == 'reg.a':
                 some_pos = dist[i][mask[i]]
                 some_neg = dist[i][mask[i] == 0]
@@ -391,7 +396,8 @@ class TripletLoss(nn.Module):
 
                 dist_ap.append(pos)
                 dist_an.append(neg)
-
+            elif self.mode == 'adap.2':
+                pass
             elif self.mode == 'pos.moderate':
                 some_neg = dist[i][mask[i] == 0]
                 neg = some_neg.min()
@@ -410,23 +416,28 @@ class TripletLoss(nn.Module):
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[np.random.randint(0, negp.size(0))])
         assert self.args.margin == 'soft', 'must soft'
-        dist_ap = _concat(dist_ap)
-        dist_an = _concat(dist_an)
-        dist_pn = _concat(dist_pn)
+
+        dist_ap = torch.stack(dist_ap)
+        dist_an = torch.stack(dist_an)
+        if len(dist_pn) != 0:
+            dist_pn = torch.stack(dist_pn)
         y = torch.ones(dist_an.size(), requires_grad=False).cuda()
 
-        pre_loss = F.softplus(dist_ap - dist_an).mean().detach()
+        pre_loss = F.softplus(dist_ap - dist_an).mean()
         coff = 2 * torch.exp(pre_loss) / (1 + torch.exp(pre_loss))
         # coff = 0
         dist_ap *= (1 + self.margin2 * coff) ** 2
         dist_an *= (1 - self.margin3 * coff) ** 2
-        dist_pn *= self.args.margin4 * coff
+        if len(dist_pn) != 0:
+            dist_pn *= self.args.margin4 * coff
 
         # print('coff is ' , coff.item())
         if self.margin != 'soft':
             loss = self.ranking_loss(dist_an, dist_ap, y)
-        else:
+        elif len(dist_pn) != 0:
             loss = F.softplus(dist_ap - dist_an + dist_pn).mean()
+        else:
+            loss = F.softplus(dist_ap - dist_an).mean()
         prec = (dist_an.data > dist_ap.data).sum().type(
             torch.FloatTensor) / y.size(0)
 
@@ -436,12 +447,69 @@ class TripletLoss(nn.Module):
             return loss, prec, dist, dist_ap, dist_an
 
 
-def _concat(l):
-    l0 = l[0]
-    if l0.shape == ():
-        return torch.stack(l)
-    else:
-        return torch.cat(l)
+class TripletLossAdv(nn.Module):
+    name = 'tri_adv'
+
+    def __init__(self, margin=0, mode='hard', args=None, **kwargs):
+        super(TripletLossAdv, self).__init__()
+        self.margin = margin
+        if self.margin != 'soft':
+            self.ranking_loss = nn.MarginRankingLoss(margin=margin)
+        self.mode = mode
+        self.margin2 = args.margin2
+        self.margin3 = args.margin3
+        self.args = args
+
+    def forward(self, inputs, targets, dbg=False, cids=None):
+        n = inputs.size(0)
+        dist = calc_distmat(inputs, inputs)
+        mask = targets.expand(n, n).eq(targets.expand(n, n).t())
+        all_ind = torch.arange(0, n).type(torch.LongTensor)
+        # all_ind = np.arange(n)
+        a_inds = list(range(n))
+        p_inds = []
+        n_inds = []
+        for i in range(n):
+            if self.mode == 'hard':
+                # For each anchor, find the hardest positive and negative
+                some_pos = dist[i][mask[i]]
+                some_neg = dist[i][mask[i] == 0]
+                pos_ind = all_ind[mask]
+                neg = some_neg.min()
+                pos = some_pos.max()
+                dist_ap.append(pos)
+                dist_an.append(neg)
+            elif self.mode == 'adap':
+                some_pos = dist[i][mask[i]]
+                some_neg = dist[i][mask[i] == 0]
+                pos_inds = all_ind[mask[i]]
+                neg_inds = all_ind[mask[i] == 0]
+
+                pos_ind_ind = np.random.choice(np.arange(some_pos.shape[0]),
+                                               p=F.softmax(some_pos, dim=0).cpu().detach().numpy())
+                neg_ind_ind = np.random.choice(np.arange(some_neg.shape[0]),
+                                               p=F.softmax(-some_neg, dim=0).cpu().detach().numpy())
+
+                pos_ind = pos_inds[pos_ind_ind]
+                neg_ind = neg_inds[neg_ind_ind]
+                p_inds.append(pos_ind)
+                n_inds.append(neg_ind)
+
+        assert self.args.margin == 'soft', 'must soft'
+        p_inds = torch.stack(p_inds)
+        xa = inputs[a_inds]
+        xp = inputs[p_inds]
+        xn = inputs[n_inds]
+        dist_ap = calc_distmat_pairwise( xa, xp )
+        dist_an = calc_distmat_pairwise(xa, xn )
+        y = torch.ones(dist_an.size(), requires_grad=False).cuda()
+        loss = F.softplus(dist_ap - dist_an).mean()
+        prec = (dist_an.data > dist_ap.data).sum().type(
+            torch.FloatTensor) / y.size(0)
+        if not dbg:
+            return loss, prec, dist
+        else:
+            return loss, prec, xa, xp, xn
 
 
 def get_replay_ind(posp_inds, negp_inds, diff):
