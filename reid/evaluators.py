@@ -182,6 +182,118 @@ def parse_name(ds):
     return args_ds
 
 
+def compute_soft_hard_retrieval(distance_matrix, labels, label_batch=None):
+    from chainer import cuda
+    softs = []
+    hards = []
+    retrievals = []
+    recalls = []
+    if label_batch is None:
+        label_batch = labels
+    distance_matrix = cuda.to_cpu(distance_matrix)
+    labels = cuda.to_cpu(labels)
+    label_batch = cuda.to_cpu(label_batch)
+
+    K = 11  # "K" for top-K
+    for d_i, label_i in zip(distance_matrix, label_batch):
+        top_k_indexes = np.argpartition(d_i, K)[:K]
+        sorted_top_k_indexes = top_k_indexes[np.argsort(d_i[top_k_indexes])]
+        ranked_labels = labels[sorted_top_k_indexes]
+        # 0th entry is excluded since it is always 0
+        ranked_hits = ranked_labels[1:] == label_i
+        n_true = (labels == label_i).sum() - 1
+        # soft top-k, k = 1, 2, 5, 10
+        krange = [1, 2, 3, 4, 5, 10, ]
+        soft = [np.any(ranked_hits[:k]) for k in krange]
+        softs.append(soft)
+        # hard top-k, k = 2, 3, 4
+        hard = [np.all(ranked_hits[:k]) for k in krange]
+        hards.append(hard)
+        # retrieval top-k, k = 2, 3, 4
+        retrieval = [np.mean(ranked_hits[:k]) for k in krange]
+        retrievals.append(retrieval)
+        recall = [np.sum(ranked_hits[:k]) / min(n_true, k) for k in krange]  # not recall not use
+        recalls.append(recall)
+
+    average_soft = np.array(softs).mean(axis=0)
+    average_hard = np.array(hards).mean(axis=0)
+    average_retrieval = np.array(retrievals).mean(axis=0)
+    average_recall = np.array(recalls).mean(axis=0)
+    return average_soft, average_hard, average_retrieval, average_recall
+
+
+def Recall_at_ks(sim_mat, data='cub', query_ids=None, gallery_ids=None):
+    # start_time = time.time()
+    # print(start_time)
+    """
+    :param sim_mat:
+    :param query_ids
+    :param gallery_ids
+    :param data
+
+    Compute  [R@1, R@2, R@4, R@8]
+    """
+
+    ks_dict = dict()
+    ks_dict['cub'] = [1, 2, 4, 8, 16, 32]
+    ks_dict['car'] = [1, 2, 4, 8, 16, 32]
+    ks_dict['jd'] = [1, 2, 4, 8]
+    ks_dict['product'] = [1, 10, 100, 1000]
+    ks_dict['shop'] = [1, 10, 20, 30, 40, 50]
+
+    if data is None:
+        data = 'cub'
+    k_s = ks_dict[data]
+
+    sim_mat = to_numpy(sim_mat)
+    m, n = sim_mat.shape
+    gallery_ids = np.asarray(gallery_ids)
+    if query_ids is None:
+        query_ids = gallery_ids
+    else:
+        query_ids = np.asarray(query_ids)
+
+    num_max = int(1e6)
+
+    if m > num_max:
+        samples = list(range(m))
+        random.shuffle(samples)
+        samples = samples[:num_max]
+        sim_mat = sim_mat[samples, :]
+        query_ids = [query_ids[k] for k in samples]
+        m = num_max
+
+    # Hope to be much faster  yes!!
+    num_valid = np.zeros(len(k_s))
+    neg_nums = np.zeros(m)
+    plt.figure()
+    for i in range(m):
+        x = sim_mat[i]
+        score = x
+        score -= score.min()
+        score /= score.max()
+        label = gallery_ids == query_ids[i]
+        from sklearn.metrics import precision_recall_curve
+        precision, recall, thresholds = precision_recall_curve(label, score)
+        # plt.step(recall, precision, alpha=0.2,where='post')
+        # plt.show()
+        # if i > 100: break
+        pos_max = np.max(x[gallery_ids == query_ids[i]])
+        neg_num = np.sum(x > pos_max)
+        neg_nums[i] = neg_num
+    # plt.show()
+    for i, k in enumerate(k_s):
+        if i == 0:
+            temp = np.sum(neg_nums < k)
+            num_valid[i:] += temp
+        else:
+            temp = np.sum(neg_nums < k)
+            num_valid[i:] += temp - num_valid[i - 1]
+    # t = time.time() - start_time
+    # print(t)
+    return num_valid / float(m)
+
+
 class Evaluator(object):
     def __init__(self, model, gpu=(0,), args=None, vid=False):
         super(Evaluator, self).__init__()
@@ -194,6 +306,7 @@ class Evaluator(object):
         name_val = args.dataset_val or args.dataset
         self.args = args
         self.conf = parse_name(name_val).get('eval_conf', 'market1501')
+
 
     def evaluate_vid(self, queryloader, galleryloader, metric=None, **kwargs):
         self.model.eval()
@@ -309,6 +422,84 @@ class Evaluator(object):
 
         return res
 
+    def evaluate_recall(self, data_loader, query, gallery):
+        self.model.eval()
+        query_ids = [pid for _, pid, _ in query]
+        gallery_ids = [pid for _, pid, _ in gallery]
+        query_ids = np.asarray(query_ids)
+        gallery_ids = np.asarray(gallery_ids)
+
+        features = extract_features(self.model, data_loader)[0]
+        distmat, xx, yy = pairwise_distance(features, query, gallery, )
+
+        # Recall_at_ks(-distmat - (-distmat).min(), 'cub', query_ids, gallery_ids)
+        res = Recall_at_ks(-distmat, 'product', query_ids, gallery_ids)
+        return res
+
+    def evaluate_retrival(self, data_loader, query, gallery):
+        logging.info('sart eval retrieval')
+        self.model.eval()
+        query_ids = [pid for _, pid, _ in query]
+        # gallery_ids = [pid for _, pid, _ in gallery]
+        query_ids = np.asarray(query_ids)
+        # gallery_ids = np.asarray(gallery_ids)
+
+        features = extract_features(self.model, data_loader)[0]
+        x = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
+        y = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
+        xx = x.view(x.size(0), -1).numpy()
+        yy = y.view(y.size(0), -1).numpy()
+
+        num_examples = len(xx)
+        xp = np
+        D_batches = []
+        softs = []
+        hards = []
+        retrievals = []
+        recalls = []
+        y_data = yy
+        c_data = query_ids
+        yy = xp.sum(yy ** 2.0, axis=1)
+        batch_size = 1024
+        return_distance_matrix = False
+        for start in range(0, num_examples, batch_size):
+            end = start + batch_size
+            if end > num_examples:
+                end = num_examples
+            y_batch = y_data[start:end]
+            yy_batch = yy[start:end]
+            c_batch = c_data[start:end]
+
+            D_batch = yy + yy_batch[:, None] - 2.0 * xp.dot(y_batch, y_data.T)
+            xp.maximum(D_batch, 0, out=D_batch)
+            D_batch += 1e-40
+            # ensure the diagonal components are zero
+            xp.fill_diagonal(D_batch[:, start:end], 0)
+
+            soft, hard, retr, recl = compute_soft_hard_retrieval(
+                D_batch, c_data, c_batch)  # krange = [1, 2, 3, 4, 5, 10, ]
+
+            softs.append(len(y_batch) * soft)
+            hards.append(len(y_batch) * hard)
+            retrievals.append(len(y_batch) * retr)
+            recalls.append(len(y_batch) * recl)
+            if return_distance_matrix:
+                D_batches.append(D_batch)
+
+        avg_softs = xp.sum(softs, axis=0) / num_examples
+        avg_hards = xp.sum(hards, axis=0) / num_examples
+        avg_retrievals = xp.sum(retrievals, axis=0) / num_examples
+        avg_recalls = xp.sum(recalls, axis=0) / num_examples
+        logging.info(f'finish eval top1 {avg_softs[0]}')
+        res = {}
+        for ind, k in enumerate([1, 2, 3, 4, 5, 10, ]):
+            res[f'top-{k}-soft'] = avg_softs[ind]
+            res[f'top-{k}-hard'] = avg_hards[ind]
+            res[f'top-{k}-retr'] = avg_retrievals[ind]
+            res[f'top-{k}-recl'] = avg_recalls[ind]
+        res['top-1'] = res['top-1-soft']
+        return res
+
     def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
         self.model.eval()
         query_ids = [pid for _, pid, _ in query]
@@ -323,7 +514,7 @@ class Evaluator(object):
         features = extract_features(self.model, data_loader)[0]
         assert len(features) != 0
         res = {}
-        final = kwargs.get('final', False)
+        # final = kwargs.get('final', False)
         if 'prefix' in kwargs:
             prefix = kwargs.get('prefix', '') + '/'
         else:
@@ -337,21 +528,21 @@ class Evaluator(object):
             print('whether to use rerank :', rerank)
             distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
 
-            if final:
-                db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
-                with lz.Database(db_name) as db:
-                    for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-                        if rerank:
-                            db[prefix + 'rk/' + name] = eval(name)
-                        else:
-                            db[prefix + name] = eval(name)
-                    db[prefix + 'smpl'] = xx
-                # with pd.HDFStore(db_name) as db:
-                #     db['query'] = query_to_df(query)
-                #     db['gallery'] = query_to_df(gallery)
-
-                with lz.Database(db_name) as db:
-                    print(list(db.keys()))
+            # if final:
+            #     db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
+            #     with lz.Database(db_name) as db:
+            #         for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
+            #             if rerank:
+            #                 db[prefix + 'rk/' + name] = eval(name)
+            #             else:
+            #                 db[prefix + name] = eval(name)
+            #         db[prefix + 'smpl'] = xx
+            #     # with pd.HDFStore(db_name) as db:
+            #     #     db['query'] = query_to_df(query)
+            #     #     db['gallery'] = query_to_df(gallery)
+            #
+            #     with lz.Database(db_name) as db:
+            #         print(list(db.keys()))
             logging.info('start eval')
             timer = lz.Timer()
             if self.conf == 'market1501':
@@ -405,23 +596,30 @@ class Evaluator(object):
         # res['mAP'] += self.args.impr
         # res['top-1'] += self.args.impr
         # json_dump(res, self.args.logs_dir + '/res.json')
+        logging.info(f'eval finish res {res}')
         return res
 
 
-if __name__ == '__main__':
-    def func():
-        distmat, q_pids, g_pids, q_camids, g_camids = lz.msgpack_load(work_path + 'tmp.mp')
-
-        mAP, all_cmc = eval_market1501_wrap(distmat,
-                                            q_pids,
-                                            g_pids,
-                                            q_camids,
-                                            g_camids, 10)
-        print(mAP, all_cmc)
+def eval_market1501_wrap_ignore_cid(distmat, q_pids, g_pids, topk=10):
+    q_camids = np.arange(len(q_pids))
+    g_camids = np.arange(len(g_pids)) + q_camids.max()
+    return eval_market1501_wrap(distmat, q_pids, g_pids, q_camids, g_camids, topk)
 
 
-    import multiprocessing as mp
-
-    p = mp.Process(target=func)
-    p.start()
-    p.join()
+# if __name__ == '__main__':
+#     def func():
+#         distmat, q_pids, g_pids, q_camids, g_camids = lz.msgpack_load(work_path + 'tmp.mp')
+#
+#         mAP, all_cmc = eval_market1501_wrap(distmat,
+#                                             q_pids,
+#                                             g_pids,
+#                                             q_camids,
+#                                             g_camids, 10)
+#         print(mAP, all_cmc)
+#
+#
+#     import multiprocessing as mp
+#
+#     p = mp.Process(target=func)
+#     p.start()
+#     p.join()
