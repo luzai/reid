@@ -434,8 +434,13 @@ class Market1501(Dataset):
     query_dir = osp.join(root, 'query')
     gallery_dir = osp.join(root, 'bounding_box_test')
 
-    def __init__(self, root='/data1/xinglu/work/data/market1501/', split_id=0, num_val=100, download=True,
-                 check_intergrity=True, **kwargs):
+    def __init__(self, root='/data1/xinglu/work/data/market1501/', split_id=0,
+                 num_val=100, download=True,
+                 check_intergrity=True,
+                 **kwargs):
+        args = kwargs.get('args', dict())
+        mkt_distractor = args.get('mkt_distractor', False)
+        ndistractors_chs = args.get('ndistractors_chs', 0)  # 0,1,2,3,4
         self.name = 'market1501'
         super(Market1501, self).__init__(root, split_id=split_id)
         self.root = root
@@ -450,6 +455,17 @@ class Market1501(Dataset):
         num_total_pids = num_train_pids + num_query_pids
         num_total_imgs = num_train_imgs + num_query_imgs + num_gallery_imgs
 
+        if mkt_distractor:
+            chs = np.asarray([100, 200, 300, 400, 500]) * 1000
+            ndistractors = chs[ndistractors_chs]
+            g, ngpids, ngimgs = self._process_dir(share_path2 + '/distractors_500k/images')
+            g = np.asarray(g)
+            g = g[np.random.permutation(len(g))[:ndistractors]]
+            g = g.tolist()
+            g = [tuple(gt) for gt in g]
+            gallery += g
+            # gallery = tuple(gallery)
+            num_gallery_imgs += ndistractors
         print("=> Market1501 loaded")
         print("Dataset statistics:")
         print("  ------------------------------")
@@ -708,38 +724,6 @@ class Car196(Dataset):
         self.num_query_ids = self.num_gallery_ids = np.unique(test_df.pids).shape[0]
 
 
-if __name__ == '__main__':
-    tic = time.time()
-    # Market1501()
-    # CUB()
-    # Stanford_Prod()
-    Car196()
-    # iLIDSVID()
-    # PRID()
-
-    # Extract()
-    # print(time.time() - tic)
-    # import lmdb, lz
-    #
-    # ds = Mars()
-    #
-    # data_list = []
-    # for dss in [ds.trainval, ds.query, ds.gallery]:
-    #     for fns, pid, cid in dss:
-    #         for fn in fns:
-    #             # data_list.append(osp.basename(fn))
-    #             data_list.append(fn)
-    # data_list = np.asarray(data_list)
-    # num_data = len(data_list)
-    # max_map_size = int(num_data * 500 ** 2 * 3)  # be careful with this
-    # env = lmdb.open('/home/xinglu/.torch/data/mars/img_lmdb', map_size=max_map_size)
-    #
-    # for img_path in data_list:
-    #     with env.begin(write=True) as txn:
-    #         with open(img_path, 'rb') as imgf:
-    #             imgb = imgf.read()
-    #         txn.put(osp.basename(img_path).encode(), imgb)
-
 from fuel.datasets import H5PYDataset
 from fuel.utils import find_in_data_path
 
@@ -805,3 +789,35 @@ class Stanford_prod2(Dataset):
 
 
 from scipy.io import loadmat
+
+if __name__ == '__main__':
+    tic = time.time()
+    Market1501()
+    # CUB()
+    # Stanford_Prod()
+    # Car196()
+    # iLIDSVID()
+    # PRID()
+
+    # Extract()
+    # print(time.time() - tic)
+    # import lmdb, lz
+    #
+    # ds = Mars()
+    #
+    # data_list = []
+    # for dss in [ds.trainval, ds.query, ds.gallery]:
+    #     for fns, pid, cid in dss:
+    #         for fn in fns:
+    #             # data_list.append(osp.basename(fn))
+    #             data_list.append(fn)
+    # data_list = np.asarray(data_list)
+    # num_data = len(data_list)
+    # max_map_size = int(num_data * 500 ** 2 * 3)  # be careful with this
+    # env = lmdb.open('/home/xinglu/.torch/data/mars/img_lmdb', map_size=max_map_size)
+    #
+    # for img_path in data_list:
+    #     with env.begin(write=True) as txn:
+    #         with open(img_path, 'rb') as imgf:
+    #             imgb = imgf.read()
+    #         txn.put(osp.basename(img_path).encode(), imgb)

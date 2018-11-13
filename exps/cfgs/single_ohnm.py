@@ -18,16 +18,42 @@ gpu_range = (0, 1, 2, 3)
 
 
 cfgs = [
+    # edict(
+    #     logs_dir='mkt.bs.bak',
+    #     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    #     # aux='l2_adv',
+    #     dataset='mkt', height=256, width=128,  # stanford_prod car196 cub
+    #     gpu=(2,), last_conv_stride=2,
+    #     gpu_fix=False,
+    #     batch_size=256, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri_adv', tri_mode='adap',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=gpu_range, lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft',
+    #     margin2=0.0, margin3=0.0, margin4=0.0,
+    #     evaluate=True,
+    #     resume='/data2/xinglu/work/reid/work.11.13/mkt/model_best.pth',
+    #     # resume='/data2/xinglu/work/reid/work.11.13/mkt.2/model_best.pth',
+    #     ndistractors_chs=4, mkt_distractor=True,
+    # ),
     edict(
-        logs_dir='stan.bak',
+        logs_dir='cu03.resize',
         double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
         reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
         reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        # aux='l2_adv',
-        dataset='cub', height=224, width=224,  # stanford_prod car196 cub
+        adv_fea_xa=0,  # loss weight on xa only
+        adv_fea_eps_xa=0.3,  # for xa
+        adv_fea_xpn=0,  # or xnp only
+        adv_fea_eps_xpn=0.3,  # for xn xp
+        aux='lno_adv',
+        dataset='cu03lbl', height=256, width=128,  # stanford_prod car196 cub
         gpu=(2,), last_conv_stride=2,
-        gpu_fix=True,
-        batch_size=80, num_instances=4, num_classes=512,
+        gpu_fix=False,
+        batch_size=128, num_instances=4, num_classes=128,
         dropout=0, loss='tri_adv', tri_mode='adap',
         cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
         random_ratio=1, lr_cent=0,
@@ -35,23 +61,24 @@ cfgs = [
         push_scale=1., embed=None,
         margin='soft',
         margin2=0.0, margin3=0.0, margin4=0.0,
-        steps=[40, 60, ], epochs=65,
-        log_at=[0, 15, 30, 45, 64, 65, 66],
-        workers=12,
-        evaluate=True,
-        resume='/data2/xinglu/work/reid/work/cub.keepas.v3/model_best.pth'
-    ),
+    )
+
 ]
+
 # cfg = edict(
-#     logs_dir='stan',
-#     double=0, adv_inp=0, adv_fea=0, adv_inp_eps=0, adv_fea_eps=0,
+#     logs_dir='cu03',
+#     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
 #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
 #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-#     aux='l2_adv',
-#     dataset='stanford_prod', height=224, width=224,
-#     gpu=(1,), last_conv_stride=2,
+#     adv_fea_xa=0,  # loss weight on xa only
+#     adv_fea_eps_xa=0.3,  # for xa
+#     adv_fea_xpn=0,  # or xnp only
+#     adv_fea_eps_xpn=0.3,  # for xn xp
+#     aux='lno_adv',
+#     dataset='cu03lbl', height=256, width=128,  # stanford_prod car196 cub
+#     gpu=(2,), last_conv_stride=2,
 #     gpu_fix=False,
-#     batch_size=64, num_instances=4, num_classes=512,
+#     batch_size=128, num_instances=4, num_classes=128,
 #     dropout=0, loss='tri_adv', tri_mode='adap',
 #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
 #     random_ratio=1, lr_cent=0,
@@ -59,49 +86,79 @@ cfgs = [
 #     push_scale=1., embed=None,
 #     margin='soft',
 #     margin2=0.0, margin3=0.0, margin4=0.0,
-#     steps=[40, 60, ], epochs=65,
-#     log_at=[0, 15, 30, 45, 64, 65, 66],
-#     workers=12,
 # )
 #
-# for dyna_param in ParameterSampler(dict(
-#         adv_fea=LogUniformDistribution(1e-2, 2),
-#         adv_fea_eps=LogUniformDistribution(1e-3 / 400, 2 / 40),
-#         aux=['l2_adv', ],
-# ), 99):
+# for dyna_param in ParameterGrid(dict(
+#         tri_impr=[0.1, 0.01],
+#         tri_quad=[0, ]
+# )):
 #     cfgt = copy.deepcopy(cfg)
 #     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
-#     cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.aux}.{cfgt.adv_fea}.{cfgt.adv_fea_eps}'
+#     cfgt.logs_dir = f'{cfgt.dataset[:3]}.impr{cfgt.tri_impr}.quad{cfgt.tri_quad}'
 #     cfgs.append(cfgt)
 #
-# for dyna_param in ParameterSampler(dict(
-#         adv_fea=LogUniformDistribution(1e-2, 2),
-#         adv_fea_eps=LogUniformDistribution(1e-3 , 2 ),
-#         aux=['linf_adv','lno_adv' ],
-# ), 99):
+# for dyna_param in ParameterGrid(dict(
+#         tri_quad=[1, 0.1],
+#         tri_impr=[0, ]
+# )):
 #     cfgt = copy.deepcopy(cfg)
 #     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
-#     cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.aux}.{cfgt.adv_fea}.{cfgt.adv_fea_eps}'
+#     cfgt.logs_dir = f'{cfgt.dataset[:3]}.impr{cfgt.tri_impr}.quad{cfgt.tri_quad}'
 #     cfgs.append(cfgt)
-#
-# random.shuffle(cfgs[1:])
 
+# ntry = 9
+# for dyna_param in ParameterSampler(dict(
+#         aux=['lno_adv', 'linf_adv'],
+#         adv_fea_xa=LogUniformDistribution(1e-2, 2),
+#         adv_fea_eps_xa=LogUniformDistribution(1e-3, 2),
+#         dataset=['cu03lbl', 'cu03det'],
+#         cu03_classic=[True, False],
+# ), ntry):
+#     cfgt = copy.deepcopy(cfg)
+#     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
+#     cfgt.logs_dir = f'{cfgt.dataset[:3]}.clsc{cfgt.cu03_classic}.xa.{cfgt.aux}.{cfgt.adv_fea_xa}.{cfgt.adv_fea_eps_xa}'
+#     cfgs.append(cfgt)
+#
+# for dyna_param in ParameterSampler(dict(
+#         adv_fea_xpn=LogUniformDistribution(1e-2, 2),
+#         adv_fea_eps_xpn=LogUniformDistribution(1e-3, 2),
+#         aux=['linf_adv', 'lno_adv'],
+#         dataset=['cu03lbl', 'cu03det'],
+#         cu03_classic=[True, False],
+# ), ntry):
+#     cfgt = copy.deepcopy(cfg)
+#     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
+#     cfgt.logs_dir = f'{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.xpn.{cfgt.aux}.{cfgt.adv_fea_xpn}.{cfgt.adv_fea_eps_xpn}'
+#     cfgs.append(cfgt)
+#
+# random.shuffle(cfgs)
+
+## base
 base = edict(
     aux='',  # l2_adv linf_adv defaul: nol_adv; l1_grad default: l2_grad
     reg_mid_fea=[0., 0., 0., 0., 0.],
+    ndistractors_chs=0, mkt_distractor=False,
+    tri_impr=0, tri_quad=0,
     amsgrad=False, freeze_bn=False,
     adv_eval=False, rerank=False,
     reg_loss_wrt=[0, 0, 0, 0, 0, 0],
     impr=0., cu03_classic=False,
     last_conv_stride=2,
     last_conv_dilation=1,
-    double=0, adv_inp=0, adv_fea=0,
-    adv_inp_eps=.3, adv_fea_eps=.3,
+    double=0, adv_inp=0,
+    adv_inp_eps=.3,
+    adv_fea=0,  # loss weight for adv  on  whole feature
+    adv_fea_eps=.3,
     optimizer_cent='adam', topk=5, test_best=True,
     push_scale=1., gpu_fix=False, test_batch_size=8,
-    lr=3e-4, margin=0.5, area=(0.85, 1),
-    margin2=0, margin3=0., margin4=0.,
-    steps=[40, 60], epochs=65,
+    lr=3e-4, margin=0.5, area=(0.85, 1),  # margin for hard margin
+    margin2=0, margin3=0., margin4=0.,  # margin2 3 4 for version1 triplet loss
+    adv_fea_xa=0.,  # loss weight on xa only
+    adv_fea_eps_xa=0.3,  # for xa
+    adv_fea_xpn=0,  # or xnp only
+    adv_fea_eps_xpn=0.3,  # for xn xp
+    steps=[40, 60], epochs=65,  # todo tuning epoch?
+    log_at=[0, 15, 30, 45, 64, 65, 66],
     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', convop='nn.Conv2d',
     weight_dis_cent=0, vis=False,
     weight_cent=0, lr_cent=0.5, xent_smooth=False,
@@ -117,7 +174,6 @@ base = edict(
     combine_trainval=True, num_instances=4,
     evaluate=False, dropout=0,
     seq_len=15, vid_pool='avg',
-    log_at=None,
     weight_decay=5e-4, resume=None, start_save=0,
     seed=None, print_freq=3, dist_metric='euclidean',
     branchs=0, branch_dim=64, global_dim=1024, num_classes=128,
@@ -171,4 +227,5 @@ if __name__ == '__main__':
     df1.index = df1['logs_dir']
     del df1['logs_dir']
 
-    print(tabulate.tabulate(df1.sort_values(by='logs_dir'), headers="keys", tablefmt="pipe"))
+    # print(tabulate.tabulate(df1.sort_values(by='logs_dir'), headers="keys", tablefmt="pipe"))
+    print(tabulate.tabulate(df1, headers="keys", tablefmt="pipe"))

@@ -45,13 +45,12 @@ def run(_):
         if not args.gpu_fix:
             args.gpu = lz.get_dev(n=len(args.gpu),
                                   ok=args.gpu_range,
-                                  mem_thresh=[0.01, 0.01], sleep=32.3)
+                                  )
         lz.logging.info(f'use gpu {args.gpu}')
         # args.batch_size = 16
         # args.gpu = (3, )
         # args.epochs = 1
         # args.logs_dir+='.bak'
-
         if isinstance(args.gpu, int):
             args.gpu = [args.gpu]
         if not args.evaluate and not args.vis:

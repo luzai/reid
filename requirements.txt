@@ -31,7 +31,7 @@ mkdocs
 mkdocs-material
 pylint
 peewee
-# git+https://github.com/shadowsocks/shadowsocks.git@master
+git+https://github.com/shadowsocks/shadowsocks.git@master
 cupy-cuda90
 chainer
 tqdm

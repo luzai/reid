@@ -98,8 +98,8 @@ class Trainer(object):
         imgs, npys, fnames, pids = inputs.get('img'), inputs.get(
             'npy'), inputs.get('fname'), inputs.get('pid')
         inputs = [imgs, npys]
-        inputs = to_variable(inputs, requires_grad=False)
-        targets = to_variable(pids, requires_grad=False)
+        inputs =  (inputs) # todo to variables
+        targets = (pids)
         return inputs, targets, fnames
 
     def _forward(self, inputs, targets):
@@ -286,7 +286,7 @@ def set_bn_to_eval(m):
     if classname.find('BatchNorm') != -1:
         m.eval()
 
-
+# use crayon as summery writer todo
 class SummaryWriter2(object):
     def __init__(self, *args, **kwargs): pass
 
@@ -296,6 +296,10 @@ class SummaryWriter2(object):
 
     def add_image(self, *args, **kwargs): pass
 
+def calc_distmat_pairwise(xa, xp):
+                    dist = torch.pow(xa - xp, 2).sum(dim=1)
+                    dist.clamp_(min=1e-12, max=1e12).sqrt_()
+                    return dist
 
 class TriTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=True, args=None, dop_info=None, **kwargs):
@@ -344,7 +348,10 @@ class TriTrainer(object):
              ) = self.model(input_imgs)
             # x5_grad_reg.squeeze_(dim=0)
             mid_feas.append(features)
-            losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
+            if self.args.loss != 'tri_adv':
+                losst, prect, dist_tri = self.criterion(features, targets, dbg=False)
+            else:
+                losst, prect, xa, xp, xn = self.criterion(features, targets, dbg=False)
             # losst is triplet loss
             # losst.backward(retain_graph=True)
             # losst.backward(retain_graph=True, create_graph=True)
@@ -532,6 +539,62 @@ class TriTrainer(object):
                 (self.args.double * grad_reg).backward()
 
                 optimizer.step()
+            # 6. adv fea xa only
+            elif self.args.adv_fea_xa != 0:
+                assert self.args.loss == 'tri_adv'
+                optimizer.zero_grad()
+                features_grad = torch.autograd.grad(
+                    outputs=losst, inputs=xa,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0].detach()
+                if 'l2_adv' in self.args.aux:
+                    xa_advtrue = xa + self.args.adv_fea_eps_xa * l2_normalize(features_grad)
+                elif 'linf_adv' in self.args.aux:
+                    xa_advtrue = xa + self.args.adv_fea_eps_xa * torch.sign(features_grad)
+                else:
+                    xa_advtrue = xa + self.args.adv_fea_eps_xa * (features_grad)
+                dist_ap = calc_distmat_pairwise(xa_advtrue, xp)
+                dist_an = calc_distmat_pairwise(xa_advtrue, xn)
+                losst_advtrue = F.softplus(dist_ap - dist_an).mean()
+                (losst + self.args.adv_fea * losst_advtrue).backward()
+                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
+                optimizer.step()
+            elif self.args.adv_fea_xpn != 0:
+                assert self.args.loss == 'tri_adv'
+                optimizer.zero_grad()
+                # todo all this --> function
+                features_grad = torch.autograd.grad(
+                    outputs=losst, inputs=xp,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0].detach()
+                if 'l2_adv' in self.args.aux:
+                    xp_advtrue = xp + self.args.adv_fea_eps_xpn * l2_normalize(features_grad)
+                elif 'linf_adv' in self.args.aux:
+                    xp_advtrue = xp + self.args.adv_fea_eps_xpn * torch.sign(features_grad)
+                else:
+                    xp_advtrue = xp + self.args.adv_fea_eps_xpn * (features_grad)
+
+                features_grad = torch.autograd.grad(
+                    outputs=losst, inputs=xn,
+                    create_graph=True, retain_graph=True,
+                    only_inputs=True
+                )[0].detach()
+                if 'l2_adv' in self.args.aux:
+                    xn_advtrue = xn + self.args.adv_fea_eps_xpn * l2_normalize(features_grad)
+                elif 'linf_adv' in self.args.aux:
+                    xn_advtrue = xn + self.args.adv_fea_eps_xpn * torch.sign(features_grad)
+                else:
+                    xn_advtrue = xn + self.args.adv_fea_eps_xpn * (features_grad)
+
+                dist_ap = calc_distmat_pairwise(xa, xp_advtrue)
+                dist_an = calc_distmat_pairwise(xa, xn_advtrue)
+                losst_advtrue = F.softplus(dist_ap - dist_an).mean()
+                (losst + self.args.adv_fea * losst_advtrue).backward()
+                self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
+                optimizer.step()
+            # 7. middle
             elif np.count_nonzero(self.args.reg_mid_fea) != 0:
                 optimizer.zero_grad()
                 losst.backward(retain_graph=True)
@@ -547,6 +610,7 @@ class TriTrainer(object):
                         self.writer.add_scalar(f'vis/contract_fea_{ind+1}', reg, self.iter)
                         if ind == ind_max: break
                 optimizer.step()
+
             elif np.count_nonzero(self.args.reg_loss_wrt) != 0:
                 optimizer.zero_grad()
 
