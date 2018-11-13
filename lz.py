@@ -32,11 +32,12 @@ timer = cvb.Timer()
 if os.environ.get('chainer', "1") == "1":
     import chainer
     from chainer import cuda
+
     # xp = cuda.get_array_module( )
     old_repr = chainer.Variable.__repr__
     chainer.Variable.__str__ = lambda obj: (f'ch {tuple(obj.shape)} {obj.dtype} '
-                                             f'{old_repr(obj)} '
-                                             f'type: {obj.dtype} shape: {obj.shape} ch')
+                                            f'{old_repr(obj)} '
+                                            f'type: {obj.dtype} shape: {obj.shape} ch')
     chainer.Variable.__repr__ = chainer.Variable.__str__
     logging.info(f'import chainer {timer.since_last_check()}')
 
@@ -131,17 +132,15 @@ def set_file_logger(work_dir=None, log_level=logging.DEBUG):
 
 
 if os.environ.get('log', '0') == '1':
-    logging.root.setLevel(logging.DEBUG)
+    logging.root.setLevel(logging.INFO)
     # set_stream_logger(logging.DEBUG)
-    set_stream_logger(logging.DEBUG)
+    set_stream_logger(logging.INFO)
     set_file_logger(log_level=logging.DEBUG)
 
 ## ndarray will be pretty
 np.set_string_function(lambda arr: f'np {arr.shape} {arr.dtype} '
                                    f'{arr.__str__()} '
                                    f'dtype:{arr.dtype} shape:{arr.shape} np', repr=True)
-
-
 
 ## print(ndarray) will be pretty (and pycharm dbg)
 # np.set_string_function(lambda arr: f'np {arr.shape} {arr.dtype} \n'
@@ -182,6 +181,7 @@ def set_env(key, value):
         os.environ[key] = value
 
 
+# todo occupy and release
 def occupy(dev=range(8)):
     import tensorflow as tf
     init_dev(dev)
@@ -275,7 +275,7 @@ def show_dev(devs=range(4)):
     return res
 
 
-def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=20):
+def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.2), sleep=23.3):
     if not isinstance(mem_thresh, collections.Sequence):
         mem_thresh = (mem_thresh,)
 
@@ -441,7 +441,7 @@ class Timer(object):
         self._t_last = time.time()
         logging.info(f'{aux} time {self.print_tmpl.format(dur)}')
         return dur
-
+timer = Timer()
 
 def get_md5(url):
     if isinstance(url, str):
@@ -879,9 +879,17 @@ def msgpack_dump(obj, file, **kwargs):
     if allow_np:
         kwargs.setdefault('default', m.encode)
     kwargs.setdefault('use_bin_type', True)
-
-    with open(file, 'wb') as fp:
-        msgpack.pack(obj, fp, **kwargs)
+    try:
+        with open(file, 'wb') as fp:
+            msgpack.pack(obj, fp, **kwargs)
+    except Exception  as e:
+        logging.warning(f'{e}')
+        logging.warning('cannot dump')
+        obj = copy.deepcopy(obj)
+        obj2 = to_json_format(obj)
+        with open(file, 'wb') as fp:
+            msgpack.pack(obj2, fp, **kwargs)
+        logging.warning('dump succes')
 
 
 def msgpack_dumps(obj, **kwargs):
@@ -891,7 +899,6 @@ def msgpack_dumps(obj, **kwargs):
     if allow_np:
         kwargs.setdefault('default', m.encode)
     kwargs.setdefault('use_bin_type', True)
-
     return msgpack.packb(obj, **kwargs)
 
 
@@ -1064,7 +1071,33 @@ def plt_imshow(img, ax=None):
         plt.axis('off')
     else:
         ax.imshow(img)
+        ax.set_yticks([])
+        ax.set_xticks([])
         ax.axis('off')
+
+
+def plt_imshow_board(img, ax=None, color=None):
+    img = to_img(img)
+    if ax is None:
+        plt.figure()
+        plt.imshow(img)
+        plt.axis('off')
+    else:
+        ax.imshow(img)
+        import matplotlib.patches as patches
+        M, N = img.shape[0], img.shape[1]
+        line = [(0, 0), (0, M),
+                (N, M), (N, 0),
+                ]
+        path = patches.Polygon(line, facecolor='none', edgecolor=color,
+                               linewidth=5, closed=True, joinstyle='round')
+        ax.add_patch(path)
+        ax.axis('off')
+        ax.set_yticks([])
+        ax.set_xticks([])
+        margin = 2
+        ax.set_xlim(-margin, N + margin)
+        ax.set_ylim(M + margin, -margin)
 
 
 def to_img(img, ):
@@ -1313,7 +1346,7 @@ def my_wget(fid, fname):
         block=False)
     return task
 
-
+# caution: may be shallow!
 def to_json_format(obj, allow_np=True):
     import collections, torch
     if isinstance(obj, np.ndarray):
@@ -1512,8 +1545,8 @@ def face_orientation(frame, landmarks):
 
 def cal_sim(yyfea, yy2fea):
     from scipy.spatial.distance import cdist
-    dist = cdist(yyfea, yy2fea)
-    cossim = (2 - dist) / 2
+    dist = cdist(yyfea, yy2fea, metric='cosine')
+    cossim = 1 - dist
     return cossim
 
 
@@ -1593,6 +1626,7 @@ class LogUniformDistribution(object):
         # todo precision
         res = float(f'{res:.1e}')
         return res
+
 
 from sklearn.model_selection import ParameterSampler, ParameterGrid
 
