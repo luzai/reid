@@ -11,14 +11,18 @@ cpdef eval_market1501_wrap(distmat,
         g_pids,
         q_camids,
         g_camids,
-        max_rank):
+        max_rank=10,
+        faiss=False
+           ):
     # distmat, q_pids, g_pids, q_camids, g_camids = list(map(lambda x:np.asarray(x) if x.flags.writeable else np.array(x),  [distmat, q_pids, g_pids, q_camids, g_camids]))
     distmat = np.array(distmat, dtype=np.float32)
     q_pids = np.array(q_pids, dtype=np.int64)
     g_pids = np.array(g_pids, dtype=np.int64)
     q_camids = np.array(q_camids, dtype=np.int64)
     g_camids = np.array(g_camids, dtype=np.int64)
-    return eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank)
+    faiss = int(faiss)
+    return eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank, faiss)
+
 
 # ctypedef unsigned short my_int
 # my_npint = np.uint16
@@ -33,6 +37,7 @@ cpdef eval_market1501(
         long[:] q_camids,
         long[:] g_camids,
         long max_rank,
+        long faiss
 ):
     cdef:
         long num_q = distmat.shape[0], num_g = distmat.shape[1]
@@ -40,8 +45,11 @@ cpdef eval_market1501(
     if num_g < max_rank:
         max_rank = num_g
         print("Note: number of gallery samples is quite small, got {}".format(num_g))
-
-    cdef my_int[:,:] indices = np.argsort(distmat, axis=1).astype(my_npint)
+    cdef my_int[:,:] indices
+    if faiss==0:
+        indices = np.argsort(distmat, axis=1).astype(my_npint)
+    else:
+        indices = np.asarray(distmat, dtype = my_npint)
     cdef bool_t[:,:] matches = (np.asarray(g_pids)[np.asarray(indices)] == np.asarray(q_pids)[:, np.newaxis]).astype(np.uint8)
     tic = time.time()
     cdef float[:,:] all_cmc = np.zeros((num_q,max_rank), dtype=np.float32)
@@ -113,7 +121,9 @@ cpdef eval_market1501(
     all_AP_np = np.asarray(all_AP)
     all_AP_np[np.isclose(all_AP,-1)] = np.nan
     return  np.nanmean(all_AP_np), \
-            np.asarray(all_cmc).astype(np.float32).sum(axis=0) / num_valid_q
+            np.asarray(all_cmc).astype(np.float32).sum(axis=0) / num_valid_q, \
+            all_AP_np
+
 
 def print_dbg(msg, val):
     print(msg, np.asarray(val))

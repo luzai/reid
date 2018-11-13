@@ -194,7 +194,8 @@ def compute_soft_hard_retrieval(distance_matrix, labels, label_batch=None):
     labels = cuda.to_cpu(labels)
     label_batch = cuda.to_cpu(label_batch)
 
-    K = 11  # "K" for top-K
+    K = 1001  # "K" for top-K
+    krange = [1, 2, 3, 4, 5, 10, 100, 1000]
     for d_i, label_i in zip(distance_matrix, label_batch):
         top_k_indexes = np.argpartition(d_i, K)[:K]
         sorted_top_k_indexes = top_k_indexes[np.argsort(d_i[top_k_indexes])]
@@ -203,7 +204,6 @@ def compute_soft_hard_retrieval(distance_matrix, labels, label_batch=None):
         ranked_hits = ranked_labels[1:] == label_i
         n_true = (labels == label_i).sum() - 1
         # soft top-k, k = 1, 2, 5, 10
-        krange = [1, 2, 3, 4, 5, 10, ]
         soft = [np.any(ranked_hits[:k]) for k in krange]
         softs.append(soft)
         # hard top-k, k = 2, 3, 4
@@ -294,6 +294,138 @@ def Recall_at_ks(sim_mat, data='cub', query_ids=None, gallery_ids=None):
     return num_valid / float(m)
 
 
+def NMI(X, ground_truth, n_cluster=3):
+    from sklearn.cluster import KMeans
+    from sklearn.metrics.cluster import normalized_mutual_info_score
+    # X = [to_numpy(x) for x in X]
+    # list to numpy
+    # X = np.array(X)
+    X = to_numpy(X)
+    ground_truth = np.asarray(ground_truth)
+    # print('x_type:', type(X))
+    # print('label_type:', type(ground_truth))
+    kmeans = KMeans(n_clusters=n_cluster, n_jobs=-1, random_state=0).fit(X)
+
+    print('K-means done')
+    nmi = normalized_mutual_info_score(ground_truth, kmeans.labels_)
+    return nmi
+
+
+def eval_market1501_faiss(indices, q_pids, g_pids, q_camids, g_camids, max_rank=11):
+    num_q, num_g = len(q_pids), len(g_pids)
+    matches = (g_pids[indices] == q_pids[:, np.newaxis])
+
+    # compute cmc curve for each query
+    all_cmc = []
+    all_AP = []
+    num_valid_q = 0.  # number of valid query
+    for q_idx in range(num_q):
+        # get query pid and camid
+        q_pid = q_pids[q_idx]
+        q_camid = q_camids[q_idx]
+
+        # remove gallery samples that have the same pid and camid with query
+        order = indices[q_idx]
+        # remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
+        # keep = np.invert(remove)
+        keep = (g_pids[order] != q_pid) | (g_camids[order] != q_camid)
+        # compute cmc curve
+        orig_cmc = matches[q_idx][keep]  # binary vector, positions with value 1 are correct matches
+        if not np.any(orig_cmc):
+            # this condition is true when query identity does not appear in gallery
+            continue
+
+        cmc = orig_cmc.cumsum()
+        cmc[cmc > 1] = 1
+
+        all_cmc.append(cmc[:max_rank])
+        num_valid_q += 1.
+
+        # compute average precision
+        # reference: https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Average_precision
+        num_rel = orig_cmc.sum()
+        tmp_cmc = orig_cmc.cumsum()
+        tmp_cmc = [x / (i + 1.) for i, x in enumerate(tmp_cmc)]
+        tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
+        if num_rel == 0:
+            AP = 0
+        else:
+            AP = tmp_cmc.sum() / num_rel
+        all_AP.append(AP)
+
+    assert num_valid_q > 0, "Error: all query identities do not appear in gallery"
+
+    all_cmc = np.asarray(all_cmc).astype(np.float32)
+    all_cmc = all_cmc.sum(0) / num_valid_q
+    all_AP = np.asarray(all_AP)
+    mAP = np.mean(all_AP)
+    print('numq mAP shape', num_q, all_AP.shape)
+    return mAP, all_cmc
+
+
+def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
+    """Evaluation with market1501 metric
+    Key: for each query identity, its gallery images from the same camera view are discarded.
+    """
+    num_q, num_g = distmat.shape
+    if num_g < max_rank:
+        max_rank = num_g
+        print("Note: number of gallery samples is quite small, got {}".format(num_g))
+    indices = np.argsort(distmat, axis=1)
+    if distmat.shape[0] < 65535:
+        indices = indices.astype(np.uint16)
+    else:
+        indices = indices.astype(np.uint32)
+    matches = (g_pids[indices] == q_pids[:, np.newaxis])
+
+    # compute cmc curve for each query
+    all_cmc = []
+    all_AP = []
+    num_valid_q = 0.  # number of valid query
+    for q_idx in range(num_q):
+        # get query pid and camid
+        q_pid = q_pids[q_idx]
+        q_camid = q_camids[q_idx]
+
+        # remove gallery samples that have the same pid and camid with query
+        order = indices[q_idx]
+        # remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
+        # keep = np.invert(remove)
+        keep = (g_pids[order] != q_pid) | (g_camids[order] != q_camid)
+        # compute cmc curve
+        orig_cmc = matches[q_idx][keep]  # binary vector, positions with value 1 are correct matches
+        if not np.any(orig_cmc):
+            # this condition is true when query identity does not appear in gallery
+            continue
+
+        cmc = orig_cmc.cumsum()
+        cmc[cmc > 1] = 1
+
+        all_cmc.append(cmc[:max_rank])
+        num_valid_q += 1.
+
+        # compute average precision
+        # reference: https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Average_precision
+        num_rel = orig_cmc.sum()
+        tmp_cmc = orig_cmc.cumsum()
+        tmp_cmc = [x / (i + 1.) for i, x in enumerate(tmp_cmc)]
+        tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
+        if num_rel == 0:
+            AP = 0
+        else:
+            AP = tmp_cmc.sum() / num_rel
+        all_AP.append(AP)
+
+    assert num_valid_q > 0, "Error: all query identities do not appear in gallery"
+
+    all_cmc = np.asarray(all_cmc).astype(np.float32)
+    all_cmc = all_cmc.sum(0) / num_valid_q
+    all_AP = np.asarray(all_AP)
+    mAP = np.mean(all_AP)
+    print('numq mAP shape', num_q, all_AP.shape)
+    return mAP, all_cmc
+
+
 class Evaluator(object):
     def __init__(self, model, gpu=(0,), args=None, vid=False):
         super(Evaluator, self).__init__()
@@ -306,7 +438,6 @@ class Evaluator(object):
         name_val = args.dataset_val or args.dataset
         self.args = args
         self.conf = parse_name(name_val).get('eval_conf', 'market1501')
-
 
     def evaluate_vid(self, queryloader, galleryloader, metric=None, **kwargs):
         self.model.eval()
@@ -359,7 +490,7 @@ class Evaluator(object):
         if rerank:
             xx = to_numpy(qf)
             yy = to_numpy(gf)
-            lz.msgpack_dump([xx, yy], work_path + 'tmp.mp')
+            # lz.msgpack_dump([xx, yy], work_path + 'tmp.mp')
             distmat = re_ranking(xx, yy)
         else:
             m, n = qf.size(0), gf.size(0)
@@ -477,7 +608,7 @@ class Evaluator(object):
             xp.fill_diagonal(D_batch[:, start:end], 0)
 
             soft, hard, retr, recl = compute_soft_hard_retrieval(
-                D_batch, c_data, c_batch)  # krange = [1, 2, 3, 4, 5, 10, ]
+                D_batch, c_data, c_batch)  # krange = [1, 2, 3, 4, 5, 10,100,1000 ]
 
             softs.append(len(y_batch) * soft)
             hards.append(len(y_batch) * hard)
@@ -492,7 +623,7 @@ class Evaluator(object):
         avg_recalls = xp.sum(recalls, axis=0) / num_examples
         logging.info(f'finish eval top1 {avg_softs[0]}')
         res = {}
-        for ind, k in enumerate([1, 2, 3, 4, 5, 10, ]):
+        for ind, k in enumerate([1, 2, 3, 4, 5, 10, 100, 1000]):
             res[f'top-{k}-soft'] = avg_softs[ind]
             res[f'top-{k}-hard'] = avg_hards[ind]
             res[f'top-{k}-retr'] = avg_retrievals[ind]
@@ -502,10 +633,13 @@ class Evaluator(object):
 
     def evaluate(self, data_loader, query, gallery, metric=None, **kwargs):
         self.model.eval()
+        query_ps = [path for path, _, _ in query]
+        gallery_ps = [path for path, _, _ in gallery]
         query_ids = [pid for _, pid, _ in query]
         gallery_ids = [pid for _, pid, _ in gallery]
         query_cams = [cam for _, _, cam in query]
         gallery_cams = [cam for _, _, cam in gallery]
+
         query_ids = np.asarray(query_ids)
         gallery_ids = np.asarray(gallery_ids)
         query_cams = np.asarray(query_cams)
@@ -525,45 +659,61 @@ class Evaluator(object):
         else:
             rerank_range = [False, ]
         for rerank in rerank_range:
-            print('whether to use rerank :', rerank)
-            distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
-
-            # if final:
-            #     db_name = self.args.logs_dir + '/' + self.args.logs_dir.split('/')[-1] + '.h5'
-            #     with lz.Database(db_name) as db:
-            #         for name in ['distmat', 'query_ids', 'gallery_ids', 'query_cams', 'gallery_cams']:
-            #             if rerank:
-            #                 db[prefix + 'rk/' + name] = eval(name)
-            #             else:
-            #                 db[prefix + name] = eval(name)
-            #         db[prefix + 'smpl'] = xx
-            #     # with pd.HDFStore(db_name) as db:
-            #     #     db['query'] = query_to_df(query)
-            #     #     db['gallery'] = query_to_df(gallery)
-            #
-            #     with lz.Database(db_name) as db:
-            #         print(list(db.keys()))
-            logging.info('start eval')
-            timer = lz.Timer()
+            lz.timer.since_last_check(f'start eval whether to use rerank :  {rerank}')
+            ## todo dump feature only
+            # msgpack_dump([features, query, gallery, ], work_path + 'large.pk')
+            # return 'ok'
             if self.conf == 'market1501':
-                distmat = distmat.astype(np.float16)
-                print(f'facing {distmat.shape}')
-                # if distmat.shape[0] < 10000:
-                mAP, all_cmc = eval_market1501_wrap(
-                    distmat, query_ids, gallery_ids, query_cams, gallery_cams,
-                    max_rank=10)
-                # else:
-                #     mAP, all_cmc = eval_market1501(
-                #         distmat, query_ids, gallery_ids, query_cams, gallery_cams,
-                #         max_rank=10)
+                try:
+                    ## use faiss
+
+                    import faiss
+
+                    xx = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
+                    yy = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
+                    xx = to_numpy(xx)
+                    yy = to_numpy(yy)
+                    # todo distractor
+                    index = faiss.IndexFlatL2(xx.shape[1])
+                    index.add(yy)
+                    _, ranklist = index.search(xx, yy.shape[0])
+                    # _, ranklist = index.search(xx, 11)
+                    mAP, all_cmc, all_AP = eval_market1501_wrap(
+                        np.asarray(ranklist), query_ids, gallery_ids, query_cams,
+                        gallery_cams,
+                        max_rank=10, faiss=True)
+                    lz.timer.since_last_check(f'faiss {mAP}')
+                except ImportError as e:
+                    ## use NN
+                    distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+                    print(f'facing {distmat.shape}')
+                    distmat = distmat.astype(np.float16)
+                    mAP, all_cmc, all_AP = eval_market1501_wrap(
+                        distmat, query_ids, gallery_ids, query_cams, gallery_cams,
+                        max_rank=10)
+
+                    # nmi = NMI(xx, query_ids, 20)
+                    # print('mni is ', nmi)
+                    lz.timer.since_last_check(f'NN {mAP}')
+
+                # # msgpack_dump([distmat, xx, yy, query, gallery, all_AP], work_path + 't.pk') # todo for plot
                 if rerank:
                     res = lz.dict_concat([res,
                                           {'mAP.rk': mAP, 'top-1.rk': all_cmc[0], 'top-5.rk': all_cmc[4],
                                            'top-10.rk': all_cmc[9]}])
                 else:
                     res = lz.dict_concat([res,
-                                          {'mAP': mAP, 'top-1': all_cmc[0], 'top-5': all_cmc[4], 'top-10': all_cmc[9]}])
+                                          {'mAP': mAP},
+                                          {f'top-{ind+1}': v for ind, v in enumerate(all_cmc)},
+                                          ])
             else:
+                ## use NN
+                distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+                print(f'facing {distmat.shape}')
+                distmat = distmat.astype(np.float16)
+                mAP, all_cmc, all_AP = eval_market1501_wrap(
+                    distmat, query_ids, gallery_ids, query_cams, gallery_cams,
+                    max_rank=10)
                 mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
                 print('Mean AP: {:4.1%}'.format(mAP))
 
@@ -604,7 +754,6 @@ def eval_market1501_wrap_ignore_cid(distmat, q_pids, g_pids, topk=10):
     q_camids = np.arange(len(q_pids))
     g_camids = np.arange(len(g_pids)) + q_camids.max()
     return eval_market1501_wrap(distmat, q_pids, g_pids, q_camids, g_camids, topk)
-
 
 # if __name__ == '__main__':
 #     def func():
