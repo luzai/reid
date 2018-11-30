@@ -133,7 +133,6 @@ def get_data(args):
                                   cuhk03_classic_split=args.cu03_classic,
                                   args=args
                                   )
-
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
 

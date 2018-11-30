@@ -1,19 +1,15 @@
-from __future__ import print_function, absolute_import
-import os.path as osp
-
-import numpy as np
-
-from ..utils.data import Dataset
-from ..utils.serialization import write_json
-
+from reid.utils.data import Dataset
+from reid.utils.serialization import write_json
+from lz import *
 
 class VIPeR(Dataset):
     url = 'http://users.soe.ucsc.edu/~manduchi/VIPeR.v1.0.zip'
     md5 = '1c2d9fc1cc800332567a0da25a1ce68c'
 
-    def __init__(self, root, split_id=0, num_val=100, download=True,**kwargs):
+    def __init__(self, root=None , split_id=0, num_val=100, download=False,**kwargs):
         super(VIPeR, self).__init__(root, split_id=split_id)
-
+        root = '/data2/share/viper/'
+        self.root = root
         if download:
             self.download()
 
@@ -35,7 +31,7 @@ class VIPeR(Dataset):
         from zipfile import ZipFile
 
         raw_dir = osp.join(self.root, 'raw')
-        mkdir_if_missing(raw_dir)
+        mkdir_p(raw_dir,delete=False )
 
         # Download the raw zip file
         fpath = osp.join(raw_dir, 'VIPeR.v1.0.zip')
@@ -55,7 +51,7 @@ class VIPeR(Dataset):
 
         # Format
         images_dir = osp.join(self.root, 'images')
-        mkdir_if_missing(images_dir)
+        mkdir_p(images_dir, False)
         cameras = [sorted(glob(osp.join(exdir, 'cam_a', '*.bmp'))),
                    sorted(glob(osp.join(exdir, 'cam_b', '*.bmp')))]
         assert len(cameras[0]) == len(cameras[1])

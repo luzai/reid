@@ -1,6 +1,7 @@
 # from __future__ import print_function, absolute_import, division, unicode_literals
 
 import matplotlib.pyplot as plt
+
 # plt.switch_backend('Agg')
 # plt.switch_backend('TkAgg')
 
@@ -275,7 +276,7 @@ def show_dev(devs=range(4)):
     return res
 
 
-def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.2), sleep=23.3):
+def get_dev(n=1, ok=range(4), mem_thresh=(0.1, 0.15), sleep=23.3):  # 0.3: now occupy smaller than 0.3
     if not isinstance(mem_thresh, collections.Sequence):
         mem_thresh = (mem_thresh,)
 
@@ -428,7 +429,7 @@ class Timer(object):
         logging.info(f'{aux} time {self.print_tmpl.format(self._t_last - self._t_start)}')
         return self._t_last - self._t_start
 
-    def since_last_check(self, aux=''):
+    def since_last_check(self, aux='', verbose=True):
         """Time since the last checking.
 
         Either :func:`since_start` or :func:`since_last_check` is a checking operation.
@@ -439,9 +440,13 @@ class Timer(object):
             raise ValueError('timer is not running')
         dur = time.time() - self._t_last
         self._t_last = time.time()
-        logging.info(f'{aux} time {self.print_tmpl.format(dur)}')
+        if verbose:
+            logging.info(f'{aux} time {self.print_tmpl.format(dur)}')
         return dur
+
+
 timer = Timer()
+
 
 def get_md5(url):
     if isinstance(url, str):
@@ -1110,6 +1115,7 @@ def to_img(img, ):
     # if img.dtype == np.float32 or img.dtype == np.float64:
     if img.max() < 1.1:
         img -= img.min()
+        img = img + 1e-12
         img /= img.max()
         img *= 255
     img = np.array(img, dtype=np.uint8)
@@ -1346,6 +1352,7 @@ def my_wget(fid, fname):
         block=False)
     return task
 
+
 # caution: may be shallow!
 def to_json_format(obj, allow_np=True):
     import collections, torch
@@ -1356,14 +1363,14 @@ def to_json_format(obj, allow_np=True):
             if allow_np:
                 return np.asarray(obj, order="C")
             else:
-                return obj.tolist()
-    elif isinstance(obj, list) or isinstance(obj, tuple) or isinstance(obj, collections.deque):
+                return to_json_format(obj.tolist())
+    elif isinstance(obj, (list, tuple, collections.deque)):
         return [to_json_format(subobj, allow_np) for subobj in obj]
     elif isinstance(obj, dict):
         for key in obj.keys():
             obj[key] = to_json_format(obj[key], allow_np)
         return obj
-    elif isinstance(obj, int) or isinstance(obj, str) or isinstance(obj, float):
+    elif isinstance(obj, (int, str, float)):
         return obj
     elif isinstance(obj, torch.Tensor):
         return obj.cpu().numpy()
@@ -1645,6 +1652,132 @@ def my_softmax(arr):
     return arr
 
 
+def l2_normalize(x):
+    # can only handle (128,2048) or (128,2048,8,4)
+    shape = x.size()
+    x1 = x.view(shape[0], -1)
+    x2 = x1 / x1.norm(p=2, dim=1, keepdim=True)
+    return x2.view(shape)
+
+
+def get_adv(loss, inp, norm='l2', eps=.1, ):
+    features_grad = torch.autograd.grad(
+        outputs=loss, inputs=inp,
+        create_graph=True, retain_graph=True,
+        only_inputs=True
+    )[0].detach()
+    if 'l2' in norm:
+        xa_advtrue = inp + eps * l2_normalize(features_grad)
+    elif 'linf' in norm:
+        xa_advtrue = inp + eps * torch.sign(features_grad)
+    elif 'lno' in norm:
+        xa_advtrue = inp + eps * (features_grad)
+    else:
+        raise ValueError(f'no {norm}')
+    return xa_advtrue
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        try:
+            val = float(val)
+        except Exception as inst:
+            print(inst)
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def extend_bbox(img_proc, bbox,
+                up=.0,
+                down=.0,
+                rightleft=0.,
+                ):
+    x1, y1, x2, y2 = bbox[:4]
+    img_shape = img_proc.shape
+    row = y1
+    col = x1
+    height = y2 - y1
+    width = x2 - x1
+    rowc = row + height / 2
+    colc = col + width / 2
+    height = (1. + up + down) * height
+    width = (1 + 2 * rightleft) * width
+    row = rowc - height / (1. + up + down) * (.5 + up / 2 + down / 2)
+    col = colc - width / 2
+    row = max(row, 0)
+    col = max(col, 0)
+    height = min(height, img_shape[0] - row)
+    width = min(width, img_shape[1] - col)
+    row, col, height, width = map(lambda x: int(round(x)), [row, col, height, width])
+    img_crop = img_proc[row:row + height, col:col + width, :]
+    return img_crop
+
+
+def update_rcparams():
+    from matplotlib import rcParams
+    params = {
+        'axes.labelsize': 20,
+        'legend.fontsize': 11,
+        'xtick.labelsize': 11,
+        'ytick.labelsize': 11,
+        'text.usetex': True,
+        # 'figure.figsize': [10, 5]
+    }
+    rcParams.update(params)
+
+
 if __name__ == '__main__':
-    plt.plot(range(10))
+    pass
+
+    ncol = 10
+    nrow = 29 // ncol + 1
+    fs = glob.glob('/home/xinglu/work/yy.ld.30.body/*.png')
+    sizes = []
+
+
+    for f in fs:
+        size = (get_img_size(f))
+        sizes.append(size)
+    sizes = np.asarray(sizes)
+    print(sizes .max(axis=0))
+    plt.hist(sizes[:,0])
     plt.show()
+    plt.hist(sizes[:,1])
+    plt.show()
+
+    exit(0)
+
+    update_rcparams()
+    fig, axes = plt.subplots(nrows=nrow, ncols=ncol, figsize=(ncol, nrow * 543 / 178))
+    axes = np.ravel(axes)
+
+    for ind, (f, ax) in enumerate(zip(fs, axes)):
+        img = cvb.read_img(f)
+        img = cvb.resize_keep_ar(img, 543, 178)
+        ax.set_title(f'{ind}')
+        _ = plt_imshow(img[..., ::-1], ax=ax)
+
+    plt_imshow(np.zeros_like(img)
+               , ax=axes[-1])
+    plt.tight_layout(
+        # pad=0,
+        # h_pad=-0.1
+    )
+    # plt.subplots_adjust(wspace=-0.6, hspace=0.1)
+    plt.savefig(work_path + 't.png')

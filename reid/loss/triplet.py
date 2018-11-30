@@ -202,14 +202,14 @@ class QuadLoss(nn.Module):
             n2 = some_n2.min()
             dist_n12.append(n2)
 
-        dist_ap = _concat(dist_ap)
-        dist_an = _concat(dist_an)
-        dist_n12 = _concat(dist_n12)
+        dist_ap = torch.stack(dist_ap)
+        dist_an = torch.stack(dist_an)
+        dist_n12 = torch.stack(dist_n12)
         if torch.cuda.is_available():
-            y = Variable(to_torch(np.ones(dist_an.size())).type(
+            y = torch.Variable(to_torch(np.ones(dist_an.size())).type(
                 torch.cuda.FloatTensor), requires_grad=False).cuda()
         else:
-            y = Variable(to_torch(np.ones(dist_an.size())).type(
+            y = torch.Variable(to_torch(np.ones(dist_an.size())).type(
                 torch.FloatTensor), requires_grad=False)
 
         loss = self.ranking_loss(dist_an, dist_ap, y) + \

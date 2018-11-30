@@ -35,4 +35,5 @@ git+https://github.com/shadowsocks/shadowsocks.git@master
 cupy-cuda90
 chainer
 tqdm
+mxnet-cu90mkl 
 fuel 

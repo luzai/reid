@@ -661,42 +661,42 @@ class Evaluator(object):
         for rerank in rerank_range:
             lz.timer.since_last_check(f'start eval whether to use rerank :  {rerank}')
             ## todo dump feature only
-            # msgpack_dump([features, query, gallery, ], work_path + 'large.pk')
+            # msgpack_dump([features, query, gallery, ], work_path + 't.pk')
             # return 'ok'
             if self.conf == 'market1501':
-                try:
-                    ## use faiss
+                # try:
+                #     ## use faiss
+                #
+                #     import faiss
+                #
+                #     xx = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
+                #     yy = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
+                #     xx = to_numpy(xx)
+                #     yy = to_numpy(yy)
+                #     index = faiss.IndexFlatL2(xx.shape[1])
+                #     index.add(yy)
+                #     _, ranklist = index.search(xx, yy.shape[0])
+                #     # _, ranklist = index.search(xx, 11)
+                #     mAP, all_cmc, all_AP = eval_market1501_wrap(
+                #         np.asarray(ranklist), query_ids, gallery_ids, query_cams,
+                #         gallery_cams,
+                #         max_rank=10, faiss=True)
+                #     lz.timer.since_last_check(f'faiss {mAP}')
+                # except ImportError as e:
 
-                    import faiss
+                ## use NN
+                distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+                print(f'facing {distmat.shape}')
+                distmat = distmat.astype(np.float16)
+                mAP, all_cmc, all_AP = eval_market1501_wrap(
+                    distmat, query_ids, gallery_ids, query_cams, gallery_cams,
+                    max_rank=10)
 
-                    xx = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
-                    yy = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
-                    xx = to_numpy(xx)
-                    yy = to_numpy(yy)
-                    # todo distractor
-                    index = faiss.IndexFlatL2(xx.shape[1])
-                    index.add(yy)
-                    _, ranklist = index.search(xx, yy.shape[0])
-                    # _, ranklist = index.search(xx, 11)
-                    mAP, all_cmc, all_AP = eval_market1501_wrap(
-                        np.asarray(ranklist), query_ids, gallery_ids, query_cams,
-                        gallery_cams,
-                        max_rank=10, faiss=True)
-                    lz.timer.since_last_check(f'faiss {mAP}')
-                except ImportError as e:
-                    ## use NN
-                    distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
-                    print(f'facing {distmat.shape}')
-                    distmat = distmat.astype(np.float16)
-                    mAP, all_cmc, all_AP = eval_market1501_wrap(
-                        distmat, query_ids, gallery_ids, query_cams, gallery_cams,
-                        max_rank=10)
+                # nmi = NMI(xx, query_ids, 20)
+                # print('mni is ', nmi)
+                lz.timer.since_last_check(f'NN {mAP}')
 
-                    # nmi = NMI(xx, query_ids, 20)
-                    # print('mni is ', nmi)
-                    lz.timer.since_last_check(f'NN {mAP}')
-
-                # # msgpack_dump([distmat, xx, yy, query, gallery, all_AP], work_path + 't.pk') # todo for plot
+                msgpack_dump([distmat, xx, yy, query, gallery, all_AP], work_path + 't.pk') # todo for plot
                 if rerank:
                     res = lz.dict_concat([res,
                                           {'mAP.rk': mAP, 'top-1.rk': all_cmc[0], 'top-5.rk': all_cmc[4],
@@ -707,15 +707,34 @@ class Evaluator(object):
                                           {f'top-{ind+1}': v for ind, v in enumerate(all_cmc)},
                                           ])
             else:
-                ## use NN
+                ## use NN  & mkt
+                # distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
+                # distmat = distmat.astype(np.float16)
+                # mAP, all_cmc, all_AP = eval_market1501_wrap(
+                #     distmat, query_ids, gallery_ids, query_cams, gallery_cams,
+                #     max_rank=10)
+                # print('--> Mean AP: {:4.1%}'.format(mAP), all_cmc )
+
+                ## use faiss & mkt
+                # import faiss
+                # xx = torch.cat([features[f].unsqueeze(0) for f, _, _ in query], 0)
+                # yy = torch.cat([features[f].unsqueeze(0) for f, _, _ in gallery], 0)
+                # xx = to_numpy(xx)
+                # yy = to_numpy(yy)
+                # index = faiss.IndexFlatL2(xx.shape[1])
+                # index.add(yy)
+                # _, ranklist = index.search(xx, yy.shape[0])
+                # # _, ranklist = index.search(xx, 11)
+                # mAP, all_cmc, all_AP = eval_market1501_wrap(
+                #     np.asarray(ranklist), query_ids, gallery_ids, query_cams,
+                #     gallery_cams,
+                #     max_rank=10, faiss=True)
+                # lz.timer.since_last_check(f'faiss {mAP}')
+
+                ## use NN & cu03 in fact cu03 should use this
                 distmat, xx, yy = pairwise_distance(features, query, gallery, metric=metric, rerank=rerank)
                 print(f'facing {distmat.shape}')
-                distmat = distmat.astype(np.float16)
-                mAP, all_cmc, all_AP = eval_market1501_wrap(
-                    distmat, query_ids, gallery_ids, query_cams, gallery_cams,
-                    max_rank=10)
                 mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
-                print('Mean AP: {:4.1%}'.format(mAP))
 
                 cmc_configs = {
                     'cuhk03': dict(separate_camera_set=True,
@@ -727,7 +746,7 @@ class Evaluator(object):
                 cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
                                         query_cams, gallery_cams, **params)
                               for name, params in cmc_configs.items()}
-                print(f'cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
+                print(f'--> mAP {mAP}  cmc-1 {self.conf} {cmc_scores[self.conf][0]} ')
                 if rerank:
                     res = lz.dict_concat([res,
                                           {'mAP.rk': mAP,
@@ -742,9 +761,8 @@ class Evaluator(object):
                                            'top-5': cmc_scores[self.conf][4],
                                            'top-10': cmc_scores[self.conf][9],
                                            }])
+
             timer.since_start()
-        # res['mAP'] += self.args.impr
-        # res['top-1'] += self.args.impr
         # json_dump(res, self.args.logs_dir + '/res.json')
         logging.info(f'eval finish res {res}')
         return res

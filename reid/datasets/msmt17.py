@@ -6,20 +6,19 @@ from reid.datasets import *
 
 
 class MSMT17(Dataset):
-    def __init__(self, root, split_id=0, num_val=100,
+    def __init__(self, root=None, split_id=0, num_val=100,
                  **kwargs):
         super(MSMT17, self).__init__(root, split_id=split_id)
-
+        self.root = '/share/data/msmt17/'
         self.build()
         # self.load(num_val)
 
     def build(self):
         # self.load(100)
-        #
         # self.gallery query trainval train val
         # num_trainval_ids num_train_ids num_val_ids images_dir
         # fmt: (imagepath pids cids)
-        self.images_dir = '/data1/xinglu/work/data/msmt17/MSMT17_V1/'
+        self.images_dir = self.root + '/MSMT17_V1/'
         for p in ['gallery', 'query', 'train', 'val']:
             pp = self.root + '/MSMT17_V1/list_' + p + '.txt'
             tt = pd.read_csv(pp, delim_whitespace=True, header=None)
@@ -27,9 +26,9 @@ class MSMT17(Dataset):
             tt.iloc[:, 1] = tt.iloc[:, 1].astype(int)
             pat = r'^(.*)'
             if p in ['gallery', 'query']:
-                repl = lambda m: 'test/' + m.group(0)
+                repl = lambda m: self.images_dir + 'test/' + m.group(0)
             else:
-                repl = lambda m: 'train/' + m.group(0)
+                repl = lambda m: self.images_dir + 'train/' + m.group(0)
 
             tt.iloc[:, 0] = tt.iloc[:, 0].str.replace(pat, repl)
             tt['cid'] = tt.iloc[:, 0].str.split('_', expand=True).iloc[:, 2].astype('int')
@@ -66,4 +65,4 @@ class MSMT17(Dataset):
 
 
 if __name__ == '__main__':
-    ds = MSMT17('/home/xinglu/.torch/data/msmt17')
+    ds = MSMT17('//share/data/msmt17')

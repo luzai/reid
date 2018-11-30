@@ -18,7 +18,8 @@ for path in paths:
         args.logs_dir = path + '/eval'
         args.gpu_range = range(4)
         if osp.exists(args.logs_dir + '/res.json'): continue
-        if 'mkt' not in  args.logs_dir: continue
+        if 'mkt' not in args.logs_dir: continue
+        continue
         args.dataset_val = args.dataset
         args.eval_conf = 'market1501'
 

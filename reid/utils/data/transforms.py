@@ -1,10 +1,8 @@
 from __future__ import absolute_import
 
 from torchvision.transforms import *
-from PIL import Image
-import random
-import math
-import numpy as np
+from PIL import Image, ImageOps
+from lz import *
 
 
 class RectScale(object):
@@ -20,7 +18,9 @@ class RectScale(object):
         w, h = img.size
         if h == self.height and w == self.width:
             return img
-        ## way 1:
+
+        ## todo
+        ## way 1: keep ar resize crop big to small
         # ratio_w = self.width / w
         # ratio_h = self.height / h
         # ratio = max(ratio_h, ratio_w)
@@ -30,14 +30,28 @@ class RectScale(object):
         # # pytorch transofrm Resize is height width
         # # img is width height
 
-        ## todo way 2: direct resize
+        ## way 2: direct resize
         img = img.resize((self.width, self.height), self.interpolation)
+
+        ## way 3: keep ar resize padding  small to big
+        # max_long_edge = max(self.height, self.width)
+        # max_short_edge = min(self.height, self.width)
+        # scale = min(
+        #     float(max_long_edge) / max(h, w), float(max_short_edge) / min(h, w))
+        # new_size = cvb.scale_size((w, h), scale)
+        # img = img.resize(new_size, self.interpolation)
+        # w_new = self.width - new_size[0]
+        # h_new = self.height - new_size[1]
+        # w_new_2 = w_new // 2
+        # h_new_2 = h_new // 2
+        # img = ImageOps.expand(img, (w_new_2, h_new_2, w_new - w_new_2, h_new - h_new_2))
+
         return img
 
 
 # todo more aug, try random erasing
 
-class RandomCropFlip3(object):
+class RandomCropFlip1(object):
     """
     With a probability, first increase image size to (1 + 1/8), and then perform random crop.
     Args:
@@ -51,6 +65,11 @@ class RandomCropFlip3(object):
         self.width = width
         self.p = p
         self.interpolation = interpolation
+        self.new_width, self.new_height = int(round(self.width * 1.125)), int(round(self.height * 1.125))
+        self.scale = RectScale(self.new_height, self.new_width,
+                               interpolation=self.interpolation)
+        self.scale_ori = RectScale(self.height, self.width,
+                                   interpolation=self.interpolation)
 
     def __call__(self, img):
         """
@@ -58,12 +77,11 @@ class RandomCropFlip3(object):
         - img (PIL Image): Image to be cropped.
         """
         if random.uniform(0, 1) > self.p:
-            return img.resize((self.width, self.height), self.interpolation)
+            return self.scale_ori(img)
 
-        new_width, new_height = int(round(self.width * 1.125)), int(round(self.height * 1.125))
-        resized_img = img.resize((new_width, new_height), self.interpolation)
-        x_maxrange = new_width - self.width
-        y_maxrange = new_height - self.height
+        resized_img = self.scale(img)
+        x_maxrange = self.new_width - self.width
+        y_maxrange = self.new_height - self.height
         x1 = int(round(random.uniform(0, x_maxrange)))
         y1 = int(round(random.uniform(0, y_maxrange)))
         croped_img = resized_img.crop((x1, y1, x1 + self.width, y1 + self.height))

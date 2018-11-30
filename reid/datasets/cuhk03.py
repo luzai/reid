@@ -23,10 +23,10 @@ class CUHK03(object):
         cuhk03_labeled (bool): whether to load labeled images; if false, detected images are loaded (default: False)
     """
 
-    def __init__(self, root='/home/xinglu/.torch/data/cuhk03/',
+    def __init__(self, root=None,
                  split_id=0, dataset_mode='label',
                  cuhk03_classic_split=False, args=None, **kwargs):
-        self.root = self.dataset_dir = self.images_dir = '/home/xinglu/.torch/data/cuhk03/'
+        self.root = self.dataset_dir = self.images_dir = '/data1/share/cuhk03/'
         cuhk03_labeled = dataset_mode == 'label'
         self.data_dir = osp.join(self.dataset_dir, 'cuhk03_release')
         self.raw_mat_path = osp.join(self.data_dir, 'cuhk-03.mat')
@@ -89,6 +89,15 @@ class CUHK03(object):
         query = [tuple(l) for l in query]
         gallery = [tuple(l) for l in gallery]
 
+        def _replace(lst, src, dst):
+            df = pd.DataFrame(lst)
+            df.loc[:, 0] = df.loc[:, 0].str.replace(src, dst)
+            return df.to_records(index=False).tolist()
+
+        train = _replace(train, '/home/xinglu.torch/data', '/data1/share/')
+        query = _replace(query, '/home/xinglu.torch/data', '/data1/share/')
+        gallery = _replace(gallery, '/home/xinglu.torch/data', '/data1/share/')
+
         self.train = train
         self.query = query
         self.gallery = gallery
@@ -103,12 +112,10 @@ class CUHK03(object):
         self.num_trainval_ids = self.num_train_ids
 
         print('load cuhk03 ...')
+
         if args is not None and args.get('adv_eval', False):
 
-            def _replace(lst,src, dst):
-                df = pd.DataFrame(lst)
-                df.loc[:,0 ]= df.loc[:,0 ] .str. replace( src,dst )
-                return df .to_records(index=False ) .tolist()
+
             print('use adv!!')
             self.query = _replace( self.query,  'raw/images_labeled', 'images_labeled.fgs')
             self.gallery = _replace(self.query, 'raw/images_labeled', 'images_labeled.fgs')
@@ -292,11 +299,12 @@ class CUHK03(object):
 
 
 if __name__ == '__main__':
-    cu03 = CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='label')
+    cu03 = CUHK03('/data/share/cuhk03/', mode='label')
     for img, _, _ in (cu03.gallery):
         print(img)
-        import shutil
-        shutil.copy(img, '/home/xinglu/.torch/data/cuhk03/test/')
+        # import shutil
+        # shutil.copy(img, '/data/share/cuhk03/test/')
+        break
     # pd.DataFrame(cu03.query)
     # CUHK03('/home/xinglu/.torch/data/cuhk03/', mode='detect')
     # CUHK03('/home/xinglu/.torch/data/cuhk03', mode='combine')

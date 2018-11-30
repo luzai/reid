@@ -60,20 +60,32 @@ names = []
 #              'work/cu03det.search.1e-01.1e-03.run0',
 #              'work/cu03det.cent.dis.1e-03',
 #              'work/cu03det.cent.dis.dop.0.33.run2', ]:
-for path in glob.glob('work/tri.dep*'):
+for path in glob.glob(work_path + 'reid/work/*v2*'):
     assert osp.exists(path)
     df = ScalarLoader(path=path).load_scalars()
+    assert osp.exists(path + '/conf.pkl')
+    args = pickle_load(path + '/conf.pkl')
+
     if df.index.max() != 66: continue
     df = df.max()
     # df = df.iloc[-1, :]
     name = path.split('/')[-1]
     names.append(name)
-    dfs.append(df.to_frame(name=name))
+    df = df.to_frame(name=name)
+    df = df.T
+    for n in ['adv_fea_xa', 'adv_fea_eps_xa', 'adv_fea_xpn', 'adv_fea_eps_xpn']:
+        df.loc[name, n] = args[n]
+    dfs.append(df)
 
-df = pd.concat(dfs, axis=1)
-df = df.transpose()
-df = df[['top-1', 'top-5', 'top-10']]
+# print(dfs)
+
+df = pd.concat(dfs, axis=0)
+# df = df.transpose()
+print(df.keys())
+# df = df[['top-1', 'top-5', 'top-10', 'mAP']]
+# df = df[['top-1', 'mAP']]
+
 # df3 = df[['top-1.rk', 'top-5.rk', 'mAP.rk']]
 # print(df)
 print(df2md(df))
-print(df.to_latex())
+# print(df.to_latex())

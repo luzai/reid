@@ -23,6 +23,7 @@ cls2name = {
     CUB: ['cub'],
     Stanford_Prod: ['stanford_prod'],
     Extract: ['extract'],
+    FolderDs: ['folderds'],
     Car196: ['car196'],
 }
 
@@ -95,7 +96,7 @@ def create(name, *args, **kwargs):
         raise KeyError("Unknown dataset:", name)
     args_ds = parse_name(name)
     kwargs = lz.dict_update(kwargs, args_ds, must_exist=False)
-    root = '/home/xinglu/.torch/data/' + kwargs.get('dataset')
+    root = '/data1/share/' + kwargs.get('dataset')
     return __factory[kwargs.get('dataset')](root=root, *args, **kwargs)
 
 

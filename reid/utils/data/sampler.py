@@ -80,7 +80,8 @@ class RandomIdentityWeightedSampler(Sampler):
         self.queue = queue.Queue()
 
     def __len__(self):
-        return len(self.data_source)
+        return len(self.data_source)  # todo
+
         # return self.batch_size*43
 
     def get_batch_pids(self):
@@ -89,7 +90,8 @@ class RandomIdentityWeightedSampler(Sampler):
         # lz.logging.debug('get new inds, {} {}'.format(dop, np.count_nonzero(dop == -1)))
         pids_now = np.random.choice(self.pids,
                                     size=int(self.batch_size / self.num_instances * self.rand_ratio),
-                                    replace=False)
+                                    replace=True # todo
+                                    )
         pids.extend(pids_now.tolist())
         while len(pids) < self.batch_size / self.num_instances:
             pids_next = []

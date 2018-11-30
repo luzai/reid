@@ -98,7 +98,7 @@ class Trainer(object):
         imgs, npys, fnames, pids = inputs.get('img'), inputs.get(
             'npy'), inputs.get('fname'), inputs.get('pid')
         inputs = [imgs, npys]
-        inputs =  (inputs) # todo to variables
+        inputs = (inputs)  # todo to variables
         targets = (pids)
         return inputs, targets, fnames
 
@@ -286,6 +286,7 @@ def set_bn_to_eval(m):
     if classname.find('BatchNorm') != -1:
         m.eval()
 
+
 # use crayon as summery writer todo
 class SummaryWriter2(object):
     def __init__(self, *args, **kwargs): pass
@@ -296,10 +297,12 @@ class SummaryWriter2(object):
 
     def add_image(self, *args, **kwargs): pass
 
+
 def calc_distmat_pairwise(xa, xp):
-                    dist = torch.pow(xa - xp, 2).sum(dim=1)
-                    dist.clamp_(min=1e-12, max=1e12).sqrt_()
-                    return dist
+    dist = torch.pow(xa - xp, 2).sum(dim=1)
+    dist.clamp_(min=1e-12, max=1e12).sqrt_()
+    return dist
+
 
 class TriTrainer(object):
     def __init__(self, model, criterion, logs_at='work/vis', dbg=True, args=None, dop_info=None, **kwargs):
@@ -374,27 +377,14 @@ class TriTrainer(object):
             if self.args.adv_inp != 0 and self.args.double == 0 and self.args.adv_fea == 0:
                 # method1
                 # optimizer.zero_grad()
-                # if self.iter % 2 == 0:
-                #     losst.backward()
-                # else:
-                #     input_imgs_grad_detached = torch.autograd.grad(
-                #         outputs=losst, inputs=input_imgs,
-                #         create_graph=True, retain_graph=True,
-                #         only_inputs=True
-                #     )[0].detach()
-                #     if self.args.aux == 'l2_adv':
-                #         input_imgs_adv = input_imgs + self.args.adv_inp_eps * l2_normalize(input_imgs_grad_detached)
-                #     elif self.args.aux == 'linf_adv':
-                #         input_imgs_adv = input_imgs + self.args.adv_inp_eps * torch.sign(input_imgs_grad_detached)
-                #     else:
-                #         input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad_detached
-                #     features_adv, logits_adv = self.model(input_imgs_adv)
-                #     losst_adv, prect_adv, _ = self.criterion(logits_adv, targets)
-                #     self.writer.add_scalar('vis/loss-adv', losst_adv.item(), self.iter)
-                #     self.writer.add_scalar('vis/prec-adv', prect_adv.item(), self.iter)
-                #     (self.args.adv_inp * losst_adv).backward()
-                #     # (self.args.adv_inp * losst_adv + losst).backward()
+                # input_imgs_adv = get_adv(losst, input_imgs, self.args.aux, self.args.adv_inp_eps)
+                # features_adv, logits_adv = self.model(input_imgs_adv)
+                # losst_adv, prect_adv, _ = self.criterion(logits_adv, targets)
+                # self.writer.add_scalar('vis/loss-adv', losst_adv.item(), self.iter)
+                # self.writer.add_scalar('vis/prec-adv', prect_adv.item(), self.iter)
+                # (self.args.adv_inp * losst_adv + (1 - self.args.adv_inp) * losst).backward()
                 # optimizer.step()
+
                 # method2
                 optimizer.zero_grad()
                 losst.backward()
@@ -407,10 +397,12 @@ class TriTrainer(object):
                 else:
                     input_imgs_adv = input_imgs + self.args.adv_inp_eps * input_imgs_grad
                 features_adv, logits_adv, _ = self.model(input_imgs_adv)
-                losst_adv, prect_adv, _ = self.criterion(logits_adv, targets)
+                res  = self.criterion(logits_adv, targets)
+                losst_adv, prect_adv = res[0], res[1]
                 self.writer.add_scalar('vis/loss-adv', losst_adv.item(), self.iter)
                 self.writer.add_scalar('vis/prec-adv', prect_adv.item(), self.iter)
                 (self.args.adv_inp * losst_adv).backward()
+
                 if math.isnan(losst_adv.item()):
                     print('fail')
                     raise ValueError('nan')
@@ -487,19 +479,9 @@ class TriTrainer(object):
             elif self.args.adv_fea != 0 and self.args.double == 0 and self.args.adv_inp == 0:
                 # method 1
                 optimizer.zero_grad()
-                features_grad = torch.autograd.grad(
-                    outputs=losst, inputs=features,
-                    create_graph=True, retain_graph=True,
-                    only_inputs=True
-                )[0].detach()
-                if 'l2_adv' in self.args.aux:
-                    features_advtrue = features + self.args.adv_fea_eps * l2_normalize(features_grad)
-                elif 'linf_adv' in self.args.aux:
-                    features_advtrue = features + self.args.adv_fea_eps * torch.sign(features_grad)
-                else:
-                    features_advtrue = features + self.args.adv_fea_eps * features_grad
+                features_advtrue = get_adv(losst, features, self.args.aux, self.args.adv_fea_eps)
                 losst_advtrue, _, _ = self.criterion(features_advtrue, targets)
-                (losst + self.args.adv_fea * losst_advtrue).backward()
+                ((1 - self.args.adv_fea) * losst + self.args.adv_fea * losst_advtrue).backward()
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
                 optimizer.step()
                 # method 2
@@ -543,55 +525,22 @@ class TriTrainer(object):
             elif self.args.adv_fea_xa != 0:
                 assert self.args.loss == 'tri_adv'
                 optimizer.zero_grad()
-                features_grad = torch.autograd.grad(
-                    outputs=losst, inputs=xa,
-                    create_graph=True, retain_graph=True,
-                    only_inputs=True
-                )[0].detach()
-                if 'l2_adv' in self.args.aux:
-                    xa_advtrue = xa + self.args.adv_fea_eps_xa * l2_normalize(features_grad)
-                elif 'linf_adv' in self.args.aux:
-                    xa_advtrue = xa + self.args.adv_fea_eps_xa * torch.sign(features_grad)
-                else:
-                    xa_advtrue = xa + self.args.adv_fea_eps_xa * (features_grad)
+                xa_advtrue = get_adv(losst, xa, self.args.aux, self.args.adv_fea_eps)
                 dist_ap = calc_distmat_pairwise(xa_advtrue, xp)
                 dist_an = calc_distmat_pairwise(xa_advtrue, xn)
                 losst_advtrue = F.softplus(dist_ap - dist_an).mean()
-                (losst + self.args.adv_fea * losst_advtrue).backward()
+                ((1 - self.args.adv_fea_xa) * losst + self.args.adv_fea_xa * losst_advtrue).backward()
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
                 optimizer.step()
             elif self.args.adv_fea_xpn != 0:
                 assert self.args.loss == 'tri_adv'
                 optimizer.zero_grad()
-                # todo all this --> function
-                features_grad = torch.autograd.grad(
-                    outputs=losst, inputs=xp,
-                    create_graph=True, retain_graph=True,
-                    only_inputs=True
-                )[0].detach()
-                if 'l2_adv' in self.args.aux:
-                    xp_advtrue = xp + self.args.adv_fea_eps_xpn * l2_normalize(features_grad)
-                elif 'linf_adv' in self.args.aux:
-                    xp_advtrue = xp + self.args.adv_fea_eps_xpn * torch.sign(features_grad)
-                else:
-                    xp_advtrue = xp + self.args.adv_fea_eps_xpn * (features_grad)
-
-                features_grad = torch.autograd.grad(
-                    outputs=losst, inputs=xn,
-                    create_graph=True, retain_graph=True,
-                    only_inputs=True
-                )[0].detach()
-                if 'l2_adv' in self.args.aux:
-                    xn_advtrue = xn + self.args.adv_fea_eps_xpn * l2_normalize(features_grad)
-                elif 'linf_adv' in self.args.aux:
-                    xn_advtrue = xn + self.args.adv_fea_eps_xpn * torch.sign(features_grad)
-                else:
-                    xn_advtrue = xn + self.args.adv_fea_eps_xpn * (features_grad)
-
+                xp_advtrue = get_adv(losst, xp, self.args.aux, self.args.adv_fea_eps_xpn)
+                xn_advtrue = get_adv(losst, xn, self.args.aux, self.args.adv_fea_eps_xpn)
                 dist_ap = calc_distmat_pairwise(xa, xp_advtrue)
                 dist_an = calc_distmat_pairwise(xa, xn_advtrue)
                 losst_advtrue = F.softplus(dist_ap - dist_an).mean()
-                (losst + self.args.adv_fea * losst_advtrue).backward()
+                ((1 - self.args.adv_fea_xpn) * losst + self.args.adv_fea_xpn * losst_advtrue).backward()
                 self.writer.add_scalar('vis/loss_adv_fea', losst_advtrue.item(), self.iter)
                 optimizer.step()
             # 7. middle

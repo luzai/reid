@@ -26,8 +26,8 @@ class Mars(object):
     """
     dataset_dir = 'mars'
 
-    def __init__(self, root='/home/xinglu/.torch/data', min_seq_len=0, **kwargs):
-        root = '/home/xinglu/.torch/data'
+    def __init__(self, root=None, min_seq_len=0, **kwargs):
+        root = '/data/share/'
         self.images_dir = self.dataset_dir = osp.join(root, self.dataset_dir)
         self.train_name_path = osp.join(self.dataset_dir, 'info/train_name.txt')
         self.test_name_path = osp.join(self.dataset_dir, 'info/test_name.txt')
@@ -338,8 +338,9 @@ class PRID(object):
     """
     dataset_dir = 'prid2011'
 
-    def __init__(self, root='/home/xinglu/.torch/data/', split_id=0, min_seq_len=0, **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
+    def __init__(self, root=None, split_id=0, min_seq_len=0, **kwargs):
+        # self.dataset_dir = osp.join(root, self.dataset_dir)
+        self.dataset_dir = self.root = osp.join('/data2/share/', self.dataset_dir)
         self.dataset_url = 'https://files.icg.tugraz.at/f/6ab7e8ce8f/?raw=1'
         self.split_path = osp.join(self.dataset_dir, 'splits_prid2011.json')
         self.cam_a_path = osp.join(self.dataset_dir, 'prid_2011', 'multi_shot', 'cam_a')
@@ -383,12 +384,17 @@ class PRID(object):
         print("  ------------------------------")
 
         self.train = train
+        self.trainval = train
+        self.val = None
         self.query = query
         self.gallery = gallery
 
-        self.num_train_pids = num_train_pids
-        self.num_query_pids = num_query_pids
-        self.num_gallery_pids = num_gallery_pids
+        self.num_train_pids = self.num_trainval_pids = self.num_train_ids = self.num_trainval_ids = num_train_pids
+        self.num_val_ids = self.num_val_pids = 0
+        self.num_query_ids = self.num_query_pids = num_query_pids
+        self.num_gallery_ids = self.num_gallery_pids = num_gallery_pids
+
+        self.images_dir = self.root + '/images/'
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
@@ -429,12 +435,12 @@ class Market1501(Dataset):
     url = 'https://drive.google.com/file/d/0B8-rUzbwVRk0c054eEozWG9COHM/view'
     md5 = '65005ab7d12ec1c44de4eeafe813e68a'
 
-    root = '/data1/xinglu/work/data/market1501/'
+    root = '/data1/share/market1501/'
     train_dir = osp.join(root, 'bounding_box_train')
     query_dir = osp.join(root, 'query')
     gallery_dir = osp.join(root, 'bounding_box_test')
 
-    def __init__(self, root='/data1/xinglu/work/data/market1501/', split_id=0,
+    def __init__(self, root=None, split_id=0,
                  num_val=100, download=True,
                  check_intergrity=True,
                  **kwargs):
@@ -466,6 +472,7 @@ class Market1501(Dataset):
             gallery += g
             # gallery = tuple(gallery)
             num_gallery_imgs += ndistractors
+            num_total_imgs += ndistractors
         print("=> Market1501 loaded")
         print("Dataset statistics:")
         print("  ------------------------------")
@@ -609,6 +616,47 @@ class Market1501(Dataset):
 # need to provide: num_train_pids = num_trainval_pids, num_query_pids, num_gallary_pids
 # trainval=train, val=None, query, gallery
 # format: imgp, pid, cid
+
+class FolderDs(Dataset):
+    def __init__(self, **kwargs):
+        self.root = root = work_path + 'yy.release/'
+        assert osp.exists(root)
+        num_pids = 30
+
+        dftl = []
+        for pid in range(num_pids):
+            imps = glob.glob(self.root + f'gallery/{pid}/*')  # png or jpg
+            dft = pd.DataFrame({'imgs': imps, 'pids': pid * np.ones(len(imps), int), 'cids': np.arange(len(imps))})
+            dftl.append(dft)
+        df_ori_gallery = pd.concat(dftl, axis=0)
+
+        dftl = []
+        for pid in range(num_pids):
+            imps = glob.glob(self.root + f'query/{pid}/*')  # png or jpg
+            dft = pd.DataFrame({'imgs': imps, 'pids': pid * np.ones(len(imps), int), 'cids': np.arange(len(imps))})
+            dftl.append(dft)
+        df_ori_query = pd.concat(dftl, axis=0)
+        np.random.seed(16)
+        all_ind = np.random.permutation(df_ori_query.shape[0])
+        np.random.seed(int(time.time() * 100 % 2 ** 31))
+        train_ind = all_ind[:df_ori_query.shape[0] * 7 // 10]
+        test_ind = all_ind[df_ori_query.shape[0] * 7 // 10:]
+        df_ori_train = df_ori_query.iloc[train_ind]
+        df_final_train = pd.concat((df_ori_gallery, df_ori_train,), axis=0)
+        df_ori_test = df_ori_query.iloc[test_ind]
+        df_test = pd.concat((df_ori_gallery, df_ori_test), axis=0)
+        self.gallery = df_test.to_records(index=False).tolist()
+        # self.gallery = df_ori_gallery.to_records(index=False).tolist()
+        self.query = df_ori_test.to_records(index=False).tolist()
+        self.train = self.trainval = df_final_train.to_records(index=False).tolist()
+        self.val = None
+        self.num_train_pids = num_pids
+        self.num_trainval_ids = num_pids
+        self.num_val_ids = 0
+        self.num_query_pids = num_pids
+        self.num_gallery_pids = num_pids
+        self.images_dir = None
+
 
 class Extract(Dataset):
     def __init__(self, **kwargs):
@@ -792,7 +840,8 @@ from scipy.io import loadmat
 
 if __name__ == '__main__':
     tic = time.time()
-    Market1501()
+    ds = FolderDs()
+    # Market1501()
     # CUB()
     # Stanford_Prod()
     # Car196()

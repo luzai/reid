@@ -15,45 +15,24 @@ gpu_range = (0, 1, 2, 3)
 
 # todo dataset
 # todo loss
-
+# data code results in different place
 
 cfgs = [
-    # edict(
-    #     logs_dir='mkt.bs.bak',
-    #     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
-    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-    #     # aux='l2_adv',
-    #     dataset='mkt', height=256, width=128,  # stanford_prod car196 cub
-    #     gpu=(2,), last_conv_stride=2,
-    #     gpu_fix=False,
-    #     batch_size=256, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tri_adv', tri_mode='adap',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=gpu_range, lr_mult=1,
-    #     push_scale=1., embed=None,
-    #     margin='soft',
-    #     margin2=0.0, margin3=0.0, margin4=0.0,
-    #     evaluate=True,
-    #     resume='/data2/xinglu/work/reid/work.11.13/mkt/model_best.pth',
-    #     # resume='/data2/xinglu/work/reid/work.11.13/mkt.2/model_best.pth',
-    #     ndistractors_chs=4, mkt_distractor=True,
-    # ),
     edict(
-        logs_dir='cu03.resize',
+        logs_dir='yy.long.2.bak',
         double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
         reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
         reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        adv_fea_xa=0,  # loss weight on xa only
-        adv_fea_eps_xa=0.3,  # for xa
-        adv_fea_xpn=0,  # or xnp only
-        adv_fea_eps_xpn=0.3,  # for xn xp
-        aux='lno_adv',
-        dataset='cu03lbl', height=256, width=128,  # stanford_prod car196 cub
-        gpu=(2,), last_conv_stride=2,
-        gpu_fix=False,
-        batch_size=128, num_instances=4, num_classes=128,
+        dataset='folderds', height=256, width=128,  # stanford_prod car196 cub
+        dataset_val='folderds',
+        # steps=[40, 60], epochs=65,
+        steps=[30, ], epochs=65,
+        lr=4e-4,
+        eval_conf='market1501',
+        log_at=np.arange(100),
+        gpu=(0,), last_conv_stride=2,
+        # gpu_fix=True,
+        batch_size=4, num_instances=4, num_classes=128,
         dropout=0, loss='tri_adv', tri_mode='adap',
         cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
         random_ratio=1, lr_cent=0,
@@ -61,12 +40,60 @@ cfgs = [
         push_scale=1., embed=None,
         margin='soft',
         margin2=0.0, margin3=0.0, margin4=0.0,
-    )
-
+        # resume='/data2/xinglu/work/reid/work.use/tri6.combine.2/model_best.pth',
+        evaluate=True,
+        resume='/data2/xinglu/work/reid/work/yy.long.2/model_best.pth',
+        # ndistractors_chs=4, mkt_distractor=True,
+    ),
+    # edict(
+    #     logs_dir='msmt17.xa.2',
+    #     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    #     aux='lno_adv',
+    #     adv_fea_eps_xa=0.1, adv_fea_xa=0.2,
+    #     dataset='msmt17', height=256, width=128,  # stanford_prod car196 cub
+    #     eval_conf='market1501',
+    #     gpu=(1, 2, 3), last_conv_stride=2,
+    #     # gpu_fix=True,
+    #     log_at=[65, 66, ],
+    #     batch_size=128*3, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri_adv', tri_mode='adap',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=gpu_range, lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft',
+    #     margin2=0.0, margin3=0.0, margin4=0.0,
+    # ),
+    # edict(
+    #     logs_dir='viper.bak',
+    #     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    #     adv_fea_xa=0,  # loss weight on xa only
+    #     adv_fea_eps_xa=0.3,  # for xa
+    #     adv_fea_xpn=0,  # or xnp only
+    #     adv_fea_eps_xpn=0.3,  # for xn xp
+    #     # aux='lno_adv',
+    #     dataset='viper', height=256, width=128,  # stanford_prod car196 cub
+    #     gpu=(2,), last_conv_stride=2,
+    #     gpu_fix=False,
+    #     batch_size=128, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri_adv', tri_mode='adap',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=gpu_range, lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft',
+    #     margin2=0.0, margin3=0.0, margin4=0.0,
+    #     # evaluate=True,
+    #     # resume='/data2/xinglu/work/reid/work/cu03.resize/model_best.pth',
+    # )
 ]
 
 # cfg = edict(
-#     logs_dir='cu03',
+#     logs_dir='v7',
 #     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
 #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
 #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
@@ -74,7 +101,6 @@ cfgs = [
 #     adv_fea_eps_xa=0.3,  # for xa
 #     adv_fea_xpn=0,  # or xnp only
 #     adv_fea_eps_xpn=0.3,  # for xn xp
-#     aux='lno_adv',
 #     dataset='cu03lbl', height=256, width=128,  # stanford_prod car196 cub
 #     gpu=(2,), last_conv_stride=2,
 #     gpu_fix=False,
@@ -89,46 +115,44 @@ cfgs = [
 # )
 #
 # for dyna_param in ParameterGrid(dict(
-#         tri_impr=[0.1, 0.01],
-#         tri_quad=[0, ]
-# )):
+#         aux=['lno_adv', ],
+#         adv_fea_xa=[1],
+#         adv_fea_eps_xa=[1e-4, 5e-4, 3e-3, 5e-2, 1e-3, 1e-2, 1e-1],
+#         # adv_inp=[1e-1, 1],
+#         # adv_inp_eps=[1e-3, 1e-2, 1e-1],
+#         dataset=['cu03lbl',
+#                  ],
+#         cu03_classic=[
+#             # True,
+#             False
+#         ],
+#     run = [1,3,4,5,2]
+# ), ):
 #     cfgt = copy.deepcopy(cfg)
 #     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
-#     cfgt.logs_dir = f'{cfgt.dataset[:3]}.impr{cfgt.tri_impr}.quad{cfgt.tri_quad}'
-#     cfgs.append(cfgt)
-#
-# for dyna_param in ParameterGrid(dict(
-#         tri_quad=[1, 0.1],
-#         tri_impr=[0, ]
-# )):
-#     cfgt = copy.deepcopy(cfg)
-#     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
-#     cfgt.logs_dir = f'{cfgt.dataset[:3]}.impr{cfgt.tri_impr}.quad{cfgt.tri_quad}'
+#     cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.xa.{cfgt.aux}.{cfgt.adv_fea_xa}.{cfgt.adv_fea_eps_xa}.{cfgt.run}'
+#     # cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.{cfgt.aux}.{cfgt.adv_inp}.{cfgt.adv_inp_eps}'
 #     cfgs.append(cfgt)
 
-# ntry = 9
-# for dyna_param in ParameterSampler(dict(
-#         aux=['lno_adv', 'linf_adv'],
-#         adv_fea_xa=LogUniformDistribution(1e-2, 2),
-#         adv_fea_eps_xa=LogUniformDistribution(1e-3, 2),
-#         dataset=['cu03lbl', 'cu03det'],
-#         cu03_classic=[True, False],
-# ), ntry):
+# for dyna_param in ParameterGrid(dict(
+#         adv_fea_xpn=[0.01, 0.05, 0.2, 0.4, 0.6, 0.8, 1e-1, 1],
+#         adv_fea_eps_xpn=[1e-4, 5e-4, 3e-3, 5e-2, 1e-3, 1e-2, 1e-1],
+#         # adv_inp=[1e-1, 1],
+#         # adv_inp_eps=[1e-3, 1e-2, 1e-1],
+#         aux=['linf_adv',
+#              'lno_adv'],
+#         dataset=['cu03lbl',
+#                  # 'cu03det'
+#                  ],
+#         cu03_classic=[
+#             # True,
+#             False
+#         ],
+# ), ):
 #     cfgt = copy.deepcopy(cfg)
 #     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
-#     cfgt.logs_dir = f'{cfgt.dataset[:3]}.clsc{cfgt.cu03_classic}.xa.{cfgt.aux}.{cfgt.adv_fea_xa}.{cfgt.adv_fea_eps_xa}'
-#     cfgs.append(cfgt)
-#
-# for dyna_param in ParameterSampler(dict(
-#         adv_fea_xpn=LogUniformDistribution(1e-2, 2),
-#         adv_fea_eps_xpn=LogUniformDistribution(1e-3, 2),
-#         aux=['linf_adv', 'lno_adv'],
-#         dataset=['cu03lbl', 'cu03det'],
-#         cu03_classic=[True, False],
-# ), ntry):
-#     cfgt = copy.deepcopy(cfg)
-#     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
-#     cfgt.logs_dir = f'{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.xpn.{cfgt.aux}.{cfgt.adv_fea_xpn}.{cfgt.adv_fea_eps_xpn}'
+#     cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.xpn.{cfgt.aux}.{cfgt.adv_fea_xpn}.{cfgt.adv_fea_eps_xpn}'
+#     # cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.{cfgt.aux}.{cfgt.adv_inp}.{cfgt.adv_inp_eps}'
 #     cfgs.append(cfgt)
 #
 # random.shuffle(cfgs)
