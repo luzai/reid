@@ -264,7 +264,7 @@ class Trainer(object):
         })
 
 
-def update_dop_cls(outputs, targets, dop_file):
+def update_dop_cls(outputs, targets, dop_info):
     targets = to_numpy(targets)
     targets = targets.reshape((targets.shape[0] // 4), 4).mean(axis=1).astype(np.int64)
 
@@ -272,24 +272,14 @@ def update_dop_cls(outputs, targets, dop_file):
     outputs = outputs.reshape((outputs.shape[0] // 4, 4, outputs.shape[1])).sum(axis=1)
 
     outputs[np.arange(outputs.shape[0]), targets] = -np.inf
-
-    db = Database(dop_file, 'w')
-    dop = db['dop']
+    dop = dop_info.dop
     dop[targets] = np.argmax(outputs, axis=1)
     logging.debug('cls \n {} dop is \n {}'.format(targets, dop[targets]))
-    db['dop'] = dop
-    db.close()
-
-
-def update_dop_tri2(dist, targets, dop_info):
-    bs = targets.shape[0] // 4
-    # todo select max
-    raise NotImplementedError('wait ,,,')
+    dop_info.dop = dop
 
 
 def update_dop_tri(dist, targets, dop_info):
-    # todo on gpu operation, compare speed
-    # todo mean not depent on 4
+    # todo this assume targets aranges as [1,1,1,1, 2,2,2,2 ... ]
     targets = to_numpy(targets)
     bs = targets.shape[0] // 4
     targets = targets.reshape(bs, 4).mean(axis=1).astype(np.int64)
