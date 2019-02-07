@@ -7,6 +7,7 @@ from .embedding import *
 from .darknet import *
 from .mobilenet import *
 from .misc import *
+from .network import *
 
 # __factory = {
 #     'inception': inception,

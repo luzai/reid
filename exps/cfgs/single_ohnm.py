@@ -23,8 +23,8 @@ cfgs = [
         double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
         reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
         reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        dataset='folderds', height=256, width=128,  # stanford_prod car196 cub
-        dataset_val='folderds',
+        dataset='market1501', height=256, width=128,  # stanford_prod car196 cub
+        dataset_val='market1501',
         # steps=[40, 60], epochs=65,
         steps=[30, ], epochs=65,
         lr=4e-4,
@@ -32,7 +32,7 @@ cfgs = [
         log_at=np.arange(100),
         gpu=(0,), last_conv_stride=2,
         # gpu_fix=True,
-        batch_size=4, num_instances=4, num_classes=128,
+        batch_size=128, num_instances=4, num_classes=128,
         dropout=0, loss='tri_adv', tri_mode='adap',
         cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
         random_ratio=1, lr_cent=0,
@@ -40,9 +40,9 @@ cfgs = [
         push_scale=1., embed=None,
         margin='soft',
         margin2=0.0, margin3=0.0, margin4=0.0,
-        # resume='/data2/xinglu/work/reid/work.use/tri6.combine.2/model_best.pth',
+        resume='/data2/xinglu/work/reid/work.use/tri6.combine.2/model_best.pth',
         evaluate=True,
-        resume='/data2/xinglu/work/reid/work/yy.long.2/model_best.pth',
+        # resume='/data2/xinglu/work/reid/work/yy.long.2/model_best.pth',
         # ndistractors_chs=4, mkt_distractor=True,
     ),
     # edict(
