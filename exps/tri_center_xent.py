@@ -285,7 +285,7 @@ def main(args):
         with lz.Database(db_name) as db:
             if 'cent' in checkpoint:
                 db['cent'] = to_numpy(checkpoint['cent'])
-            db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight'])
+            # db['xent'] = to_numpy(checkpoint['state_dict']['embed2.weight']) #todo
         if args.restart:
             start_epoch_ = checkpoint['epoch']
             best_top1_ = checkpoint['best_top1']
@@ -380,26 +380,22 @@ def main(args):
     else:
         raise NotImplementedError
 
-    if args.cls_pretrain:
+    if args.ft_epochs!=0:
         args_cp = copy.deepcopy(args)
-        args_cp.cls_weight = 1
-        args_cp.tri_weight = 0
-        trainer = XentTrainer(model, criterion, dbg=False,
-                              logs_at=args_cp.logs_dir + '/vis', args=args_cp)
-        for epoch in range(start_epoch, args_cp.epochs):
-            hist = trainer.train(epoch, train_loader, optimizer)
+        trainer = TriTrainer(model, criterion, dbg=False,
+                              logs_at=args_cp.logs_dir + '/ft', args=args_cp)
+        for epoch in range(start_epoch, args_cp.ft_epochs):
+            hist = trainer.train(epoch, train_loader, optimizer, ft=True)
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
-                'cent': criterion[1].centers,
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
             }, True, fpath=osp.join(args.logs_dir,
                                     'checkpoint.{}.pth'.format(epoch))
-                # 'model_latest.pth',)
             )
             print('Finished epoch {:3d} hist {}'.
                   format(epoch, hist))
-
+    
     # Trainer
     if args.loss == 'tcx':
         trainer = TCXTrainer(model, criterion, dbg=True,
@@ -447,6 +443,7 @@ def main(args):
     # schedule = CyclicLR(optimizer)
     schedule = None
     # Start training
+    
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch=epoch)
         args = adjust_bs(epoch, args)

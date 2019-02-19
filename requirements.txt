@@ -20,7 +20,7 @@ opencv-python
 lmdb
 tensorboardX
 tabulate
-tensorflow-gpu
+#tensorflow-gpu
 tensorboard
 cffi
 flake8
@@ -30,10 +30,10 @@ jupyter_nbextensions_configurator
 mkdocs
 mkdocs-material
 pylint
-peewee
+#peewee
 #git+https://github.com/shadowsocks/shadowsocks.git@master
-cupy-cuda90
-chainer
+#cupy-cuda90
+#chainer
 tqdm
-mxnet-cu90
+#mxnet-cu90
 fuel 

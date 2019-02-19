@@ -19,7 +19,7 @@ def calc_distmat2(x, y):
     distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
               torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
     distmat.addmm_(1, -2, x, y.t()).clamp_(min=1e-12, max=1e12)
-
+    
     return distmat
 
 
@@ -29,11 +29,13 @@ def calc_distmat(x, y):
     distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(num_x, num_y) + \
               torch.pow(y, 2).sum(dim=1, keepdim=True).expand(num_y, num_x).t()
     distmat.addmm_(1, -2, x, y.t()).clamp_(min=1e-12, max=1e12).sqrt_()
-
+    
     return distmat
 
 
 def calc_distmat_pairwise(xa, xp):
+    # dist =  torch.sum(torch.pow(xa - xp, 2), dim=1)
+    # dist.clamp_(min=1e-6, max=1e4).sqrt_()
     dist = torch.pow(xa - xp, 2).sum(dim=1)
     dist.clamp_(min=1e-12, max=1e12).sqrt_()
     return dist
@@ -44,7 +46,7 @@ from torch.nn import init
 
 class CenterLoss(nn.Module):
     name = 'center'
-
+    
     def __init__(self, num_classes, feat_dim,
                  margin2, margin3,
                  use_gpu=True, mode=None, push_scale=1.,
@@ -65,12 +67,12 @@ class CenterLoss(nn.Module):
             self.centers = nn.Parameter(
                 torch.randn(self.num_classes, self.feat_dim))
         init.kaiming_normal_(self.centers, mode='fan_out')
-
+        
         # self.fc = nn.Linear(self.num_classes, self.num_classes - 1)
         # init.constant_(self.fc.bias, 1 )
         self.push_scale = push_scale
         self.push_wei = torch.ones(self.num_classes - 1).cuda() * self.push_scale
-
+    
     def forward(self, x, labels, **kwargs):
         """
         Args:
@@ -86,13 +88,13 @@ class CenterLoss(nn.Module):
         classes = Variable(classes)
         labels = labels.unsqueeze(1).expand(batch_size, self.num_classes)
         mask = labels.eq(classes.expand(batch_size, self.num_classes))
-
+        
         dists_dcl = []
         dists_pull = []
         if not self.mode:
             _zero = torch.zeros(1).cuda()
             return _zero, _zero, _zero, _zero
-
+        
         modes = self.mode.split('.')
         for i in range(batch_size):
             dist_pull = distmat_x2cent[i][mask[i]]
@@ -123,11 +125,11 @@ class CenterLoss(nn.Module):
                     neg_topk, _ = torch.topk(logits[1 - mask[i]], k=self.args.topk, largest=True)
                     pos = logits[mask[i]]
                     logits = torch.cat([pos, neg_topk])
-
+                
                 shift_logits = logits - torch.max(logits)
                 Z = torch.exp(shift_logits).sum()
                 dist_now = shift_logits - torch.log(Z)
-
+                
                 # dist_now = F.log_softmax(logits, dim=0)
                 dists_dcl.append(-dist_now[0])
                 # dists_dcl
@@ -139,9 +141,9 @@ class CenterLoss(nn.Module):
                 #     dists_dcl.append(
                 #         - torch.exp(-dist_pull) / torch.exp(-distmat_x2cent[i]).sum()
                 #     )
-
+        
         loss_pull = torch.cat(dists_pull).mean()
-
+        
         if 'cent' in modes:
             loss = loss_pull
         elif 'ccent' in modes:
@@ -153,7 +155,7 @@ class CenterLoss(nn.Module):
         else:
             loss = torch.zeros(1).cuda()
         distmat_cent2cent = calc_distmat2(self.centers, self.centers)
-
+        
         # if 'disall' in modes:
         mask = to_torch(np.tri(ncenters, dtype=np.uint8) -
                         np.identity(ncenters, dtype=np.uint8)).cuda()
@@ -163,19 +165,19 @@ class CenterLoss(nn.Module):
         #     mask = to_torch(np.identity(ncenters, dtype=np.float32)).cuda() * distmat_cent2cent.max()
         #     loss_dis = (distmat_cent2cent + mask).min(dim=1)
         #     loss_dis = -loss_dis.mean()
-
+        
         return loss, loss_dis, distmat_cent2cent, loss_pull
 
 
 class QuadLoss(nn.Module):
     name = 'quad'
-
+    
     def __init__(self, margin=0, mode='hard', **kwargs):
         super(QuadLoss, self).__init__()
         self.margin = margin
         self.mode = mode
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
-
+    
     def forward(self, inputs, targets, dbg=False):
         n = inputs.size(0)
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
@@ -185,23 +187,23 @@ class QuadLoss(nn.Module):
         dist = dist.clamp(min=1e-12, max=1e+12).sqrt()
         # For each anchor, find the hardest positive and negative
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
-
+        
         dist_ap, dist_an, dist_n12 = [], [], []
         for i in range(n):
             some_pos = dist[i][mask[i]]
             some_neg = dist[i][mask[i] == 0]
-
+            
             neg, n1_ind = some_neg.min(0)
             pos = some_pos.max()
-
+            
             dist_ap.append(pos)
             dist_an.append(neg)
-
+            
             n1_ind = to_numpy(n1_ind)[0]
             some_n2 = dist[n1_ind][mask[n1_ind] == 0]
             n2 = some_n2.min()
             dist_n12.append(n2)
-
+        
         dist_ap = torch.stack(dist_ap)
         dist_an = torch.stack(dist_an)
         dist_n12 = torch.stack(dist_n12)
@@ -211,12 +213,12 @@ class QuadLoss(nn.Module):
         else:
             y = torch.Variable(to_torch(np.ones(dist_an.size())).type(
                 torch.FloatTensor), requires_grad=False)
-
+        
         loss = self.ranking_loss(dist_an, dist_ap, y) + \
                0.1 * self.ranking_loss(dist_n12, dist_ap, y)
         # todo 0.1 and different margin
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
-
+        
         if not dbg:
             return loss, prec, dist
         else:
@@ -225,13 +227,13 @@ class QuadLoss(nn.Module):
 
 class QuinLoss(nn.Module):
     name = 'quin'
-
+    
     def __init__(self, margin=0, mode='hard', **kwargs):
         super(QuinLoss, self).__init__()
         self.margin = margin
         self.mode = mode
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
-
+    
     def forward(self, inputs, targets, dbg=False, cids=None):
         n = inputs.size(0)
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
@@ -247,24 +249,24 @@ class QuinLoss(nn.Module):
         for i in range(n):
             some_pos = dist[i][mask[i]]
             some_neg = dist[i][mask[i] == 0]
-
+            
             neg, n1_ind = some_neg.min(0)
             pos, p2_ind = some_pos.max(0)
-
+            
             dist_ap.append(pos)
             dist_an.append(neg)
-
+            
             n1_ind = to_numpy(n1_ind)[0]
             some_n2 = dist[n1_ind][mask[n1_ind] == 0]
             n2 = some_n2.min()
             dist_n12.append(n2)
-
+            
             p2_ind = to_numpy(p2_ind)[0]
             # dist[i][mask[i]][view_mask[i][mask[i]]]
             some_p1 = dist[p2_ind][mask[p2_ind]]
             p1 = some_p1.max()
             dist_p12.append(p1)
-
+        
         dist_ap = _concat(dist_ap)
         dist_an = _concat(dist_an)
         dist_n12 = _concat(dist_n12)
@@ -275,12 +277,12 @@ class QuinLoss(nn.Module):
         else:
             y = Variable(to_torch(np.ones(dist_an.size())).type(
                 torch.FloatTensor), requires_grad=False)
-
+        
         loss = self.ranking_loss(dist_an, dist_ap, y) \
                + 0.1 * self.ranking_loss(dist_n12, dist_ap, y) \
                + 0.1 * self.ranking_loss(dist_an, dist_p12, y)
         prec = (dist_an.data > dist_ap.data).sum() * 1. / y.size(0)
-
+        
         if not dbg:
             return loss, prec, dist
         else:
@@ -298,14 +300,14 @@ class CrossEntropyLabelSmooth(nn.Module):
         num_classes (int): number of classes.
         epsilon (float): weight.
     """
-
+    
     def __init__(self, num_classes, epsilon=0.1, use_gpu=True):
         super(CrossEntropyLabelSmooth, self).__init__()
         self.num_classes = num_classes
         self.epsilon = epsilon
         self.use_gpu = use_gpu
         self.logsoftmax = nn.LogSoftmax(dim=1)
-
+    
     def forward(self, inputs, targets):
         """
         Args:
@@ -323,7 +325,7 @@ class CrossEntropyLabelSmooth(nn.Module):
 
 class TripletLoss(nn.Module):
     name = 'tri'
-
+    
     def __init__(self, margin=0, mode='hard', args=None, **kwargs):
         super(TripletLoss, self).__init__()
         self.margin = margin
@@ -335,8 +337,8 @@ class TripletLoss(nn.Module):
         self.margin2 = args.margin2
         self.margin3 = args.margin3
         self.args = args
-
-    def forward(self, inputs, targets, dbg=False, cids=None):
+    
+    def forward(self, inputs, targets, dbg=False, cids=None, temp=1):
         n = inputs.size(0)
         dist = calc_distmat(inputs, inputs)
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
@@ -344,13 +346,13 @@ class TripletLoss(nn.Module):
         dist_pn = []
         all_ind = torch.arange(0, n).type(torch.LongTensor)
         # posp_inds, negp_inds = [], []
-
+        
         for i in range(n):
             if self.mode == 'hard':
                 # For each anchor, find the hardest positive and negative
                 some_pos = dist[i][mask[i]]
                 some_neg = dist[i][mask[i] == 0]
-
+                
                 neg = some_neg.min()
                 pos = some_pos.max()
                 dist_ap.append(pos)
@@ -381,23 +383,27 @@ class TripletLoss(nn.Module):
                 dist_ap.append(((xa - xp) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
                 dist_an.append(((xa - xn) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
                 dist_pn.append(((xp - xn) ** 2).sum().clamp(min=1e-12, max=1e12).sqrt())
-
-            elif self.mode == 'adap':
+            elif self.mode == 'adap.chs':
                 some_pos = dist[i][mask[i]]
                 some_neg = dist[i][mask[i] == 0]
-
+                
                 pos_ind = np.random.choice(np.arange(some_pos.shape[0]),
                                            p=F.softmax(some_pos, dim=0).cpu().detach().numpy())
                 neg_ind = np.random.choice(np.arange(some_neg.shape[0]),
                                            p=F.softmax(-some_neg, dim=0).cpu().detach().numpy())
-
+                
                 neg = some_neg[neg_ind]
                 pos = some_pos[pos_ind]
-
+                
                 dist_ap.append(pos)
                 dist_an.append(neg)
-            elif self.mode == 'adap.2':
-                pass
+            elif self.mode == 'adap':
+                daps = dist[i][mask[i]]
+                ap_wei = F.softmax(daps.detach() / temp, dim=0)
+                dist_ap.append((daps * ap_wei).sum())
+                dans = dist[i][mask[i] == 0]
+                an_wei = F.softmax(-dans.detach() / temp, dim=0)
+                dist_an.append((dans * an_wei).sum())
             elif self.mode == 'pos.moderate':
                 some_neg = dist[i][mask[i] == 0]
                 neg = some_neg.min()
@@ -412,35 +418,35 @@ class TripletLoss(nn.Module):
             elif self.mode == 'rand':
                 posp = dist[i][mask[i]]
                 dist_ap.append(posp[np.random.randint(0, posp.size(0))])
-
+                
                 negp = dist[i][mask[i] == 0]
                 dist_an.append(negp[np.random.randint(0, negp.size(0))])
         assert self.args.margin == 'soft', 'must soft'
-
+        
         dist_ap = torch.stack(dist_ap)
         dist_an = torch.stack(dist_an)
         if len(dist_pn) != 0:
             dist_pn = torch.stack(dist_pn)
         y = torch.ones(dist_an.size(), requires_grad=False).cuda()
-
-        pre_loss = F.softplus(dist_ap - dist_an).mean()
-        coff = 2 * torch.exp(pre_loss) / (1 + torch.exp(pre_loss))
-        # coff = 0
-        dist_ap *= (1 + self.margin2 * coff) ** 2
-        dist_an *= (1 - self.margin3 * coff) ** 2
-        if len(dist_pn) != 0:
-            dist_pn *= self.args.margin4 * coff
-
-        # print('coff is ' , coff.item())
-        if self.margin != 'soft':
-            loss = self.ranking_loss(dist_an, dist_ap, y)
-        elif len(dist_pn) != 0:
-            loss = F.softplus(dist_ap - dist_an + dist_pn).mean()
-        else:
-            loss = F.softplus(dist_ap - dist_an).mean()
+        
+        loss = pre_loss = F.softplus(dist_ap - dist_an).mean()
+        # coff = 2 * torch.exp(pre_loss) / (1 + torch.exp(pre_loss))
+        # # coff = 0
+        # dist_ap *= (1 + self.margin2 * coff) ** 2
+        # dist_an *= (1 - self.margin3 * coff) ** 2
+        # if len(dist_pn) != 0:
+        #     dist_pn *= self.args.margin4 * coff
+        #
+        # # print('coff is ' , coff.item())
+        # if self.margin != 'soft':
+        #     loss = self.ranking_loss(dist_an, dist_ap, y)
+        # elif len(dist_pn) != 0:
+        #     loss = F.softplus(dist_ap - dist_an + dist_pn).mean()
+        # else:
+        #     loss = F.softplus(dist_ap - dist_an).mean()
         prec = (dist_an.data > dist_ap.data).sum().type(
             torch.FloatTensor) / y.size(0)
-
+        
         if not dbg:
             return loss, prec, dist
         else:
@@ -449,7 +455,7 @@ class TripletLoss(nn.Module):
 
 class TripletLossAdv(nn.Module):
     name = 'tri_adv'
-
+    
     def __init__(self, margin=0, mode='hard', args=None, **kwargs):
         super(TripletLossAdv, self).__init__()
         self.margin = margin
@@ -459,8 +465,8 @@ class TripletLossAdv(nn.Module):
         self.margin2 = args.margin2
         self.margin3 = args.margin3
         self.args = args
-
-    def forward(self, inputs, targets, dbg=False, cids=None):
+    
+    def forward(self, inputs, targets, dbg=False, cids=None, temp=1):
         n = inputs.size(0)
         dist = calc_distmat(inputs, inputs)
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
@@ -471,17 +477,18 @@ class TripletLossAdv(nn.Module):
         n_inds = []
         n2_inds = []
         for i in range(n):
+            # todo restore
             assert self.mode == 'adap'
             some_pos = dist[i][mask[i]]
             some_neg = dist[i][mask[i] == 0]
             pos_inds = all_ind[mask[i]]
             neg_inds = all_ind[mask[i] == 0]
-
+            
             pos_ind_ind = np.random.choice(np.arange(some_pos.shape[0]),
                                            p=F.softmax(some_pos, dim=0).cpu().detach().numpy())
             neg_ind_ind = np.random.choice(np.arange(some_neg.shape[0]),
                                            p=F.softmax(-some_neg, dim=0).cpu().detach().numpy())
-
+            
             pos_ind = pos_inds[pos_ind_ind]
             neg_ind = neg_inds[neg_ind_ind]
             p_inds.append(pos_ind)
@@ -491,16 +498,18 @@ class TripletLossAdv(nn.Module):
                                           p=F.softmax(-some_n2, dim=0).cpu().detach().numpy())
             n2_ind = all_ind[mask[neg_ind] == 0][n2_ind_ind]
             n2_inds.append(n2_ind)
-
+        
         assert self.args.margin == 'soft', 'must soft'
         p_inds = torch.stack(p_inds)
+        n_inds = torch.stack(n_inds)
+        # n2_inds =  torch.stack(n2_inds)
         xa = inputs[a_inds]
         xp = inputs[p_inds]
         xn = inputs[n_inds]
-        xn2 = inputs[n2_inds]
+        # xn2 = inputs[n2_inds]
         dist_ap = calc_distmat_pairwise(xa, xp)
         dist_an = calc_distmat_pairwise(xa, xn)
-        dist_n12 = calc_distmat_pairwise(xn, xn2)
+        # dist_n12 = calc_distmat_pairwise(xn, xn2)
         if self.args.get('tri_impr', 0) != 0:
             loss = F.softplus(dist_ap - dist_an).mean() + self.args.tri_impr * dist_ap.mean()  # 8 + 38 # 0.01 or 0.1
         elif self.args.get('tri_quad', 0) != 0:
@@ -521,16 +530,16 @@ def get_replay_ind(posp_inds, negp_inds, diff):
     pinds = lz.to_numpy(posp_inds)
     ninds = lz.to_numpy(negp_inds)
     diff = lz.to_numpy(diff)
-
+    
     # db = lz.Database('tmp.h5', 'w')
     # db['pinds'] = pinds
     # db['ninds'] = ninds
     # db['diff'] = diff
     # db.close()
-
+    
     thresh1 = np.percentile(diff, 1)
     thresh2 = np.percentile(diff, 99)
-
+    
     sel_ind = np.nonzero(np.logical_and(diff > thresh1, diff < thresh2))[0]
     sel = np.concatenate(
         (pinds[sel_ind], ninds[sel_ind], sel_ind)

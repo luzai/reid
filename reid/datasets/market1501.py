@@ -25,7 +25,7 @@ class Mars(object):
     # cameras: 6
     """
     dataset_dir = 'mars'
-
+    
     def __init__(self, root=None, min_seq_len=0, **kwargs):
         root = '/data/share/'
         self.images_dir = self.dataset_dir = osp.join(root, self.dataset_dir)
@@ -34,9 +34,9 @@ class Mars(object):
         self.track_train_info_path = osp.join(self.dataset_dir, 'info/tracks_train_info.mat')
         self.track_test_info_path = osp.join(self.dataset_dir, 'info/tracks_test_info.mat')
         self.query_IDX_path = osp.join(self.dataset_dir, 'info/query_IDX.mat')
-
+        
         self._check_before_run()
-
+        
         # prepare meta data
         train_names = self._get_names(self.train_name_path)
         test_names = self._get_names(self.test_name_path)
@@ -47,24 +47,24 @@ class Mars(object):
         track_query = track_test[query_IDX, :]
         gallery_IDX = [i for i in range(track_test.shape[0]) if i not in query_IDX]
         track_gallery = track_test[gallery_IDX, :]
-
+        
         train, num_train_tracklets, num_train_pids, num_train_imgs = \
             self._process_data(train_names, track_train, home_dir='bbox_train', relabel=True, min_seq_len=min_seq_len)
-
+        
         query, num_query_tracklets, num_query_pids, num_query_imgs = \
             self._process_data(test_names, track_query, home_dir='bbox_test', relabel=False, min_seq_len=min_seq_len)
-
+        
         gallery, num_gallery_tracklets, num_gallery_pids, num_gallery_imgs = \
             self._process_data(test_names, track_gallery, home_dir='bbox_test', relabel=False, min_seq_len=min_seq_len)
-
+        
         num_imgs_per_tracklet = num_train_imgs + num_query_imgs + num_gallery_imgs
         min_num = np.min(num_imgs_per_tracklet)
         max_num = np.max(num_imgs_per_tracklet)
         avg_num = np.mean(num_imgs_per_tracklet)
-
+        
         num_total_pids = num_train_pids + num_query_pids
         num_total_tracklets = num_train_tracklets + num_query_tracklets + num_gallery_tracklets
-
+        
         print("=> MARS loaded")
         print("Dataset statistics:")
         print("  ------------------------------")
@@ -77,18 +77,18 @@ class Mars(object):
         print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_tracklets))
         print("  number of images per tracklet: {} ~ {}, average {:.1f}".format(min_num, max_num, avg_num))
         print("  ------------------------------")
-
+        
         self.train = train
         self.trainval = train
         self.val = None
         self.query = query
         self.gallery = gallery
-
+        
         self.num_train_pids = self.num_trainval_pids = self.num_train_ids = self.num_trainval_ids = num_train_pids
         self.num_val_ids = self.num_val_pids = 0
         self.num_query_ids = self.num_query_pids = num_query_pids
         self.num_gallery_ids = self.num_gallery_pids = num_gallery_pids
-
+    
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
         if not osp.exists(self.dataset_dir):
@@ -103,7 +103,7 @@ class Mars(object):
             raise RuntimeError("'{}' is not available".format(self.track_test_info_path))
         if not osp.exists(self.query_IDX_path):
             raise RuntimeError("'{}' is not available".format(self.query_IDX_path))
-
+    
     def _get_names(self, fpath):
         names = []
         with open(fpath, 'r') as f:
@@ -111,17 +111,17 @@ class Mars(object):
                 new_line = line.rstrip()
                 names.append(new_line)
         return names
-
+    
     def _process_data(self, names, meta_data, home_dir=None, relabel=False, min_seq_len=0):
         assert home_dir in ['bbox_train', 'bbox_test']
         num_tracklets = meta_data.shape[0]
         pid_list = list(set(meta_data[:, 2].tolist()))
         num_pids = len(pid_list)
-
+        
         if relabel: pid2label = {pid: label for label, pid in enumerate(pid_list)}
         tracklets = []
         num_imgs_per_tracklet = []
-
+        
         for tracklet_idx in range(num_tracklets):
             data = meta_data[tracklet_idx, ...]
             start_index, end_index, pid, camid = data
@@ -130,24 +130,24 @@ class Mars(object):
             if relabel: pid = pid2label[pid]
             camid -= 1  # index starts from 0
             img_names = names[start_index - 1:end_index]
-
+            
             # make sure image names correspond to the same person
             pnames = [img_name[:4] for img_name in img_names]
             assert len(set(pnames)) == 1, "Error: a single tracklet contains different person images"
-
+            
             # make sure all images are captured under the same camera
             camnames = [img_name[5] for img_name in img_names]
             assert len(set(camnames)) == 1, "Error: images are captured under different cameras!"
-
+            
             # append image names with directory information
             img_paths = [osp.join(self.dataset_dir, home_dir, img_name[:4], img_name) for img_name in img_names]
             if len(img_paths) >= min_seq_len:
                 img_paths = tuple(img_paths)
                 tracklets.append((img_paths, pid, camid))
                 num_imgs_per_tracklet.append(len(img_paths))
-
+        
         num_tracklets = len(tracklets)
-
+        
         return tracklets, num_tracklets, num_pids, num_imgs_per_tracklet
 
 
@@ -166,7 +166,7 @@ class iLIDSVID(object):
     # cameras: 2
     """
     dataset_dir = 'ilids-vid'
-
+    
     def __init__(self, root='/home/xinglu/.torch/data/', split_id=0, **kwargs):
         self.dataset_dir = osp.join(root, self.dataset_dir)
         self.dataset_url = 'http://www.eecs.qmul.ac.uk/~xiatian/iLIDS-VID/iLIDS-VID.tar'
@@ -176,10 +176,10 @@ class iLIDSVID(object):
         self.split_path = osp.join(self.dataset_dir, 'splits.json')
         self.cam_1_path = osp.join(self.dataset_dir, 'i-LIDS-VID/sequences/cam1')
         self.cam_2_path = osp.join(self.dataset_dir, 'i-LIDS-VID/sequences/cam2')
-
+        
         self._download_data()
         self._check_before_run()
-
+        
         self._prepare_split()
         splits = read_json(self.split_path)
         if split_id >= len(splits):
@@ -188,22 +188,22 @@ class iLIDSVID(object):
         split = splits[split_id]
         train_dirs, test_dirs = split['train'], split['test']
         print("# train identites: {}, # test identites {}".format(len(train_dirs), len(test_dirs)))
-
+        
         train, num_train_tracklets, num_train_pids, num_imgs_train = \
             self._process_data(train_dirs, cam1=True, cam2=True)
         query, num_query_tracklets, num_query_pids, num_imgs_query = \
             self._process_data(test_dirs, cam1=True, cam2=False)
         gallery, num_gallery_tracklets, num_gallery_pids, num_imgs_gallery = \
             self._process_data(test_dirs, cam1=False, cam2=True)
-
+        
         num_imgs_per_tracklet = num_imgs_train + num_imgs_query + num_imgs_gallery
         min_num = np.min(num_imgs_per_tracklet)
         max_num = np.max(num_imgs_per_tracklet)
         avg_num = np.mean(num_imgs_per_tracklet)
-
+        
         num_total_pids = num_train_pids + num_query_pids
         num_total_tracklets = num_train_tracklets + num_query_tracklets + num_gallery_tracklets
-
+        
         print("=> iLIDS-VID loaded")
         print("Dataset statistics:")
         print("  ------------------------------")
@@ -216,32 +216,32 @@ class iLIDSVID(object):
         print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_tracklets))
         print("  number of images per tracklet: {} ~ {}, average {:.1f}".format(min_num, max_num, avg_num))
         print("  ------------------------------")
-
+        
         self.train = train
         self.query = query
         self.gallery = gallery
-
+        
         self.num_train_pids = num_train_pids
         self.num_query_pids = num_query_pids
         self.num_gallery_pids = num_gallery_pids
-
+    
     def _download_data(self):
         if osp.exists(self.dataset_dir):
             print("This dataset has been downloaded.")
             return
-
+        
         mkdir_p(self.dataset_dir, delete=False)
         fpath = osp.join(self.dataset_dir, osp.basename(self.dataset_url))
-
+        
         print("Downloading iLIDS-VID dataset")
         url_opener = urllib.URLopener()
         url_opener.retrieve(self.dataset_url, fpath)
-
+        
         print("Extracting files")
         tar = tarfile.open(fpath)
         tar.extractall(path=self.dataset_dir)
         tar.close()
-
+    
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
         if not osp.exists(self.dataset_dir):
@@ -250,53 +250,53 @@ class iLIDSVID(object):
             raise RuntimeError("'{}' is not available".format(self.data_dir))
         if not osp.exists(self.split_dir):
             raise RuntimeError("'{}' is not available".format(self.split_dir))
-
+    
     def _prepare_split(self):
         if not osp.exists(self.split_path):
             print("Creating splits")
             mat_split_data = loadmat(self.split_mat_path)['ls_set']
-
+            
             num_splits = mat_split_data.shape[0]
             num_total_ids = mat_split_data.shape[1]
             assert num_splits == 10
             assert num_total_ids == 300
             num_ids_each = num_total_ids // 2
-
+            
             # pids in mat_split_data are indices, so we need to transform them
             # to real pids
             person_cam1_dirs = os.listdir(self.cam_1_path)
             person_cam2_dirs = os.listdir(self.cam_2_path)
-
+            
             # make sure persons in one camera view can be found in the other camera view
             assert set(person_cam1_dirs) == set(person_cam2_dirs)
-
+            
             splits = []
             for i_split in range(num_splits):
                 # first 50% for testing and the remaining for training, following Wang et al. ECCV'14.
                 train_idxs = sorted(list(mat_split_data[i_split, num_ids_each:]))
                 test_idxs = sorted(list(mat_split_data[i_split, :num_ids_each]))
-
+                
                 train_idxs = [int(i) - 1 for i in train_idxs]
                 test_idxs = [int(i) - 1 for i in test_idxs]
-
+                
                 # transform pids to person dir names
                 train_dirs = [person_cam1_dirs[i] for i in train_idxs]
                 test_dirs = [person_cam1_dirs[i] for i in test_idxs]
-
+                
                 split = {'train': train_dirs, 'test': test_dirs}
                 splits.append(split)
-
+            
             print("Totally {} splits are created, following Wang et al. ECCV'14".format(len(splits)))
             print("Split file is saved to {}".format(self.split_path))
             write_json(splits, self.split_path)
-
+        
         print("Splits created")
-
+    
     def _process_data(self, dirnames, cam1=True, cam2=True):
         tracklets = []
         num_imgs_per_tracklet = []
         dirname2pid = {dirname: i for i, dirname in enumerate(dirnames)}
-
+        
         for dirname in dirnames:
             if cam1:
                 person_dir = osp.join(self.cam_1_path, dirname)
@@ -306,7 +306,7 @@ class iLIDSVID(object):
                 pid = dirname2pid[dirname]
                 tracklets.append((img_names, pid, 0))
                 num_imgs_per_tracklet.append(len(img_names))
-
+            
             if cam2:
                 person_dir = osp.join(self.cam_2_path, dirname)
                 img_names = glob.glob(osp.join(person_dir, '*.png'))
@@ -315,10 +315,10 @@ class iLIDSVID(object):
                 pid = dirname2pid[dirname]
                 tracklets.append((img_names, pid, 1))
                 num_imgs_per_tracklet.append(len(img_names))
-
+        
         num_tracklets = len(tracklets)
         num_pids = len(dirnames)
-
+        
         return tracklets, num_tracklets, num_pids, num_imgs_per_tracklet
 
 
@@ -337,7 +337,7 @@ class PRID(object):
     # cameras: 2
     """
     dataset_dir = 'prid2011'
-
+    
     def __init__(self, root=None, split_id=0, min_seq_len=0, **kwargs):
         # self.dataset_dir = osp.join(root, self.dataset_dir)
         self.dataset_dir = self.root = osp.join('/data2/share/', self.dataset_dir)
@@ -345,7 +345,7 @@ class PRID(object):
         self.split_path = osp.join(self.dataset_dir, 'splits_prid2011.json')
         self.cam_a_path = osp.join(self.dataset_dir, 'prid_2011', 'multi_shot', 'cam_a')
         self.cam_b_path = osp.join(self.dataset_dir, 'prid_2011', 'multi_shot', 'cam_b')
-
+        
         self._check_before_run()
         splits = read_json(self.split_path)
         if split_id >= len(splits):
@@ -354,22 +354,22 @@ class PRID(object):
         split = splits[split_id]
         train_dirs, test_dirs = split['train'], split['test']
         print("# train identites: {}, # test identites {}".format(len(train_dirs), len(test_dirs)))
-
+        
         train, num_train_tracklets, num_train_pids, num_imgs_train = \
             self._process_data(train_dirs, cam1=True, cam2=True)
         query, num_query_tracklets, num_query_pids, num_imgs_query = \
             self._process_data(test_dirs, cam1=True, cam2=False)
         gallery, num_gallery_tracklets, num_gallery_pids, num_imgs_gallery = \
             self._process_data(test_dirs, cam1=False, cam2=True)
-
+        
         num_imgs_per_tracklet = num_imgs_train + num_imgs_query + num_imgs_gallery
         min_num = np.min(num_imgs_per_tracklet)
         max_num = np.max(num_imgs_per_tracklet)
         avg_num = np.mean(num_imgs_per_tracklet)
-
+        
         num_total_pids = num_train_pids + num_query_pids
         num_total_tracklets = num_train_tracklets + num_query_tracklets + num_gallery_tracklets
-
+        
         print("=> PRID-2011 loaded")
         print("Dataset statistics:")
         print("  ------------------------------")
@@ -382,30 +382,30 @@ class PRID(object):
         print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_tracklets))
         print("  number of images per tracklet: {} ~ {}, average {:.1f}".format(min_num, max_num, avg_num))
         print("  ------------------------------")
-
+        
         self.train = train
         self.trainval = train
         self.val = None
         self.query = query
         self.gallery = gallery
-
+        
         self.num_train_pids = self.num_trainval_pids = self.num_train_ids = self.num_trainval_ids = num_train_pids
         self.num_val_ids = self.num_val_pids = 0
         self.num_query_ids = self.num_query_pids = num_query_pids
         self.num_gallery_ids = self.num_gallery_pids = num_gallery_pids
-
+        
         self.images_dir = self.root + '/images/'
-
+    
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
         if not osp.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
-
+    
     def _process_data(self, dirnames, cam1=True, cam2=True):
         tracklets = []
         num_imgs_per_tracklet = []
         dirname2pid = {dirname: i for i, dirname in enumerate(dirnames)}
-
+        
         for dirname in dirnames:
             if cam1:
                 person_dir = osp.join(self.cam_a_path, dirname)
@@ -415,7 +415,7 @@ class PRID(object):
                 pid = dirname2pid[dirname]
                 tracklets.append((img_names, pid, 0))
                 num_imgs_per_tracklet.append(len(img_names))
-
+            
             if cam2:
                 person_dir = osp.join(self.cam_b_path, dirname)
                 img_names = glob.glob(osp.join(person_dir, '*.png'))
@@ -424,22 +424,22 @@ class PRID(object):
                 pid = dirname2pid[dirname]
                 tracklets.append((img_names, pid, 1))
                 num_imgs_per_tracklet.append(len(img_names))
-
+        
         num_tracklets = len(tracklets)
         num_pids = len(dirnames)
-
+        
         return tracklets, num_tracklets, num_pids, num_imgs_per_tracklet
 
 
 class Market1501(Dataset):
     url = 'https://drive.google.com/file/d/0B8-rUzbwVRk0c054eEozWG9COHM/view'
     md5 = '65005ab7d12ec1c44de4eeafe813e68a'
-
+    
     root = '/data1/share/market1501/'
     train_dir = osp.join(root, 'bounding_box_train')
     query_dir = osp.join(root, 'query')
     gallery_dir = osp.join(root, 'bounding_box_test')
-
+    
     def __init__(self, root=None, split_id=0,
                  num_val=100, download=True,
                  check_intergrity=True,
@@ -450,17 +450,17 @@ class Market1501(Dataset):
         self.name = 'market1501'
         super(Market1501, self).__init__(root, split_id=split_id)
         self.root = root
-
+        
         train, num_train_pids, num_train_imgs, pid2lbl = self._process_dir(self.train_dir, relabel=True)
         # name = getattr(self, 'name', 'fk')
         # lz.pickle_dump(pid2lbl, f'{name}.pid2lbl.pkl')
-        logging.info(f'pid2lbl {pid2lbl}')
+        # logging.info(f'pid2lbl {pid2lbl}')
         self.pid2lbl = pid2lbl
         query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, relabel=False)
         gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, relabel=False)
         num_total_pids = num_train_pids + num_query_pids
         num_total_imgs = num_train_imgs + num_query_imgs + num_gallery_imgs
-
+        
         if mkt_distractor:
             chs = np.asarray([100, 200, 300, 400, 500]) * 1000
             ndistractors = chs[ndistractors_chs]
@@ -484,19 +484,19 @@ class Market1501(Dataset):
         print("  ------------------------------")
         print("  total    | {:5d} | {:8d}".format(num_total_pids, num_total_imgs))
         print("  ------------------------------")
-
+        
         self.train = train
         self.val = None
         self.trainval = train
         self.query = query
         self.gallery = gallery
-
+        
         self.num_train_pids = num_train_pids
         self.num_trainval_ids = num_train_pids
         self.num_val_ids = 0
         self.num_query_pids = num_query_pids
         self.num_gallery_pids = num_gallery_pids
-
+    
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
         if not osp.exists(self.root):
@@ -507,18 +507,18 @@ class Market1501(Dataset):
             raise RuntimeError("'{}' is not available".format(self.query_dir))
         if not osp.exists(self.gallery_dir):
             raise RuntimeError("'{}' is not available".format(self.gallery_dir))
-
+    
     def _process_dir(self, dir_path, relabel=False):
         img_paths = glob.glob(osp.join(dir_path, '*.jpg'))
         pattern = re.compile(r'([-\d]+)_c(\d)')
-
+        
         pid_container = set()
         for img_path in img_paths:
             pid, _ = map(int, pattern.search(img_path).groups())
             if pid == -1: continue  # junk images are just ignored
             pid_container.add(pid)
         pid2label = {pid: label for label, pid in enumerate(pid_container)}
-
+        
         dataset = []
         for img_path in img_paths:
             pid, camid = map(int, pattern.search(img_path).groups())
@@ -528,28 +528,28 @@ class Market1501(Dataset):
             camid -= 1  # index starts from 0
             if relabel: pid = pid2label[pid]
             dataset.append((img_path, pid, camid))
-
+        
         num_pids = len(pid_container)
         num_imgs = len(dataset)
         if relabel:
             return dataset, num_pids, num_imgs, pid2label
         else:
             return dataset, num_pids, num_imgs
-
+    
     def download(self, check_integrity=True):
         if check_integrity and self._check_integrity():
             print("Files already downloaded and verified")
             return
-
+        
         import re
         import hashlib
         import shutil
         from glob import glob
         from zipfile import ZipFile
-
+        
         raw_dir = osp.join(self.root, 'raw')
         mkdir_p(raw_dir, False)
-
+        
         # Download the raw zip file
         fpath = osp.join(raw_dir, 'Market-1501-v15.09.15.zip')
         if osp.isfile(fpath) and \
@@ -558,21 +558,21 @@ class Market1501(Dataset):
         else:
             raise RuntimeError("Please download the dataset manually from {} "
                                "to {}".format(self.url, fpath))
-
+        
         # Extract the file
         exdir = osp.join(raw_dir, 'Market-1501-v15.09.15')
         if not osp.isdir(exdir):
             print("Extracting zip file")
             with ZipFile(fpath) as z:
                 z.extractall(path=raw_dir)
-
+        
         # Format
         images_dir = osp.join(self.root, 'images')
         mkdir_p(images_dir, delete=False)
-
+        
         # 1501 identities (+1 for background) with 6 camera views each
         identities = [[[] for _ in range(6)] for _ in range(1502)]
-
+        
         def register(subdir, pattern=re.compile(r'([-\d]+)_c(\d)')):
             fnames = []
             fpaths = sorted(glob(osp.join(exdir, subdir, '*.jpg')))
@@ -591,7 +591,7 @@ class Market1501(Dataset):
                 identities[pid][cam].append(fname)
                 shutil.copy(fpath, osp.join(images_dir, fname))
             return pids, fnames
-
+        
         trainval_pids, _ = register('bounding_box_train')
         gallery_pids, fnames = register('bounding_box_test')
         # cvb.dump(fnames, work_path+'/mk.gallery.pkl')
@@ -599,12 +599,12 @@ class Market1501(Dataset):
         # cvb.dump(fnames, work_path + '/mk.query.pkl')
         assert query_pids <= gallery_pids
         assert trainval_pids.isdisjoint(gallery_pids)
-
+        
         # Save meta information into a json file
         meta = {'name': 'Market1501', 'shot': 'multiple', 'num_cameras': 6,
                 'identities': identities}
         write_json(meta, osp.join(self.root, 'meta.json'))
-
+        
         # Save the only training / test split
         splits = [{
             'trainval': sorted(list(trainval_pids)),
@@ -622,14 +622,14 @@ class FolderDs(Dataset):
         self.root = root = work_path + 'yy.release/'
         assert osp.exists(root)
         num_pids = 30
-
+        
         dftl = []
         for pid in range(num_pids):
             imps = glob.glob(self.root + f'gallery/{pid}/*')  # png or jpg
             dft = pd.DataFrame({'imgs': imps, 'pids': pid * np.ones(len(imps), int), 'cids': np.arange(len(imps))})
             dftl.append(dft)
         df_ori_gallery = pd.concat(dftl, axis=0)
-
+        
         dftl = []
         for pid in range(num_pids):
             imps = glob.glob(self.root + f'query/{pid}/*')  # png or jpg
@@ -671,7 +671,7 @@ class Extract(Dataset):
             dftl.append(dft)
         df = pd.concat(dftl, axis=0)
         all_ind = np.random.permutation(df.shape[0])
-
+        
         traintest_split = None
         if traintest_split is not None:
             train_ind = all_ind[:df.shape[0] * (traintest_split - 1) // traintest_split]
@@ -699,7 +699,7 @@ class CUB(Dataset):
     def __init__(self, **kwargs):
         self.name = 'cub'
         self.root = self.images_dir = '/data2/share/cub200_2011/'
-
+        
         images = np.loadtxt(self.root + '/images.txt', dtype=object)[:, 1]
         splits = np.loadtxt(self.root + '/train_test_split.txt', dtype=int)
         images_cls = np.array(pd.DataFrame(images).iloc[:, 0].str.split('.').str.get(0).tolist(), dtype=int)
@@ -708,7 +708,7 @@ class CUB(Dataset):
         self.num_trainval_ids = train_cls.shape[0]
         self.num_query_ids = test_cls.shape[0]
         self.num_gallery_ids = test_cls.shape[0]
-
+        
         df = pd.DataFrame({'path': images, 'cls': images_cls, 'is_train': splits[:, 1]})
         df['cids'] = np.arange(df.shape[0])
         df['path'] = self.root + 'images/' + df.path
@@ -717,17 +717,31 @@ class CUB(Dataset):
         df_test = df[df.is_train == 0]
         self.trainval = df_train[['path', 'cls', 'cids']].to_records(index=False).tolist()
         self.query = self.gallery = df_test[['path', 'cls', 'cids']].to_records(index=False).tolist()
+        self.num_trainval_ids = np.unique(df_train.cls).shape[0]
+        self.num_query_ids = self.num_gallery_ids = np.unique(df_test.cls).shape[0]
         self.val = None
         self.train = self.trainval
         self.num_val_ids = 0
         self.num_train_ids = self.num_trainval_ids
+        
+        print("=> ds loaded")
+        print("Dataset statistics:")
+        print("  ------------------------------")
+        print("  subset   | # ids | # images")
+        print("  ------------------------------")
+        print("  train    | {:5d} | {:8d}".format(self.num_trainval_ids, len(self.trainval)))
+        print("  query    | {:5d} | {:8d}".format(self.num_query_ids, len(self.query)))
+        print("  gallery  | {:5d} | {:8d}".format(self.num_gallery_ids, len(self.gallery)))
+        print("  ------------------------------")
+        # print("  total    | {:5d} | {:8d}".format(self.num_total_ids, self.num_total_imgs))
+        print("  ------------------------------")
 
 
 class Stanford_Prod(Dataset):
     def __init__(self, **kwargs):
         self.name = 'stanford_prod'
         self.root = self.images_dir = '/data2/share/online_products/Stanford_Online_Products/'
-
+        
         train_df = pd.read_csv(self.root + 'Ebay_train.txt', sep=' ')
         test_df = pd.read_csv(self.root + 'Ebay_test.txt', sep=' ')
         train_df['cids'] = np.arange(train_df.shape[0])
@@ -741,12 +755,22 @@ class Stanford_Prod(Dataset):
         # self.query = self.gallery = test_df[['path', 'class_id', 'cids']][:128].to_records(index=False).tolist()
         self.trainval = train_df[['path', 'class_id', 'cids']].to_records(index=False).tolist()
         self.query = self.gallery = test_df[['path', 'class_id', 'cids']].to_records(index=False).tolist()
-
+        
         self.val = None
         self.train = self.trainval
         self.num_val_ids = 0
         self.num_train_ids = self.num_trainval_ids
-
+        print("=> ds loaded")
+        print("Dataset statistics:")
+        print("  ------------------------------")
+        print("  subset   | # ids | # images")
+        print("  ------------------------------")
+        print("  train    | {:5d} | {:8d}".format(self.num_train_ids, len(self.trainval)))
+        print("  query    | {:5d} | {:8d}".format(self.num_query_ids, len(self.query)))
+        print("  gallery  | {:5d} | {:8d}".format(self.num_gallery_ids, len(self.gallery)))
+        print("  ------------------------------")
+        # print("  total    | {:5d} | {:8d}".format(self.num_total_ids, self.num_total_imgs))
+        print("  ------------------------------")
 
 class Car196(Dataset):
     def __init__(self, **kwargs):
@@ -764,12 +788,24 @@ class Car196(Dataset):
         test_df = df[df.pids >= 99]
         self.trainval = train_df.to_records(index=False).tolist()
         self.query = self.gallery = test_df.to_records(index=False).tolist()
-
+        
         self.val = None
         self.train = self.trainval
         self.num_val_ids = 0
         self.num_train_ids = self.num_trainval_ids = np.unique(train_df.pids).shape[0]
         self.num_query_ids = self.num_gallery_ids = np.unique(test_df.pids).shape[0]
+        
+        print("=> ds loaded")
+        print("Dataset statistics:")
+        print("  ------------------------------")
+        print("  subset   | # ids | # images")
+        print("  ------------------------------")
+        print("  train    | {:5d} | {:8d}".format(self.num_train_ids, len(self.trainval)))
+        print("  query    | {:5d} | {:8d}".format(self.num_query_ids, len(self.query)))
+        print("  gallery  | {:5d} | {:8d}".format(self.num_gallery_ids, len(self.gallery)))
+        print("  ------------------------------")
+        # print("  total    | {:5d} | {:8d}".format(self.num_total_ids, self.num_total_imgs))
+        print("  ------------------------------")
 
 
 from fuel.datasets import H5PYDataset
@@ -778,7 +814,7 @@ from fuel.utils import find_in_data_path
 
 class CUB2(Dataset):
     _filename = 'cub200_2011/cub200_2011.hdf5'
-
+    
     def __init__(self, split='train', **kwargs):
         path = find_in_data_path(self._filename)
         self.split = split
@@ -794,40 +830,40 @@ class CUB2(Dataset):
         self.test_hanle = self.test.open()
         self.ntest = self.test.num_examples
         self.ntrain = self.train.num_examples
-
+    
     def _get_single_item(self, index):
         if self.split == 'train':
             img, label = self.train.get_data(self.train_handle, [index])
         else:
             img, label = self.test.get_data(self.test_hanle, [index])
         return img[0].transpose(1, 2, 0), label[0]
-
+    
     def _get_multiple_items(self, idxs):
         if self.split == 'train':
             img, label = self.train.get_data(self.train_handle, idxs)
         else:
             img, label = self.test.get_data(self.test_hanle, idxs)
         return img.transpose(0, 2, 3, 1), label.ravel()
-
+    
     def __getitem__(self, item):
         if isinstance(item, (tuple, list)):
             return self._get_multiple_items(item)
         else:
             return self._get_single_item(item)
-
+    
     def __len__(self):
         if self.split == 'train':
             return self.ntrain
         else:
             return self.ntest
-
+    
     def close(self):
         self.train_handle.close()
         self.test_hanle.close()
-
+    
     def __del__(self):
         self.close()
-
+    
     def __exit__(self):
         self.close()
 
@@ -847,7 +883,7 @@ if __name__ == '__main__':
     # Car196()
     # iLIDSVID()
     # PRID()
-
+    
     # Extract()
     # print(time.time() - tic)
     # import lmdb, lz

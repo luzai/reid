@@ -7,8 +7,9 @@ from easydict import EasyDict as edict
 import copy
 
 no_proc = False
-parallel = True
+parallel = False
 gpu_range = (0, 1, 2, 3)
+fp16 = True
 # todo freeze bn
 # todo bn no weight decay
 # todo metric
@@ -17,57 +18,26 @@ gpu_range = (0, 1, 2, 3)
 # todo loss
 # data code results in different place
 
+try:
+    from apex.parallel import DistributedDataParallel as DDP
+    from apex.fp16_utils import *
+    from apex import amp
+    
+    if fp16:
+        # amp.register_half_function(torch, 'prelu')
+        # amp.register_half_function(torch, 'pow')
+        # amp.register_half_function(torch, 'norm')
+        # amp.register_half_function(torch, 'div')
+        # amp.register_half_function(torch, 'sum')
+        pass
+    amp_handle = amp.init(enabled=fp16)
+except ImportError:
+    logging.error("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+
 cfgs = [
-    edict(
-        logs_dir='yy.long.2.bak',
-        double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
-        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-        reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-        dataset='market1501', height=256, width=128,  # stanford_prod car196 cub
-        dataset_val='market1501',
-        # steps=[40, 60], epochs=65,
-        steps=[30, ], epochs=65,
-        lr=4e-4,
-        eval_conf='market1501',
-        log_at=np.arange(100),
-        gpu=(0,), last_conv_stride=2,
-        # gpu_fix=True,
-        batch_size=128, num_instances=4, num_classes=128,
-        dropout=0, loss='tri_adv', tri_mode='adap',
-        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-        random_ratio=1, lr_cent=0,
-        gpu_range=gpu_range, lr_mult=1,
-        push_scale=1., embed=None,
-        margin='soft',
-        margin2=0.0, margin3=0.0, margin4=0.0,
-        resume='/data2/xinglu/work/reid/work.use/tri6.combine.2/model_best.pth',
-        evaluate=True,
-        # resume='/data2/xinglu/work/reid/work/yy.long.2/model_best.pth',
-        # ndistractors_chs=4, mkt_distractor=True,
-    ),
     # edict(
-    #     logs_dir='msmt17.xa.2',
-    #     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
-    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-    #     aux='lno_adv',
-    #     adv_fea_eps_xa=0.1, adv_fea_xa=0.2,
-    #     dataset='msmt17', height=256, width=128,  # stanford_prod car196 cub
-    #     eval_conf='market1501',
-    #     gpu=(1, 2, 3), last_conv_stride=2,
-    #     # gpu_fix=True,
-    #     log_at=[65, 66, ],
-    #     batch_size=128*3, num_instances=4, num_classes=128,
-    #     dropout=0, loss='tri_adv', tri_mode='adap',
-    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-    #     random_ratio=1, lr_cent=0,
-    #     gpu_range=gpu_range, lr_mult=1,
-    #     push_scale=1., embed=None,
-    #     margin='soft',
-    #     margin2=0.0, margin3=0.0, margin4=0.0,
-    # ),
-    # edict(
-    #     logs_dir='viper.bak',
+    #     logs_dir='v8.r50.320',
+    #     arch='resnet50', pretrained=True,
     #     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
     #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
     #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
@@ -75,11 +45,10 @@ cfgs = [
     #     adv_fea_eps_xa=0.3,  # for xa
     #     adv_fea_xpn=0,  # or xnp only
     #     adv_fea_eps_xpn=0.3,  # for xn xp
-    #     # aux='lno_adv',
-    #     dataset='viper', height=256, width=128,  # stanford_prod car196 cub
-    #     gpu=(2,), last_conv_stride=2,
+    #     dataset='market1501', height=384, width=288,  # stanford_prod car196 cub
+    #     gpu=(0, 1, 2, 3), last_conv_stride=2,
     #     gpu_fix=False,
-    #     batch_size=128, num_instances=4, num_classes=128,
+    #     batch_size=80 * 4, num_instances=4, num_classes=128,
     #     dropout=0, loss='tri_adv', tri_mode='adap',
     #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
     #     random_ratio=1, lr_cent=0,
@@ -88,74 +57,60 @@ cfgs = [
     #     margin='soft',
     #     margin2=0.0, margin3=0.0, margin4=0.0,
     #     # evaluate=True,
-    #     # resume='/data2/xinglu/work/reid/work/cu03.resize/model_best.pth',
-    # )
+    # ),
+    # edict(
+    #     logs_dir='v8.r50.196',
+    #     arch='resnet50', pretrained=True,
+    #     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
+    #     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+    #     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+    #     adv_fea_xa=0,  # loss weight on xa only
+    #     adv_fea_eps_xa=0.3,  # for xa
+    #     adv_fea_xpn=0,  # or xnp only
+    #     adv_fea_eps_xpn=0.3,  # for xn xp
+    #     dataset='market1501', height=384, width=288,  # stanford_prod car196 cub
+    #     gpu=(0, 1, 2, 3), last_conv_stride=2,
+    #     gpu_fix=False,
+    #     batch_size=48 * 4, num_instances=4, num_classes=128,
+    #     dropout=0, loss='tri_adv', tri_mode='adap',
+    #     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+    #     random_ratio=1, lr_cent=0,
+    #     gpu_range=gpu_range, lr_mult=1,
+    #     push_scale=1., embed=None,
+    #     margin='soft',
+    #     margin2=0.0, margin3=0.0, margin4=0.0,
+    #     # evaluate=True,
+    # ),
+    edict(
+        logs_dir='v8.cpn.r50.imitate.pcb',
+        optimizer='sgd', lr=6e-1, workers=32,
+        arch='CPN50', pretrained=True,
+        steps=[80, ], epochs=120, ft_epochs=20,
+        double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
+        reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
+        reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
+        adv_fea_xa=0,  # loss weight on xa only
+        adv_fea_eps_xa=0.3,  # for xa
+        adv_fea_xpn=0,  # or xnp only
+        adv_fea_eps_xpn=0.3,  # for xn xp
+        dataset='cub', height=384, width=128,  # stanford_prod car196 cub
+        gpu=(0,), last_conv_stride=2,
+        gpu_fix=False,
+        log_at=list(range(0, 120, 15)) + [119, 120],
+        batch_size=100 * 4, num_instances=4, num_classes=256,
+        dropout=0, loss='tri', tri_mode='adap',
+        cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
+        random_ratio=1, lr_cent=0,
+        gpu_range=gpu_range, lr_mult=1,
+        push_scale=1., embed=None,
+        margin='soft',
+        margin2=0.0, margin3=0.0, margin4=0.0,
+        resume='/home/xinglu/work/reid/work.11.12/cub.dim512.bs128.hei224.v2/',
+        evaluate=True
+    )
 ]
 
-# cfg = edict(
-#     logs_dir='v7',
-#     double=0, adv_inp=0, adv_inp_eps=0, adv_fea=0, adv_fea_eps=0,
-#     reg_mid_fea=[0., 0., 0., 0., 0.],  # x1, x2, x3, x4, x5
-#     reg_loss_wrt=[0, 0, 0, 0, 0, 0, ],  # input, x1, x2, x3,x4,x5
-#     adv_fea_xa=0,  # loss weight on xa only
-#     adv_fea_eps_xa=0.3,  # for xa
-#     adv_fea_xpn=0,  # or xnp only
-#     adv_fea_eps_xpn=0.3,  # for xn xp
-#     dataset='cu03lbl', height=256, width=128,  # stanford_prod car196 cub
-#     gpu=(2,), last_conv_stride=2,
-#     gpu_fix=False,
-#     batch_size=128, num_instances=4, num_classes=128,
-#     dropout=0, loss='tri_adv', tri_mode='adap',
-#     cls_weight=0, tri_weight=1, weight_dis_cent=0, weight_cent=0,
-#     random_ratio=1, lr_cent=0,
-#     gpu_range=gpu_range, lr_mult=1,
-#     push_scale=1., embed=None,
-#     margin='soft',
-#     margin2=0.0, margin3=0.0, margin4=0.0,
-# )
-#
-# for dyna_param in ParameterGrid(dict(
-#         aux=['lno_adv', ],
-#         adv_fea_xa=[1],
-#         adv_fea_eps_xa=[1e-4, 5e-4, 3e-3, 5e-2, 1e-3, 1e-2, 1e-1],
-#         # adv_inp=[1e-1, 1],
-#         # adv_inp_eps=[1e-3, 1e-2, 1e-1],
-#         dataset=['cu03lbl',
-#                  ],
-#         cu03_classic=[
-#             # True,
-#             False
-#         ],
-#     run = [1,3,4,5,2]
-# ), ):
-#     cfgt = copy.deepcopy(cfg)
-#     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
-#     cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.xa.{cfgt.aux}.{cfgt.adv_fea_xa}.{cfgt.adv_fea_eps_xa}.{cfgt.run}'
-#     # cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.{cfgt.aux}.{cfgt.adv_inp}.{cfgt.adv_inp_eps}'
-#     cfgs.append(cfgt)
-
-# for dyna_param in ParameterGrid(dict(
-#         adv_fea_xpn=[0.01, 0.05, 0.2, 0.4, 0.6, 0.8, 1e-1, 1],
-#         adv_fea_eps_xpn=[1e-4, 5e-4, 3e-3, 5e-2, 1e-3, 1e-2, 1e-1],
-#         # adv_inp=[1e-1, 1],
-#         # adv_inp_eps=[1e-3, 1e-2, 1e-1],
-#         aux=['linf_adv',
-#              'lno_adv'],
-#         dataset=['cu03lbl',
-#                  # 'cu03det'
-#                  ],
-#         cu03_classic=[
-#             # True,
-#             False
-#         ],
-# ), ):
-#     cfgt = copy.deepcopy(cfg)
-#     cfgt = dict_update(cfgt, dyna_param, must_exist=False)
-#     cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.xpn.{cfgt.aux}.{cfgt.adv_fea_xpn}.{cfgt.adv_fea_eps_xpn}'
-#     # cfgt.logs_dir = f'{cfgt.logs_dir}.{cfgt.dataset[:4]}.clsc{cfgt.cu03_classic}.{cfgt.aux}.{cfgt.adv_inp}.{cfgt.adv_inp_eps}'
-#     cfgs.append(cfgt)
-#
-# random.shuffle(cfgs)
+random.shuffle(cfgs)
 
 ## base
 base = edict(
@@ -181,14 +136,14 @@ base = edict(
     adv_fea_eps_xa=0.3,  # for xa
     adv_fea_xpn=0,  # or xnp only
     adv_fea_eps_xpn=0.3,  # for xn xp
-    steps=[40, 60], epochs=65,  # todo tuning epoch?
+    steps=[40, 60], epochs=65, ft_epochs=0,  # todo tuning epoch?
     log_at=[0, 15, 30, 45, 64, 65, 66],
     arch='resnet50', block_name='Bottleneck', block_name2='Bottleneck', convop='nn.Conv2d',
     weight_dis_cent=0, vis=False,
     weight_cent=0, lr_cent=0.5, xent_smooth=False,
     adam_betas=(.9, .999), adam_eps=1e-8,
     lr_mult=1., fusion=None, eval_conf='market1501',
-    cls_weight=0., random_ratio=1, tri_weight=1, num_deform=3, cls_pretrain=False,
+    cls_weight=0., random_ratio=1, tri_weight=1, num_deform=3,  cls_pretrain=False,
     bs_steps=[], batch_size_l=[], num_instances_l=[],
     scale=(1,), translation=(0,), theta=(0,),
     hard_examples=False, has_npy=False, loss_div_weight=0,
@@ -242,7 +197,7 @@ for ind, args in enumerate(cfgs):
 if __name__ == '__main__':
     import tabulate
     import pandas as pd
-
+    
     df = pd.DataFrame(cfgs)
     if len(cfgs) == 1:
         print(df)
@@ -250,6 +205,6 @@ if __name__ == '__main__':
     df1 = df_unique(df)
     df1.index = df1['logs_dir']
     del df1['logs_dir']
-
+    
     # print(tabulate.tabulate(df1.sort_values(by='logs_dir'), headers="keys", tablefmt="pipe"))
     print(tabulate.tabulate(df1, headers="keys", tablefmt="pipe"))

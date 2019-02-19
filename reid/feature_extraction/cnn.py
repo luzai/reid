@@ -10,7 +10,7 @@ def extract_cnn_feature(model, inputs, modules=None):
         if modules is None:
             outputs = model(*inputs)
             if isinstance(outputs, collections.Sequence):
-                outputs = outputs[0]
+                outputs = outputs[-1]
             outputs = outputs.data.cpu()
             return outputs
         # Register forward hook for each module

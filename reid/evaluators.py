@@ -294,7 +294,7 @@ def Recall_at_ks(sim_mat, data='cub', query_ids=None, gallery_ids=None):
     return num_valid / float(m)
 
 
-def NMI(X, ground_truth, n_cluster=3):
+def NMI(X, ground_truth, n_cluster=200):
     from sklearn.cluster import KMeans
     from sklearn.metrics.cluster import normalized_mutual_info_score
     # X = [to_numpy(x) for x in X]
@@ -310,6 +310,30 @@ def NMI(X, ground_truth, n_cluster=3):
     nmi = normalized_mutual_info_score(ground_truth, kmeans.labels_)
     return nmi
 
+def nmi2(gt_class,features):
+    """
+    normal mutual information,for features
+    :param im_class: np.ndarray,  shape [n,1],dtype=np.int32
+    :param features: image features to clustering ,numpy.ndarray [n,512]
+    :return:
+    """
+    from sklearn.cluster import KMeans
+    from sklearn.metrics.cluster import normalized_mutual_info_score
+    gt_class = gt_class - min(gt_class)
+    n_cluster = len(set(gt_class)) #gt_class from 0 to n_cluster
+    #convert
+    st_class = set(gt_class)
+    kv={}
+    for k in st_class:
+        kv[k]=len(kv)
+    gt_class = np.array([kv[k] for k in gt_class])
+
+    model = KMeans(n_clusters=n_cluster)
+    Y=model.fit(features) # this would take 40 minutes
+    cl_class = Y.labels_
+    score = normalized_mutual_info_score(gt_class,cl_class)
+    print("the normal_mutal_info_score",score)
+    return score
 
 def eval_market1501_faiss(indices, q_pids, g_pids, q_camids, g_camids, max_rank=11):
     num_q, num_g = len(q_pids), len(g_pids)
@@ -692,8 +716,10 @@ class Evaluator(object):
                     distmat, query_ids, gallery_ids, query_cams, gallery_cams,
                     max_rank=10)
 
-                # nmi = NMI(xx, query_ids, 20)
+                # nmi = NMI(xx, query_ids, n_cluster=200)
                 # print('mni is ', nmi)
+                nmi = nmi2(query_ids, xx)
+                print('mni is ', nmi)
                 lz.timer.since_last_check(f'NN {mAP}')
 
                 msgpack_dump([distmat, xx, yy, query, gallery, all_AP], work_path + 't.pk') # todo for plot

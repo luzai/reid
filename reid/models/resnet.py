@@ -662,8 +662,8 @@ class ResNetOri(nn.Module):
                 load_state_dict(self, model_zoo.load_url(model_urls['resnet{}'.format(depth)]))
 
     def forward(self, x, *args, **kwargs):
-        if len(x.shape) == 3:
-            x = x.view(1, 3, 256, 128)
+        # if len(x.shape) == 3:
+        #     x = x.view(1, 3, 256, 128)
         bs = x.size(0)
         x = self.conv1(x)
         x = self.bn1(x)
@@ -692,11 +692,13 @@ class ResNetOri(nn.Module):
         # x3.retain_grad()
         # x4_res.retain_grad()
         # features.retain_grad()
-        return (features, clss,
-                [x1, x2, x3, x4, ],
-                # x5_grad_reg.unsqueeze(dim=0)
-                )
+        
+        # return (features, clss,
+        #         [x1, x2, x3, x4, ],
+        #         # x5_grad_reg.unsqueeze(dim=0)
+        #         )
 
+        return  features # todo
 
 from reid.models.attention import MaskBranch
 
